@@ -20,16 +20,17 @@ class Amelia_CPT_Sync_CPT_Manager {
     private $option_name = 'amelia_cpt_sync_settings';
     
     /**
-     * Get settings from database
+     * Get settings from JSON file
      */
     private function get_settings() {
-        $settings_json = get_option($this->option_name);
+        $settings_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'settings.json';
         
-        if (empty($settings_json)) {
+        if (!file_exists($settings_file)) {
             return false;
         }
         
-        return json_decode($settings_json, true);
+        $json_content = file_get_contents($settings_file);
+        return json_decode($json_content, true);
     }
     
     /**
@@ -39,12 +40,10 @@ class Amelia_CPT_Sync_CPT_Manager {
      * @return int|WP_Error Post ID on success, WP_Error on failure
      */
     public function sync_service($service_data) {
-        $logger = new Amelia_CPT_Sync_Debug_Logger();
-        
         $settings = $this->get_settings();
         
         if (!$settings || empty($settings['cpt_slug'])) {
-            $logger->error('No CPT sync settings configured');
+            amelia_cpt_sync_debug_log('ERROR: No CPT sync settings configured');
             return new WP_Error('no_settings', 'No CPT sync settings configured');
         }
         
@@ -52,11 +51,11 @@ class Amelia_CPT_Sync_CPT_Manager {
         $amelia_service_id = isset($service_data['id']) ? intval($service_data['id']) : 0;
         
         if (!$amelia_service_id) {
-            $logger->error('No Amelia service ID provided');
+            amelia_cpt_sync_debug_log('ERROR: No Amelia service ID provided');
             return new WP_Error('no_service_id', 'No Amelia service ID provided');
         }
         
-        $logger->info('Starting service sync for Amelia Service ID: ' . $amelia_service_id);
+        amelia_cpt_sync_debug_log('Starting service sync for Amelia Service ID: ' . $amelia_service_id);
         
         // Check if post already exists
         $existing_post_id = $this->find_post_by_amelia_id($amelia_service_id, $settings['cpt_slug']);
@@ -73,18 +72,18 @@ class Amelia_CPT_Sync_CPT_Manager {
         if ($existing_post_id) {
             $post_data['ID'] = $existing_post_id;
             $post_id = wp_update_post($post_data);
-            $logger->info('Updating existing CPT post ID: ' . $existing_post_id);
+            amelia_cpt_sync_debug_log('Updating existing CPT post ID: ' . $existing_post_id);
         } else {
             $post_id = wp_insert_post($post_data);
-            $logger->info('Creating new CPT post');
+            amelia_cpt_sync_debug_log('Creating new CPT post');
         }
         
         if (is_wp_error($post_id)) {
-            $logger->error('Failed to save CPT post: ' . $post_id->get_error_message());
+            amelia_cpt_sync_debug_log('ERROR: Failed to save CPT post: ' . $post_id->get_error_message());
             return $post_id;
         }
         
-        $logger->info('Successfully saved CPT post ID: ' . $post_id);
+        amelia_cpt_sync_debug_log('Successfully saved CPT post ID: ' . $post_id);
         
         // Store Amelia service ID as meta for future lookups
         update_post_meta($post_id, '_amelia_service_id', $amelia_service_id);
@@ -112,34 +111,33 @@ class Amelia_CPT_Sync_CPT_Manager {
      * @return bool|WP_Error True on success, WP_Error on failure
      */
     public function delete_service($amelia_service_id) {
-        $logger = new Amelia_CPT_Sync_Debug_Logger();
-        $logger->info('Starting service deletion for Amelia Service ID: ' . $amelia_service_id);
+        amelia_cpt_sync_debug_log('Starting service deletion for Amelia Service ID: ' . $amelia_service_id);
         
         $settings = $this->get_settings();
         
         if (!$settings || empty($settings['cpt_slug'])) {
-            $logger->error('No CPT sync settings configured');
+            amelia_cpt_sync_debug_log('ERROR: No CPT sync settings configured');
             return new WP_Error('no_settings', 'No CPT sync settings configured');
         }
         
         $post_id = $this->find_post_by_amelia_id($amelia_service_id, $settings['cpt_slug']);
         
         if (!$post_id) {
-            $logger->warning('No post found for Amelia Service ID: ' . $amelia_service_id);
+            amelia_cpt_sync_debug_log('WARNING: No post found for Amelia Service ID: ' . $amelia_service_id);
             return new WP_Error('post_not_found', 'No post found for this Amelia service');
         }
         
-        $logger->info('Found CPT post ID to delete: ' . $post_id);
+        amelia_cpt_sync_debug_log('Found CPT post ID to delete: ' . $post_id);
         
         // Permanently delete the post (not trash)
         $result = wp_delete_post($post_id, true);
         
         if (!$result) {
-            $logger->error('Failed to delete CPT post ID: ' . $post_id);
+            amelia_cpt_sync_debug_log('ERROR: Failed to delete CPT post ID: ' . $post_id);
             return new WP_Error('delete_failed', 'Failed to delete post');
         }
         
-        $logger->info('Successfully deleted CPT post ID: ' . $post_id);
+        amelia_cpt_sync_debug_log('Successfully deleted CPT post ID: ' . $post_id);
         return true;
     }
     

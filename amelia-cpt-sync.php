@@ -30,8 +30,10 @@ define('AMELIA_CPT_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
  * The code that runs during plugin activation.
  */
 function activate_amelia_cpt_sync() {
-    // Set default options if they don't exist
-    if (false === get_option('amelia_cpt_sync_settings')) {
+    // Create default settings.json if it doesn't exist
+    $settings_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'settings.json';
+    
+    if (!file_exists($settings_file)) {
         $default_settings = array(
             'cpt_slug' => '',
             'taxonomy_slug' => '',
@@ -50,7 +52,8 @@ function activate_amelia_cpt_sync() {
                 'extras' => ''
             )
         );
-        add_option('amelia_cpt_sync_settings', json_encode($default_settings));
+        
+        file_put_contents($settings_file, json_encode($default_settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
     }
 
     // Flush rewrite rules
@@ -69,10 +72,9 @@ register_activation_hook(__FILE__, 'activate_amelia_cpt_sync');
 register_deactivation_hook(__FILE__, 'deactivate_amelia_cpt_sync');
 
 /**
- * Load plugin classes
+ * Load plugin classes and functions
  */
-require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-debug-logger.php';
-require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-settings-diagnostic.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/debug-functions.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-admin-settings.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-cpt-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-sync-handler.php';

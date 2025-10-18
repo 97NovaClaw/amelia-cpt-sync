@@ -302,40 +302,41 @@ if (!defined('WPINC')) {
         <!-- Debug Tab -->
         <div id="tab-debug" class="tab-content">
             <?php 
-            $logger = new Amelia_CPT_Sync_Debug_Logger();
-            $is_enabled = $logger->is_enabled();
-            $log_size = $logger->format_file_size($logger->get_log_size());
+            $is_enabled = amelia_cpt_sync_is_debug_enabled();
+            $log_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'debug.txt';
+            $settings_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'settings.json';
+            $log_exists = file_exists($log_file);
+            $log_size = $log_exists ? filesize($log_file) : 0;
             ?>
             
             <h3><?php _e('Debug Logging', 'amelia-cpt-sync'); ?></h3>
             
-            <!-- Diagnostic Information -->
-            <?php 
-            Amelia_CPT_Sync_Settings_Diagnostic::display_diagnostic();
-            Amelia_CPT_Sync_Settings_Diagnostic::show_debug_location();
-            ?>
-            
+            <!-- Settings File Info -->
             <div class="notice notice-info">
-                <p><strong><?php _e('Status:', 'amelia-cpt-sync'); ?></strong> 
+                <h4><?php _e('📁 Plugin Files', 'amelia-cpt-sync'); ?></h4>
+                <p><strong><?php _e('Settings File:', 'amelia-cpt-sync'); ?></strong> <code><?php echo esc_html($settings_file); ?></code></p>
+                <p><strong><?php _e('Debug Log File:', 'amelia-cpt-sync'); ?></strong> <code><?php echo esc_html($log_file); ?></code></p>
+                <p class="description"><?php _e('Settings are stored in settings.json as readable JSON. Debug logs go to debug.txt when enabled.', 'amelia-cpt-sync'); ?></p>
+            </div>
+            
+            <!-- Debug Status -->
+            <div class="notice <?php echo $is_enabled ? 'notice-success' : 'notice-warning'; ?>">
+                <p><strong><?php _e('Debug Status:', 'amelia-cpt-sync'); ?></strong> 
                     <?php if ($is_enabled): ?>
-                        <span style="color: #46b450;"><?php _e('Debug logging is ENABLED', 'amelia-cpt-sync'); ?></span>
+                        <span style="color: #46b450;"><?php _e('✅ ENABLED', 'amelia-cpt-sync'); ?></span>
                     <?php else: ?>
-                        <span style="color: #999;"><?php _e('Debug logging is DISABLED', 'amelia-cpt-sync'); ?></span>
+                        <span style="color: #999;"><?php _e('❌ DISABLED', 'amelia-cpt-sync'); ?></span>
                     <?php endif; ?>
                 </p>
-                <p><?php _e('Enable debug logging in the Setup tab to track all sync operations, errors, and system events.', 'amelia-cpt-sync'); ?></p>
+                <p><?php _e('Enable debug logging in the Setup tab to track all sync operations and errors.', 'amelia-cpt-sync'); ?></p>
             </div>
             
             <?php if ($is_enabled): ?>
-                <div style="margin: 20px 0;">
-                    <p><strong><?php _e('Log File Size:', 'amelia-cpt-sync'); ?></strong> <?php echo esc_html($log_size); ?></p>
-                    <p class="description"><?php _e('Log files are automatically rotated when they exceed 5MB. The last 5 backup files are kept.', 'amelia-cpt-sync'); ?></p>
-                </div>
-                
+                <!-- Log Viewer Controls -->
                 <div style="margin: 20px 0;">
                     <button type="button" id="view-log" class="button button-secondary">
                         <span class="dashicons dashicons-visibility" style="vertical-align: middle; margin-right: 5px;"></span>
-                        <?php _e('View Log (Last 200 Lines)', 'amelia-cpt-sync'); ?>
+                        <?php _e('View Debug Log', 'amelia-cpt-sync'); ?>
                     </button>
                     
                     <button type="button" id="clear-log" class="button button-secondary">
@@ -347,13 +348,10 @@ if (!defined('WPINC')) {
                     <span id="log-message"></span>
                 </div>
                 
+                <!-- Log Viewer -->
                 <div id="log-viewer" style="display: none; margin-top: 20px;">
                     <h4><?php _e('Debug Log Contents', 'amelia-cpt-sync'); ?></h4>
                     <pre id="log-contents" style="background: #1e1e1e; color: #d4d4d4; padding: 20px; border-radius: 4px; max-height: 600px; overflow: auto; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5;"></pre>
-                </div>
-            <?php else: ?>
-                <div class="notice notice-warning" style="margin-top: 20px;">
-                    <p><?php _e('Debug logging is currently disabled. Enable it in the Setup tab to start logging.', 'amelia-cpt-sync'); ?></p>
                 </div>
             <?php endif; ?>
         </div>

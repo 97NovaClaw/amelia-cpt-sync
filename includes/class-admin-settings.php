@@ -15,9 +15,16 @@ if (!defined('WPINC')) {
 class Amelia_CPT_Sync_Admin_Settings {
     
     /**
-     * The settings option name
+     * The settings file path
      */
-    private $option_name = 'amelia_cpt_sync_settings';
+    private $settings_file;
+    
+    /**
+     * Constructor
+     */
+    public function __construct() {
+        $this->settings_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'settings.json';
+    }
     
     /**
      * Initialize the class
@@ -115,14 +122,9 @@ class Amelia_CPT_Sync_Admin_Settings {
     }
     
     /**
-     * Get settings from database
+     * Get settings from JSON file
      */
     public function get_settings() {
-        // Clear any cached version to ensure fresh read
-        wp_cache_delete($this->option_name, 'options');
-        
-        $settings_json = get_option($this->option_name);
-        
         // Default settings structure
         $defaults = array(
             'cpt_slug' => '',
@@ -143,15 +145,48 @@ class Amelia_CPT_Sync_Admin_Settings {
             )
         );
         
-        if (empty($settings_json)) {
+        // Check if settings file exists
+        if (!file_exists($this->settings_file)) {
+            // Create default settings file
+            $this->save_settings($defaults);
             return $defaults;
         }
         
-        // Decode saved settings
-        $saved_settings = json_decode($settings_json, true);
+        // Read settings from JSON file
+        $json_content = file_get_contents($this->settings_file);
+        $saved_settings = json_decode($json_content, true);
         
-        // Merge with defaults to ensure all keys exist (for backward compatibility)
+        // If JSON is invalid, return defaults
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return $defaults;
+        }
+        
+        // Merge with defaults to ensure all keys exist
         return array_replace_recursive($defaults, $saved_settings);
+    }
+    
+    /**
+     * Save settings to JSON file
+     *
+     * @param array $settings The settings array to save
+     * @return bool True on success, false on failure
+     */
+    private function save_settings($settings) {
+        // Convert to pretty JSON for readability
+        $json_content = json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        
+        // Write to file
+        $result = file_put_contents($this->settings_file, $json_content);
+        
+        // Log the save attempt
+        if ($result !== false) {
+            amelia_cpt_sync_debug_log('Settings saved successfully to ' . $this->settings_file);
+            amelia_cpt_sync_debug_log('Settings content: ' . print_r($settings, true));
+            return true;
+        } else {
+            amelia_cpt_sync_debug_log('ERROR: Failed to save settings to ' . $this->settings_file);
+            return false;
+        }
     }
     
     /**
@@ -249,38 +284,28 @@ class Amelia_CPT_Sync_Admin_Settings {
             )
         );
         
-        // Save as JSON
-        $json_settings = json_encode($settings);
+        // Save to JSON file
+        amelia_cpt_sync_debug_log('AJAX Save Settings - Attempting to save settings');
+        amelia_cpt_sync_debug_log('Settings to save: ' . print_r($settings, true));
         
-        // Delete option first to ensure fresh save (avoids caching issues)
-        delete_option($this->option_name);
+        $save_result = $this->save_settings($settings);
         
-        // Add option with autoload enabled
-        $add_result = add_option($this->option_name, $json_settings, '', 'yes');
+        // Verify by reading back
+        $verified_settings = $this->get_settings();
+        $verify_success = ($verified_settings === $settings);
         
-        // Clear any object cache
-        wp_cache_delete($this->option_name, 'options');
-        
-        // Verify it was saved by reading back
-        $verify_saved = get_option($this->option_name, false);
-        $verify_success = ($verify_saved === $json_settings);
-        
-        // Log to plugin debug system
-        $logger = new Amelia_CPT_Sync_Debug_Logger();
-        $logger->info('Settings Save Attempt');
-        $logger->debug('Settings: ' . print_r($settings, true));
-        $logger->info('Add Result: ' . ($add_result ? 'SUCCESS' : 'FAILED'));
-        $logger->info('Verify Read Back: ' . ($verify_success ? 'MATCHES' : 'MISMATCH'));
         if (!$verify_success) {
-            $logger->error('Expected: ' . $json_settings);
-            $logger->error('Got: ' . $verify_saved);
+            amelia_cpt_sync_debug_log('WARNING: Settings verification mismatch!');
+            amelia_cpt_sync_debug_log('Expected: ' . print_r($settings, true));
+            amelia_cpt_sync_debug_log('Got: ' . print_r($verified_settings, true));
         }
         
         wp_send_json_success(array(
             'message' => 'Settings saved successfully!',
             'debug' => array(
-                'saved' => $add_result,
+                'saved' => $save_result,
                 'verified' => $verify_success,
+                'file_path' => $this->settings_file,
                 'settings' => $settings
             )
         ));
@@ -415,13 +440,23 @@ class Amelia_CPT_Sync_Admin_Settings {
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
         
-        $logger = new Amelia_CPT_Sync_Debug_Logger();
-        $contents = $logger->get_log_contents(200); // Last 200 lines
-        $size = $logger->format_file_size($logger->get_log_size());
+        $log_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'debug.txt';
+        
+        if (!file_exists($log_file)) {
+            wp_send_json_success(array(
+                'contents' => 'No log file exists yet. Enable debug logging and trigger a sync to start logging.',
+                'size' => '0 bytes'
+            ));
+            return;
+        }
+        
+        $contents = file_get_contents($log_file);
+        $size = filesize($log_file);
+        $formatted_size = $this->format_file_size($size);
         
         wp_send_json_success(array(
             'contents' => $contents,
-            'size' => $size
+            'size' => $formatted_size
         ));
     }
     
@@ -435,13 +470,28 @@ class Amelia_CPT_Sync_Admin_Settings {
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
         
-        $logger = new Amelia_CPT_Sync_Debug_Logger();
-        $result = $logger->clear_log();
+        $log_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'debug.txt';
         
-        if ($result) {
+        if (file_exists($log_file)) {
+            file_put_contents($log_file, '');
             wp_send_json_success(array('message' => 'Debug log cleared successfully!'));
         } else {
             wp_send_json_error(array('message' => 'No log file to clear'));
+        }
+    }
+    
+    /**
+     * Format file size for display
+     */
+    private function format_file_size($bytes) {
+        if ($bytes >= 1073741824) {
+            return number_format($bytes / 1073741824, 2) . ' GB';
+        } elseif ($bytes >= 1048576) {
+            return number_format($bytes / 1048576, 2) . ' MB';
+        } elseif ($bytes >= 1024) {
+            return number_format($bytes / 1024, 2) . ' KB';
+        } else {
+            return $bytes . ' bytes';
         }
     }
     
