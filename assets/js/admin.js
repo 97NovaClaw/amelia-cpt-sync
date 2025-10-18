@@ -9,15 +9,18 @@
     
     $(document).ready(function() {
         // Debug: Show current field values on page load
-        console.log('[Amelia CPT Sync] Page loaded - Current field values:');
+        console.log('[Amelia CPT Sync] ========== PAGE LOADED ==========');
         console.log('CPT Slug:', $('#cpt_slug').val());
         console.log('Taxonomy Slug:', $('#taxonomy_slug').val());
-        console.log('Debug Enabled:', $('#debug_enabled').is(':checked'));
+        console.log('Debug Enabled Checkbox - Checked?:', $('#debug_enabled').is(':checked'));
+        console.log('Debug Enabled Checkbox - Value:', $('#debug_enabled').val());
+        console.log('Debug Enabled Checkbox - Exists?:', $('#debug_enabled').length > 0);
         console.log('Service ID Field:', $('#service_id_field').val());
         console.log('Category ID Field:', $('#category_id_field').val());
         console.log('Primary Photo Field:', $('#primary_photo_field').val());
         console.log('Price Field:', $('#price_field').val());
         console.log('Duration Field:', $('#duration_field').val());
+        console.log('==========================================');
         
         // Tab switching functionality
         $('.nav-tab').on('click', function(e) {
@@ -126,12 +129,15 @@
             $message.text('').removeClass('success error');
             
             // Gather form data
+            var debugEnabled = $('#debug_enabled').is(':checked');
+            console.log('[Amelia CPT Sync] Debug checkbox state:', debugEnabled);
+            
             var formData = {
                 action: 'amelia_cpt_sync_save_settings',
                 nonce: ameliaCptSync.nonce,
                 cpt_slug: cptSlug,
                 taxonomy_slug: $('#taxonomy_slug').val(),
-                debug_enabled: $('#debug_enabled').is(':checked') ? 'true' : 'false',
+                debug_enabled: debugEnabled ? 'true' : 'false',
                 taxonomy_category_id_field: $('#taxonomy_category_id_field').val().trim(),
                 service_id_field: $('#service_id_field').val().trim(),
                 category_id_field: $('#category_id_field').val().trim(),
