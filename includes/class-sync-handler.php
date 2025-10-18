@@ -243,11 +243,10 @@ class Amelia_CPT_Sync_Handler {
      * @param mixed $data Additional data
      */
     private function log_debug($message, $data = null) {
-        if (defined('WP_DEBUG') && WP_DEBUG === true) {
-            error_log('[Amelia CPT Sync] ' . $message);
-            if ($data !== null) {
-                error_log('[Amelia CPT Sync] Data: ' . print_r($data, true));
-            }
+        $logger = new Amelia_CPT_Sync_Debug_Logger();
+        $logger->debug($message);
+        if ($data !== null) {
+            $logger->debug('Data: ' . print_r($data, true));
         }
     }
     
@@ -258,9 +257,10 @@ class Amelia_CPT_Sync_Handler {
      * @param mixed $data Additional data
      */
     private function log_error($message, $data = null) {
-        error_log('[Amelia CPT Sync Error] ' . $message);
+        $logger = new Amelia_CPT_Sync_Debug_Logger();
+        $logger->error($message);
         if ($data !== null) {
-            error_log('[Amelia CPT Sync Error] Data: ' . print_r($data, true));
+            $logger->error('Data: ' . print_r($data, true));
         }
     }
     

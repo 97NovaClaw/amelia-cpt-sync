@@ -35,6 +35,7 @@ function activate_amelia_cpt_sync() {
         $default_settings = array(
             'cpt_slug' => '',
             'taxonomy_slug' => '',
+            'debug_enabled' => false,
             'taxonomy_meta' => array(
                 'category_id' => ''
             ),
@@ -51,7 +52,7 @@ function activate_amelia_cpt_sync() {
         );
         add_option('amelia_cpt_sync_settings', json_encode($default_settings));
     }
-    
+
     // Flush rewrite rules
     flush_rewrite_rules();
 }
@@ -70,6 +71,7 @@ register_deactivation_hook(__FILE__, 'deactivate_amelia_cpt_sync');
 /**
  * Load plugin classes
  */
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-debug-logger.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-admin-settings.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-cpt-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-sync-handler.php';

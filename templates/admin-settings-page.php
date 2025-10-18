@@ -23,6 +23,7 @@ if (!defined('WPINC')) {
         <a href="#setup" class="nav-tab nav-tab-active" data-tab="setup"><?php _e('Setup', 'amelia-cpt-sync'); ?></a>
         <a href="#field-mapping" class="nav-tab" data-tab="field-mapping"><?php _e('Field Mapping', 'amelia-cpt-sync'); ?></a>
         <a href="#full-sync" class="nav-tab" data-tab="full-sync"><?php _e('Full Sync', 'amelia-cpt-sync'); ?></a>
+        <a href="#debug" class="nav-tab" data-tab="debug"><?php _e('Debug', 'amelia-cpt-sync'); ?></a>
     </h2>
     
     <!-- Tab Content -->
@@ -66,6 +67,19 @@ if (!defined('WPINC')) {
                                 <?php endif; ?>
                             </select>
                             <p class="description"><?php _e('Select the taxonomy where Amelia service categories will be synced. This field will populate after you select a post type.', 'amelia-cpt-sync'); ?></p>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <th scope="row">
+                            <label for="debug_enabled"><?php _e('Debug Logging', 'amelia-cpt-sync'); ?></label>
+                        </th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="debug_enabled" id="debug_enabled" value="1" <?php checked($settings['debug_enabled'], true); ?>>
+                                <?php _e('Enable debug logging', 'amelia-cpt-sync'); ?>
+                            </label>
+                            <p class="description"><?php _e('When enabled, all sync operations and errors will be logged to a plugin-specific debug file. View logs in the Debug tab.', 'amelia-cpt-sync'); ?></p>
                         </td>
                     </tr>
                 </tbody>
@@ -285,6 +299,59 @@ if (!defined('WPINC')) {
             </div>
         </div>
         
+        <!-- Debug Tab -->
+        <div id="tab-debug" class="tab-content">
+            <?php 
+            $logger = new Amelia_CPT_Sync_Debug_Logger();
+            $is_enabled = $logger->is_enabled();
+            $log_size = $logger->format_file_size($logger->get_log_size());
+            ?>
+            
+            <h3><?php _e('Debug Logging', 'amelia-cpt-sync'); ?></h3>
+            
+            <div class="notice notice-info">
+                <p><strong><?php _e('Status:', 'amelia-cpt-sync'); ?></strong> 
+                    <?php if ($is_enabled): ?>
+                        <span style="color: #46b450;"><?php _e('Debug logging is ENABLED', 'amelia-cpt-sync'); ?></span>
+                    <?php else: ?>
+                        <span style="color: #999;"><?php _e('Debug logging is DISABLED', 'amelia-cpt-sync'); ?></span>
+                    <?php endif; ?>
+                </p>
+                <p><?php _e('Enable debug logging in the Setup tab to track all sync operations, errors, and system events.', 'amelia-cpt-sync'); ?></p>
+            </div>
+            
+            <?php if ($is_enabled): ?>
+                <div style="margin: 20px 0;">
+                    <p><strong><?php _e('Log File Size:', 'amelia-cpt-sync'); ?></strong> <?php echo esc_html($log_size); ?></p>
+                    <p class="description"><?php _e('Log files are automatically rotated when they exceed 5MB. The last 5 backup files are kept.', 'amelia-cpt-sync'); ?></p>
+                </div>
+                
+                <div style="margin: 20px 0;">
+                    <button type="button" id="view-log" class="button button-secondary">
+                        <span class="dashicons dashicons-visibility" style="vertical-align: middle; margin-right: 5px;"></span>
+                        <?php _e('View Log (Last 200 Lines)', 'amelia-cpt-sync'); ?>
+                    </button>
+                    
+                    <button type="button" id="clear-log" class="button button-secondary">
+                        <span class="dashicons dashicons-trash" style="vertical-align: middle; margin-right: 5px;"></span>
+                        <?php _e('Clear Log', 'amelia-cpt-sync'); ?>
+                    </button>
+                    
+                    <span class="spinner" id="log-spinner" style="float: none; margin: 0 15px;"></span>
+                    <span id="log-message"></span>
+                </div>
+                
+                <div id="log-viewer" style="display: none; margin-top: 20px;">
+                    <h4><?php _e('Debug Log Contents', 'amelia-cpt-sync'); ?></h4>
+                    <pre id="log-contents" style="background: #1e1e1e; color: #d4d4d4; padding: 20px; border-radius: 4px; max-height: 600px; overflow: auto; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5;"></pre>
+                </div>
+            <?php else: ?>
+                <div class="notice notice-warning" style="margin-top: 20px;">
+                    <p><?php _e('Debug logging is currently disabled. Enable it in the Setup tab to start logging.', 'amelia-cpt-sync'); ?></p>
+                </div>
+            <?php endif; ?>
+        </div>
+        
         <p class="submit">
             <button type="button" id="save-settings" class="button button-primary">
                 <?php _e('Save Settings', 'amelia-cpt-sync'); ?>
@@ -321,12 +388,14 @@ if (!defined('WPINC')) {
     vertical-align: middle;
 }
 
-#save-message.success {
+#save-message.success,
+#log-message.success {
     color: #46b450;
     font-weight: 600;
 }
 
-#save-message.error {
+#save-message.error,
+#log-message.error {
     color: #dc3232;
     font-weight: 600;
 }

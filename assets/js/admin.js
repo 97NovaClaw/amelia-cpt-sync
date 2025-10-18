@@ -120,6 +120,7 @@
                 nonce: ameliaCptSync.nonce,
                 cpt_slug: cptSlug,
                 taxonomy_slug: $('#taxonomy_slug').val(),
+                debug_enabled: $('#debug_enabled').is(':checked') ? 'true' : 'false',
                 taxonomy_category_id_field: $('#taxonomy_category_id_field').val().trim(),
                 service_id_field: $('#service_id_field').val().trim(),
                 category_id_field: $('#category_id_field').val().trim(),
@@ -186,6 +187,167 @@
                 e.preventDefault();
                 $('#save-settings').trigger('click');
             }
+        });
+        
+        // Full Sync button handler
+        $('#run-full-sync').on('click', function(e) {
+            e.preventDefault();
+            
+            if (!confirm('Are you sure you want to sync all Amelia services? This may take some time.')) {
+                return;
+            }
+            
+            var $button = $(this);
+            var $spinner = $('#sync-spinner');
+            var $results = $('#sync-results');
+            var $resultsContent = $('#sync-results-content');
+            
+            // Show loading state
+            $button.prop('disabled', true);
+            $spinner.addClass('is-active');
+            $results.hide();
+            $resultsContent.html('');
+            
+            // Run full sync via AJAX
+            $.ajax({
+                url: ameliaCptSync.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'amelia_cpt_sync_full_sync',
+                    nonce: ameliaCptSync.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        var html = '<div class="notice notice-success" style="padding: 10px; margin-bottom: 10px;">';
+                        html += '<p><strong>Sync completed successfully!</strong></p>';
+                        html += '<p>Services synced: ' + response.data.synced + '</p>';
+                        
+                        if (response.data.errors && response.data.errors.length > 0) {
+                            html += '<p><strong>Errors:</strong></p><ul>';
+                            $.each(response.data.errors, function(index, error) {
+                                html += '<li>' + error + '</li>';
+                            });
+                            html += '</ul>';
+                        }
+                        
+                        html += '</div>';
+                        $resultsContent.html(html);
+                    } else {
+                        var errorMsg = response.data && response.data.message ? response.data.message : 'Sync failed';
+                        $resultsContent.html('<div class="notice notice-error" style="padding: 10px;"><p>' + errorMsg + '</p></div>');
+                    }
+                    
+                    $results.show();
+                },
+                error: function(xhr, status, error) {
+                    $resultsContent.html('<div class="notice notice-error" style="padding: 10px;"><p>Error: ' + error + '</p></div>');
+                    $results.show();
+                    console.error('AJAX Error:', status, error);
+                },
+                complete: function() {
+                    $button.prop('disabled', false);
+                    $spinner.removeClass('is-active');
+                }
+            });
+        });
+        
+        // View Log button handler
+        $('#view-log').on('click', function(e) {
+            e.preventDefault();
+            
+            var $button = $(this);
+            var $spinner = $('#log-spinner');
+            var $message = $('#log-message');
+            var $viewer = $('#log-viewer');
+            var $contents = $('#log-contents');
+            
+            // Show loading state
+            $button.prop('disabled', true);
+            $spinner.addClass('is-active');
+            $message.text('').removeClass('success error');
+            
+            // Fetch log via AJAX
+            $.ajax({
+                url: ameliaCptSync.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'amelia_cpt_sync_view_log',
+                    nonce: ameliaCptSync.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $contents.text(response.data.contents);
+                        $viewer.show();
+                        $message.text('Log size: ' + response.data.size).addClass('success');
+                    } else {
+                        var errorMsg = response.data && response.data.message ? response.data.message : 'Failed to load log';
+                        $message.text(errorMsg).addClass('error');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    $message.text('Error loading log: ' + error).addClass('error');
+                    console.error('AJAX Error:', status, error);
+                },
+                complete: function() {
+                    $button.prop('disabled', false);
+                    $spinner.removeClass('is-active');
+                }
+            });
+        });
+        
+        // Clear Log button handler
+        $('#clear-log').on('click', function(e) {
+            e.preventDefault();
+            
+            if (!confirm('Are you sure you want to clear the debug log? This cannot be undone.')) {
+                return;
+            }
+            
+            var $button = $(this);
+            var $spinner = $('#log-spinner');
+            var $message = $('#log-message');
+            var $viewer = $('#log-viewer');
+            var $contents = $('#log-contents');
+            
+            // Show loading state
+            $button.prop('disabled', true);
+            $spinner.addClass('is-active');
+            $message.text('').removeClass('success error');
+            
+            // Clear log via AJAX
+            $.ajax({
+                url: ameliaCptSync.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'amelia_cpt_sync_clear_log',
+                    nonce: ameliaCptSync.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $contents.text('');
+                        $viewer.hide();
+                        $message.text(response.data.message).addClass('success');
+                        
+                        // Clear message after 3 seconds
+                        setTimeout(function() {
+                            $message.fadeOut(400, function() {
+                                $(this).text('').removeClass('success error').css('display', '');
+                            });
+                        }, 3000);
+                    } else {
+                        var errorMsg = response.data && response.data.message ? response.data.message : 'Failed to clear log';
+                        $message.text(errorMsg).addClass('error');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    $message.text('Error clearing log: ' + error).addClass('error');
+                    console.error('AJAX Error:', status, error);
+                },
+                complete: function() {
+                    $button.prop('disabled', false);
+                    $spinner.removeClass('is-active');
+                }
+            });
         });
         
         // Add tooltips for better UX (optional enhancement)

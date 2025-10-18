@@ -29,6 +29,8 @@ class Amelia_CPT_Sync_Admin_Settings {
         add_action('wp_ajax_amelia_cpt_sync_save_settings', array($this, 'ajax_save_settings'));
         add_action('wp_ajax_amelia_cpt_sync_get_taxonomies', array($this, 'ajax_get_taxonomies'));
         add_action('wp_ajax_amelia_cpt_sync_full_sync', array($this, 'ajax_full_sync'));
+        add_action('wp_ajax_amelia_cpt_sync_view_log', array($this, 'ajax_view_log'));
+        add_action('wp_ajax_amelia_cpt_sync_clear_log', array($this, 'ajax_clear_log'));
     }
     
     /**
@@ -125,6 +127,7 @@ class Amelia_CPT_Sync_Admin_Settings {
         $defaults = array(
             'cpt_slug' => '',
             'taxonomy_slug' => '',
+            'debug_enabled' => false,
             'taxonomy_meta' => array(
                 'category_id' => ''
             ),
@@ -215,6 +218,7 @@ class Amelia_CPT_Sync_Admin_Settings {
         // Get POST data with isset checks
         $cpt_slug = isset($_POST['cpt_slug']) ? sanitize_text_field($_POST['cpt_slug']) : '';
         $taxonomy_slug = isset($_POST['taxonomy_slug']) ? sanitize_text_field($_POST['taxonomy_slug']) : '';
+        $debug_enabled = isset($_POST['debug_enabled']) && $_POST['debug_enabled'] === 'true';
         $taxonomy_category_id_field = isset($_POST['taxonomy_category_id_field']) ? sanitize_text_field($_POST['taxonomy_category_id_field']) : '';
         $service_id_field = isset($_POST['service_id_field']) ? sanitize_text_field($_POST['service_id_field']) : '';
         $category_id_field = isset($_POST['category_id_field']) ? sanitize_text_field($_POST['category_id_field']) : '';
@@ -229,6 +233,7 @@ class Amelia_CPT_Sync_Admin_Settings {
         $settings = array(
             'cpt_slug' => $cpt_slug,
             'taxonomy_slug' => $taxonomy_slug,
+            'debug_enabled' => $debug_enabled,
             'taxonomy_meta' => array(
                 'category_id' => $taxonomy_category_id_field
             ),
@@ -260,16 +265,15 @@ class Amelia_CPT_Sync_Admin_Settings {
         $verify_saved = get_option($this->option_name, false);
         $verify_success = ($verify_saved === $json_settings);
         
-        // Debug log if WP_DEBUG is enabled
-        if (defined('WP_DEBUG') && WP_DEBUG === true) {
-            error_log('[Amelia CPT Sync] Settings Save Attempt');
-            error_log('[Amelia CPT Sync] Settings: ' . print_r($settings, true));
-            error_log('[Amelia CPT Sync] Add Result: ' . ($add_result ? 'SUCCESS' : 'FAILED'));
-            error_log('[Amelia CPT Sync] Verify Read Back: ' . ($verify_success ? 'MATCHES' : 'MISMATCH'));
-            if (!$verify_success) {
-                error_log('[Amelia CPT Sync] Expected: ' . $json_settings);
-                error_log('[Amelia CPT Sync] Got: ' . $verify_saved);
-            }
+        // Log to plugin debug system
+        $logger = new Amelia_CPT_Sync_Debug_Logger();
+        $logger->info('Settings Save Attempt');
+        $logger->debug('Settings: ' . print_r($settings, true));
+        $logger->info('Add Result: ' . ($add_result ? 'SUCCESS' : 'FAILED'));
+        $logger->info('Verify Read Back: ' . ($verify_success ? 'MATCHES' : 'MISMATCH'));
+        if (!$verify_success) {
+            $logger->error('Expected: ' . $json_settings);
+            $logger->error('Got: ' . $verify_saved);
         }
         
         wp_send_json_success(array(
@@ -399,6 +403,46 @@ class Amelia_CPT_Sync_Admin_Settings {
         }
         
         return $service;
+    }
+    
+    /**
+     * AJAX handler to view debug log
+     */
+    public function ajax_view_log() {
+        check_ajax_referer('amelia_cpt_sync_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $logger = new Amelia_CPT_Sync_Debug_Logger();
+        $contents = $logger->get_log_contents(200); // Last 200 lines
+        $size = $logger->format_file_size($logger->get_log_size());
+        
+        wp_send_json_success(array(
+            'contents' => $contents,
+            'size' => $size
+        ));
+    }
+    
+    /**
+     * AJAX handler to clear debug log
+     */
+    public function ajax_clear_log() {
+        check_ajax_referer('amelia_cpt_sync_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $logger = new Amelia_CPT_Sync_Debug_Logger();
+        $result = $logger->clear_log();
+        
+        if ($result) {
+            wp_send_json_success(array('message' => 'Debug log cleared successfully!'));
+        } else {
+            wp_send_json_error(array('message' => 'No log file to clear'));
+        }
     }
     
     /**

@@ -59,4 +59,6 @@ Desktop.ini
 
 # Plugin specific
 wp-content/debug.log
+debug/
+debug/*.log
 
