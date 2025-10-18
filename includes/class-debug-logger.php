@@ -83,9 +83,6 @@ class Amelia_CPT_Sync_Debug_Logger {
             return;
         }
         
-        // Create debug directory if needed
-        $this->create_debug_directory();
-        
         // Rotate log if too large
         $this->rotate_log_if_needed();
         
