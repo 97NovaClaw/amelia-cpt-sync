@@ -309,6 +309,12 @@ if (!defined('WPINC')) {
             
             <h3><?php _e('Debug Logging', 'amelia-cpt-sync'); ?></h3>
             
+            <!-- Diagnostic Information -->
+            <?php 
+            Amelia_CPT_Sync_Settings_Diagnostic::display_diagnostic();
+            Amelia_CPT_Sync_Settings_Diagnostic::show_debug_location();
+            ?>
+            
             <div class="notice notice-info">
                 <p><strong><?php _e('Status:', 'amelia-cpt-sync'); ?></strong> 
                     <?php if ($is_enabled): ?>

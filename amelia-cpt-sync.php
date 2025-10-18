@@ -72,6 +72,7 @@ register_deactivation_hook(__FILE__, 'deactivate_amelia_cpt_sync');
  * Load plugin classes
  */
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-debug-logger.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-settings-diagnostic.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-admin-settings.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-cpt-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-sync-handler.php';

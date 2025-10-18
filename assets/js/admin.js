@@ -8,6 +8,17 @@
     'use strict';
     
     $(document).ready(function() {
+        // Debug: Show current field values on page load
+        console.log('[Amelia CPT Sync] Page loaded - Current field values:');
+        console.log('CPT Slug:', $('#cpt_slug').val());
+        console.log('Taxonomy Slug:', $('#taxonomy_slug').val());
+        console.log('Debug Enabled:', $('#debug_enabled').is(':checked'));
+        console.log('Service ID Field:', $('#service_id_field').val());
+        console.log('Category ID Field:', $('#category_id_field').val());
+        console.log('Primary Photo Field:', $('#primary_photo_field').val());
+        console.log('Price Field:', $('#price_field').val());
+        console.log('Duration Field:', $('#duration_field').val());
+        
         // Tab switching functionality
         $('.nav-tab').on('click', function(e) {
             e.preventDefault();
