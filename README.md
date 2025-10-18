@@ -11,10 +11,12 @@ This plugin bridges the gap between AmeliaWP and JetEngine by automatically sync
 - **Real-Time Synchronization**: Uses Amelia's built-in action hooks for immediate updates
 - **One-Way Sync**: Amelia → JetEngine CPT (changes in CPT won't affect Amelia)
 - **User-Friendly Configuration**: No coding required - configure everything through the admin interface
-- **Smart Image Handling**: Automatically imports images to WordPress Media Library
+- **Smart Image Handling**: Automatically imports images to WordPress Media Library with custom field support
 - **Flexible Duration Formats**: Choose from seconds, minutes, HH:MM, or readable text
 - **Category Management**: Automatically creates and assigns taxonomy terms
 - **Extras Support**: Full support for service extras/add-ons with JetEngine Repeater fields
+- **Full Sync Feature**: Manually sync all existing Amelia services with comparison and progress tracking
+- **Custom Field Support**: Map primary photo to any custom field instead of featured image
 
 ## Requirements
 
@@ -45,11 +47,15 @@ Map Amelia service data to your JetEngine CPT fields:
 #### Automatic Mappings (Locked)
 - **Service Name** → Post Title
 - **Description** → Post Content  
-- **Primary Photo** → Featured Image
 - **Category** → Selected Taxonomy
 
 #### Custom Field Mappings
 Enter the meta field slugs from your JetEngine CPT setup:
+
+- **Primary Photo**: Enter your image field slug (e.g., `service_image`)
+  - Recommended JetEngine Type: **Media**
+  - Stores WordPress attachment ID (not URL)
+  - Image is automatically imported to Media Library
 
 - **Price**: Enter your price field slug (e.g., `service_price`)
   - Recommended JetEngine Type: **Number**
@@ -65,6 +71,23 @@ Enter the meta field slugs from your JetEngine CPT setup:
 - **Extras**: Enter your extras field slug (e.g., `service_extras`)
   - Recommended JetEngine Type: **Repeater**
   - Stores the complete extras array from Amelia
+
+### Full Sync Tab
+
+Use the Full Sync feature to manually sync all existing Amelia services:
+
+1. Navigate to the **Full Sync** tab
+2. Click **Run Full Sync Now**
+3. The plugin will:
+   - Fetch all services from Amelia database
+   - Compare with existing CPT posts
+   - Create new posts for services that don't exist
+   - Update existing posts with latest data
+   - Sync all meta fields, images, and categories
+4. View detailed results showing:
+   - Total services processed
+   - Number created vs updated
+   - Any errors encountered
 
 ## How It Works
 

@@ -2,7 +2,9 @@
 
 ## Project Overview
 
-A production-ready WordPress plugin that provides **real-time, one-way synchronization** from the AmeliaWP booking plugin to JetEngine Custom Post Types. The plugin is fully event-driven and requires zero manual intervention once configured.
+A production-ready WordPress plugin that provides **real-time, one-way synchronization** from the AmeliaWP booking plugin to JetEngine Custom Post Types. The plugin is fully event-driven and requires zero manual intervention once configured. Now includes **Full Sync** feature for manual bulk synchronization of all existing Amelia services.
+
+**Current Version**: 1.1.0
 
 ## ✅ Completed Features
 
@@ -26,10 +28,10 @@ A production-ready WordPress plugin that provides **real-time, one-way synchroni
 #### Automatic (Locked) Mappings
 - ✅ Service Name → Post Title
 - ✅ Description → Post Content
-- ✅ Primary Photo → Featured Image
 - ✅ Category → Selected Taxonomy
 
 #### Configurable Mappings
+- ✅ **Primary Photo**: Maps to custom Media field (stores attachment ID)
 - ✅ **Price**: Syncs as float to custom meta field
 - ✅ **Duration**: Four format options (seconds, minutes, HH:MM, readable text)
 - ✅ **Gallery**: Imports images to Media Library, stores attachment IDs
@@ -38,9 +40,18 @@ A production-ready WordPress plugin that provides **real-time, one-way synchroni
 ### Image Handling
 - ✅ Automatic image sideloading to WordPress Media Library
 - ✅ Proper attachment management (not just URL strings)
-- ✅ Featured image support
+- ✅ Custom field support for primary photo
 - ✅ Gallery image array support
 - ✅ Duplicate image detection
+
+### Full Sync Feature (NEW in v1.1.0)
+- ✅ Manual bulk sync of all existing Amelia services
+- ✅ Fetches all services directly from Amelia database
+- ✅ Compares with existing CPT posts
+- ✅ Shows detailed results (total, created, updated, errors)
+- ✅ Progress indicators and visual feedback
+- ✅ Comprehensive error reporting
+- ✅ One-click operation from admin interface
 
 ### Category/Taxonomy Management
 - ✅ Automatic term creation if category doesn't exist
@@ -214,7 +225,6 @@ Unlike simple URL storage, the plugin:
 
 ## 🔮 Future Enhancement Ideas
 
-- Manual full sync button (sync all existing services)
 - Sync history/log viewer
 - Field mapping presets
 - Custom field type auto-detection
@@ -222,6 +232,7 @@ Unlike simple URL storage, the plugin:
 - WP-CLI commands
 - Background processing for large galleries
 - Export/import settings
+- Selective field sync (choose which fields to sync)
 
 ## ✅ Testing Checklist
 

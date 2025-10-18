@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: Amelia to CPT Sync
- * Plugin URI: https://example.com/amelia-cpt-sync
+ * Plugin URI: https://github.com/97NovaClaw/amelia-cpt-sync
  * Description: Real-time, one-way synchronization from AmeliaWP booking plugin to JetEngine Custom Post Types
- * Version: 1.0.0
- * Author: Your Name
- * Author URI: https://example.com
+ * Version: 1.1.0
+ * Author: 97NovaClaw
+ * Author URI: https://github.com/97NovaClaw
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: amelia-cpt-sync
@@ -22,7 +22,7 @@ if (!defined('WPINC')) {
 /**
  * Current plugin version.
  */
-define('AMELIA_CPT_SYNC_VERSION', '1.0.0');
+define('AMELIA_CPT_SYNC_VERSION', '1.1.0');
 define('AMELIA_CPT_SYNC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AMELIA_CPT_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
 

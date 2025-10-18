@@ -62,10 +62,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FAQ section
 - Best practices guide
 
+## [1.1.0] - 2024-10-18
+
+### Added
+- **Full Sync Feature**: New "Full Sync" tab in admin settings
+  - Manual sync button to process all existing Amelia services at once
+  - Detailed sync results with statistics (total, created, updated, errors)
+  - Comparison of Amelia services with existing CPT posts
+  - Progress feedback with visual indicators
+  - Error reporting for failed sync operations
+- **Custom Field Primary Photo**: Changed from featured image to custom field
+  - Primary photo now maps to any JetEngine media field
+  - Added "Primary Photo" field mapping input in Field Mapping tab
+  - Stores attachment ID in custom field instead of using featured image
+  - Maintains image sideloading to WordPress Media Library
+  - Better compatibility with JetEngine's Media field type
+
+### Changed
+- Updated admin settings page with third tab for Full Sync
+- Modified CPT Manager to use `set_primary_photo()` instead of `set_featured_image()`
+- Enhanced AJAX handler to include full sync endpoint
+- Updated default settings structure to include `primary_photo` field
+- Improved field mapping table UI for better clarity
+
+### Technical
+- Added `ajax_full_sync()` method in Admin Settings class
+- Added `prepare_service_data()` helper method for full sync
+- Updated JavaScript to handle full sync button and results display
+- Added CSS styles for sync results display box
+- Modified save settings to include primary photo field
+- Enhanced error handling in full sync process
+
 ## [Unreleased]
 
 ### Planned Features
-- Manual full sync functionality (sync all existing Amelia services at once)
 - Sync history log to track all synchronization operations
 - Custom field type auto-detection from JetEngine
 - Support for additional Amelia data fields (capacity, min/max bookings, etc.)
