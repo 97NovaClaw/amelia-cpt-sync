@@ -188,11 +188,37 @@ class Amelia_CPT_Sync_Admin_Settings {
      * @return bool True on success, false on failure
      */
     private function save_settings($settings) {
+        amelia_cpt_sync_debug_log('>>> Inside save_settings()');
+        amelia_cpt_sync_debug_log('Received settings param: ' . print_r($settings, true));
+        amelia_cpt_sync_debug_log('Settings [debug_enabled] type: ' . gettype($settings['debug_enabled']));
+        amelia_cpt_sync_debug_log('Settings [debug_enabled] value: ' . var_export($settings['debug_enabled'], true));
+        
         // Convert to pretty JSON for readability
         $json_content = json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        amelia_cpt_sync_debug_log('JSON to write:');
+        amelia_cpt_sync_debug_log($json_content);
+        
+        // Check JSON encoding errors
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            amelia_cpt_sync_debug_log('ERROR: JSON encoding failed: ' . json_last_error_msg());
+            return false;
+        }
+        
+        // Check file permissions before writing
+        $file_exists = file_exists($this->settings_file);
+        $can_write = $file_exists ? is_writable($this->settings_file) : is_writable(dirname($this->settings_file));
+        
+        amelia_cpt_sync_debug_log('File exists: ' . ($file_exists ? 'YES' : 'NO'));
+        amelia_cpt_sync_debug_log('Can write: ' . ($can_write ? 'YES' : 'NO'));
+        
+        if (!$can_write) {
+            amelia_cpt_sync_debug_log('ERROR: File/directory not writable!');
+            return false;
+        }
         
         // Write to file with LOCK_EX to prevent concurrent writes
         $result = file_put_contents($this->settings_file, $json_content, LOCK_EX);
+        amelia_cpt_sync_debug_log('file_put_contents() result: ' . ($result !== false ? $result . ' bytes written' : 'FAILED'));
         
         if ($result !== false) {
             // Clear file status cache after write
@@ -208,11 +234,14 @@ class Amelia_CPT_Sync_Admin_Settings {
                 sync();
             }
             
-            amelia_cpt_sync_debug_log('Settings saved successfully to ' . $this->settings_file);
-            amelia_cpt_sync_debug_log('Settings content: ' . print_r($settings, true));
+            amelia_cpt_sync_debug_log('SUCCESS: Settings saved to ' . $this->settings_file);
             return true;
         } else {
-            amelia_cpt_sync_debug_log('ERROR: Failed to save settings to ' . $this->settings_file);
+            amelia_cpt_sync_debug_log('ERROR: Failed to write to ' . $this->settings_file);
+            $error = error_get_last();
+            if ($error) {
+                amelia_cpt_sync_debug_log('Last PHP error: ' . print_r($error, true));
+            }
             return false;
         }
     }
@@ -278,10 +307,25 @@ class Amelia_CPT_Sync_Admin_Settings {
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
         
+        // Log raw POST data
+        amelia_cpt_sync_debug_log('========== AJAX SAVE SETTINGS REQUEST ==========');
+        amelia_cpt_sync_debug_log('Raw $_POST data: ' . print_r($_POST, true));
+        
         // Get POST data with isset checks
         $cpt_slug = isset($_POST['cpt_slug']) ? sanitize_text_field($_POST['cpt_slug']) : '';
         $taxonomy_slug = isset($_POST['taxonomy_slug']) ? sanitize_text_field($_POST['taxonomy_slug']) : '';
+        
+        // Debug checkbox value processing
+        amelia_cpt_sync_debug_log('Checkbox processing:');
+        amelia_cpt_sync_debug_log('  - isset($_POST[debug_enabled]): ' . (isset($_POST['debug_enabled']) ? 'YES' : 'NO'));
+        if (isset($_POST['debug_enabled'])) {
+            amelia_cpt_sync_debug_log('  - $_POST[debug_enabled] raw value: "' . $_POST['debug_enabled'] . '"');
+            amelia_cpt_sync_debug_log('  - $_POST[debug_enabled] === "true": ' . ($_POST['debug_enabled'] === 'true' ? 'YES' : 'NO'));
+        }
+        
         $debug_enabled = isset($_POST['debug_enabled']) && $_POST['debug_enabled'] === 'true';
+        amelia_cpt_sync_debug_log('  - Final $debug_enabled value: ' . ($debug_enabled ? 'TRUE' : 'FALSE'));
+        
         $taxonomy_category_id_field = isset($_POST['taxonomy_category_id_field']) ? sanitize_text_field($_POST['taxonomy_category_id_field']) : '';
         $service_id_field = isset($_POST['service_id_field']) ? sanitize_text_field($_POST['service_id_field']) : '';
         $category_id_field = isset($_POST['category_id_field']) ? sanitize_text_field($_POST['category_id_field']) : '';
@@ -291,6 +335,13 @@ class Amelia_CPT_Sync_Admin_Settings {
         $duration_format = isset($_POST['duration_format']) ? sanitize_text_field($_POST['duration_format']) : 'seconds';
         $gallery_field = isset($_POST['gallery_field']) ? sanitize_text_field($_POST['gallery_field']) : '';
         $extras_field = isset($_POST['extras_field']) ? sanitize_text_field($_POST['extras_field']) : '';
+        
+        amelia_cpt_sync_debug_log('Sanitized field values:');
+        amelia_cpt_sync_debug_log('  - cpt_slug: "' . $cpt_slug . '"');
+        amelia_cpt_sync_debug_log('  - taxonomy_slug: "' . $taxonomy_slug . '"');
+        amelia_cpt_sync_debug_log('  - debug_enabled: ' . ($debug_enabled ? 'TRUE' : 'FALSE'));
+        amelia_cpt_sync_debug_log('  - price_field: "' . $price_field . '"');
+        amelia_cpt_sync_debug_log('  - duration_field: "' . $duration_field . '"');
         
         // Build settings array
         $settings = array(
@@ -313,20 +364,39 @@ class Amelia_CPT_Sync_Admin_Settings {
         );
         
         // Save to JSON file
-        amelia_cpt_sync_debug_log('AJAX Save Settings - Attempting to save settings');
-        amelia_cpt_sync_debug_log('Settings to save: ' . print_r($settings, true));
+        amelia_cpt_sync_debug_log('---------- Building Settings Array ----------');
+        amelia_cpt_sync_debug_log('Built settings array: ' . print_r($settings, true));
+        amelia_cpt_sync_debug_log('Settings array [debug_enabled] type: ' . gettype($settings['debug_enabled']));
+        amelia_cpt_sync_debug_log('Settings array [debug_enabled] value: ' . var_export($settings['debug_enabled'], true));
         
+        amelia_cpt_sync_debug_log('---------- Calling save_settings() ----------');
         $save_result = $this->save_settings($settings);
+        amelia_cpt_sync_debug_log('save_settings() returned: ' . ($save_result ? 'TRUE' : 'FALSE'));
         
         // Verify by reading back
+        amelia_cpt_sync_debug_log('---------- Verifying Saved Settings ----------');
         $verified_settings = $this->get_settings();
+        amelia_cpt_sync_debug_log('Read back from file: ' . print_r($verified_settings, true));
+        
         $verify_success = ($verified_settings === $settings);
+        amelia_cpt_sync_debug_log('Verification result: ' . ($verify_success ? 'MATCH' : 'MISMATCH'));
         
         if (!$verify_success) {
-            amelia_cpt_sync_debug_log('WARNING: Settings verification mismatch!');
-            amelia_cpt_sync_debug_log('Expected: ' . print_r($settings, true));
-            amelia_cpt_sync_debug_log('Got: ' . print_r($verified_settings, true));
+            amelia_cpt_sync_debug_log('ERROR: Settings verification failed!');
+            amelia_cpt_sync_debug_log('Expected debug_enabled: ' . var_export($settings['debug_enabled'], true));
+            amelia_cpt_sync_debug_log('Got debug_enabled: ' . var_export($verified_settings['debug_enabled'], true));
+            
+            // Detailed comparison
+            foreach ($settings as $key => $value) {
+                if ($verified_settings[$key] !== $value) {
+                    amelia_cpt_sync_debug_log("  MISMATCH on key '$key':");
+                    amelia_cpt_sync_debug_log('    Expected: ' . print_r($value, true));
+                    amelia_cpt_sync_debug_log('    Got: ' . print_r($verified_settings[$key], true));
+                }
+            }
         }
+        
+        amelia_cpt_sync_debug_log('========== END AJAX SAVE SETTINGS ==========');
         
         wp_send_json_success(array(
             'message' => 'Settings saved successfully!',
