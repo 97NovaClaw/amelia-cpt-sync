@@ -1,0 +1,118 @@
+/**
+ * Admin Styles for Amelia CPT Sync
+ *
+ * @package AmeliaCPTSync
+ */
+
+.amelia-cpt-sync-settings {
+    max-width: 1200px;
+}
+
+.amelia-cpt-sync-settings .nav-tab-wrapper {
+    margin-bottom: 0;
+    border-bottom: 1px solid #ccd0d4;
+}
+
+.amelia-cpt-sync-settings .tab-content {
+    display: none;
+    background: #fff;
+    padding: 20px;
+    border: 1px solid #ccd0d4;
+    border-top: 0;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.amelia-cpt-sync-settings .tab-content.active {
+    display: block;
+}
+
+.amelia-cpt-sync-settings .form-table th {
+    padding: 20px 10px 20px 0;
+    vertical-align: middle;
+}
+
+.amelia-cpt-sync-settings .form-table td {
+    padding: 20px 10px;
+}
+
+.amelia-cpt-sync-settings .dashicons-lock {
+    color: #999;
+    vertical-align: middle;
+    margin-right: 5px;
+}
+
+.amelia-cpt-sync-settings .wp-list-table td {
+    vertical-align: middle;
+    padding: 15px 10px;
+}
+
+.amelia-cpt-sync-settings .wp-list-table th {
+    padding: 15px 10px;
+    font-weight: 600;
+}
+
+.amelia-cpt-sync-settings .wp-list-table input[type="text"] {
+    width: 100%;
+    max-width: 300px;
+}
+
+.amelia-cpt-sync-settings .wp-list-table select {
+    width: 100%;
+    max-width: 300px;
+}
+
+.amelia-cpt-sync-settings #save-message {
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.amelia-cpt-sync-settings #save-message.success {
+    color: #46b450;
+    font-weight: 600;
+}
+
+.amelia-cpt-sync-settings #save-message.error {
+    color: #dc3232;
+    font-weight: 600;
+}
+
+.amelia-cpt-sync-settings .spinner {
+    float: none;
+    margin: 0 10px;
+    vertical-align: middle;
+}
+
+.amelia-cpt-sync-settings .notice {
+    margin: 20px 0;
+}
+
+/* Responsive */
+@media screen and (max-width: 782px) {
+    .amelia-cpt-sync-settings .wp-list-table {
+        font-size: 14px;
+    }
+    
+    .amelia-cpt-sync-settings .wp-list-table th,
+    .amelia-cpt-sync-settings .wp-list-table td {
+        display: block;
+        width: 100%;
+        padding: 10px;
+    }
+    
+    .amelia-cpt-sync-settings .wp-list-table thead {
+        display: none;
+    }
+    
+    .amelia-cpt-sync-settings .wp-list-table tr {
+        margin-bottom: 20px;
+        border: 1px solid #ccd0d4;
+    }
+    
+    .amelia-cpt-sync-settings .wp-list-table td:before {
+        content: attr(data-label);
+        font-weight: 600;
+        display: block;
+        margin-bottom: 5px;
+    }
+}
+
