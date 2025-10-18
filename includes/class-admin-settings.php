@@ -75,21 +75,29 @@ class Amelia_CPT_Sync_Admin_Settings {
             return;
         }
         
+        // Aggressive cache busting: version + file modification time
+        $js_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'assets/js/admin.js';
+        $css_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'assets/css/admin.css';
+        
+        $js_version = AMELIA_CPT_SYNC_VERSION . '.' . (file_exists($js_file) ? filemtime($js_file) : time());
+        $css_version = AMELIA_CPT_SYNC_VERSION . '.' . (file_exists($css_file) ? filemtime($css_file) : time());
+        
         wp_enqueue_style(
             'amelia-cpt-sync-admin',
             AMELIA_CPT_SYNC_PLUGIN_URL . 'assets/css/admin.css',
             array(),
-            AMELIA_CPT_SYNC_VERSION
+            $css_version
         );
         
         wp_enqueue_script(
             'amelia-cpt-sync-admin',
             AMELIA_CPT_SYNC_PLUGIN_URL . 'assets/js/admin.js',
             array('jquery'),
-            AMELIA_CPT_SYNC_VERSION,
+            $js_version,
             true
         );
         
+        // Pass AJAX URL and nonce to JavaScript
         wp_localize_script('amelia-cpt-sync-admin', 'ameliaCptSync', array(
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('amelia_cpt_sync_nonce')
@@ -122,7 +130,7 @@ class Amelia_CPT_Sync_Admin_Settings {
     }
     
     /**
-     * Get settings from JSON file
+     * Get settings from JSON file with cache busting
      */
     public function get_settings() {
         // Default settings structure
@@ -145,11 +153,19 @@ class Amelia_CPT_Sync_Admin_Settings {
             )
         );
         
+        // Clear file status cache to prevent stale file info
+        clearstatcache(true, $this->settings_file);
+        
         // Check if settings file exists
         if (!file_exists($this->settings_file)) {
             // Create default settings file
             $this->save_settings($defaults);
             return $defaults;
+        }
+        
+        // Clear opcache if available (prevents cached file contents)
+        if (function_exists('opcache_invalidate')) {
+            opcache_invalidate($this->settings_file, true);
         }
         
         // Read settings from JSON file
@@ -166,7 +182,7 @@ class Amelia_CPT_Sync_Admin_Settings {
     }
     
     /**
-     * Save settings to JSON file
+     * Save settings to JSON file with cache busting
      *
      * @param array $settings The settings array to save
      * @return bool True on success, false on failure
@@ -175,11 +191,23 @@ class Amelia_CPT_Sync_Admin_Settings {
         // Convert to pretty JSON for readability
         $json_content = json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         
-        // Write to file
-        $result = file_put_contents($this->settings_file, $json_content);
+        // Write to file with LOCK_EX to prevent concurrent writes
+        $result = file_put_contents($this->settings_file, $json_content, LOCK_EX);
         
-        // Log the save attempt
         if ($result !== false) {
+            // Clear file status cache after write
+            clearstatcache(true, $this->settings_file);
+            
+            // Clear opcache if available to ensure fresh reads
+            if (function_exists('opcache_invalidate')) {
+                opcache_invalidate($this->settings_file, true);
+            }
+            
+            // Force filesystem sync (if on Linux/Unix)
+            if (function_exists('sync')) {
+                sync();
+            }
+            
             amelia_cpt_sync_debug_log('Settings saved successfully to ' . $this->settings_file);
             amelia_cpt_sync_debug_log('Settings content: ' . print_r($settings, true));
             return true;

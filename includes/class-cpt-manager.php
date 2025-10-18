@@ -20,13 +20,21 @@ class Amelia_CPT_Sync_CPT_Manager {
     private $option_name = 'amelia_cpt_sync_settings';
     
     /**
-     * Get settings from JSON file
+     * Get settings from JSON file with cache busting
      */
     private function get_settings() {
         $settings_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'settings.json';
         
+        // Clear file status cache
+        clearstatcache(true, $settings_file);
+        
         if (!file_exists($settings_file)) {
             return false;
+        }
+        
+        // Clear opcache if available
+        if (function_exists('opcache_invalidate')) {
+            opcache_invalidate($settings_file, true);
         }
         
         $json_content = file_get_contents($settings_file);

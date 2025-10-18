@@ -13,13 +13,21 @@ if (!defined('WPINC')) {
 }
 
 /**
- * Check if debug is enabled by reading settings JSON
+ * Check if debug is enabled by reading settings JSON with cache busting
  */
 function amelia_cpt_sync_is_debug_enabled() {
     $settings_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'settings.json';
     
+    // Clear file status cache
+    clearstatcache(true, $settings_file);
+    
     if (!file_exists($settings_file)) {
         return false;
+    }
+    
+    // Clear opcache if available
+    if (function_exists('opcache_invalidate')) {
+        opcache_invalidate($settings_file, true);
     }
     
     $json = file_get_contents($settings_file);
