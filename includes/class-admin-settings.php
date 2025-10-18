@@ -118,27 +118,34 @@ class Amelia_CPT_Sync_Admin_Settings {
     public function get_settings() {
         $settings_json = get_option($this->option_name);
         
+        // Default settings structure
+        $defaults = array(
+            'cpt_slug' => '',
+            'taxonomy_slug' => '',
+            'taxonomy_meta' => array(
+                'category_id' => ''
+            ),
+            'field_mappings' => array(
+                'service_id' => '',
+                'category_id' => '',
+                'primary_photo' => '',
+                'price' => '',
+                'duration' => '',
+                'duration_format' => 'seconds',
+                'gallery' => '',
+                'extras' => ''
+            )
+        );
+        
         if (empty($settings_json)) {
-            return array(
-                'cpt_slug' => '',
-                'taxonomy_slug' => '',
-                'taxonomy_meta' => array(
-                    'category_id' => ''
-                ),
-                'field_mappings' => array(
-                    'service_id' => '',
-                    'category_id' => '',
-                    'primary_photo' => '',
-                    'price' => '',
-                    'duration' => '',
-                    'duration_format' => 'seconds',
-                    'gallery' => '',
-                    'extras' => ''
-                )
-            );
+            return $defaults;
         }
         
-        return json_decode($settings_json, true);
+        // Decode saved settings
+        $saved_settings = json_decode($settings_json, true);
+        
+        // Merge with defaults to ensure all keys exist (for backward compatibility)
+        return array_replace_recursive($defaults, $saved_settings);
     }
     
     /**
@@ -202,18 +209,18 @@ class Amelia_CPT_Sync_Admin_Settings {
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
         
-        // Get POST data
-        $cpt_slug = sanitize_text_field($_POST['cpt_slug']);
-        $taxonomy_slug = sanitize_text_field($_POST['taxonomy_slug']);
-        $taxonomy_category_id_field = sanitize_text_field($_POST['taxonomy_category_id_field']);
-        $service_id_field = sanitize_text_field($_POST['service_id_field']);
-        $category_id_field = sanitize_text_field($_POST['category_id_field']);
-        $primary_photo_field = sanitize_text_field($_POST['primary_photo_field']);
-        $price_field = sanitize_text_field($_POST['price_field']);
-        $duration_field = sanitize_text_field($_POST['duration_field']);
-        $duration_format = sanitize_text_field($_POST['duration_format']);
-        $gallery_field = sanitize_text_field($_POST['gallery_field']);
-        $extras_field = sanitize_text_field($_POST['extras_field']);
+        // Get POST data with isset checks
+        $cpt_slug = isset($_POST['cpt_slug']) ? sanitize_text_field($_POST['cpt_slug']) : '';
+        $taxonomy_slug = isset($_POST['taxonomy_slug']) ? sanitize_text_field($_POST['taxonomy_slug']) : '';
+        $taxonomy_category_id_field = isset($_POST['taxonomy_category_id_field']) ? sanitize_text_field($_POST['taxonomy_category_id_field']) : '';
+        $service_id_field = isset($_POST['service_id_field']) ? sanitize_text_field($_POST['service_id_field']) : '';
+        $category_id_field = isset($_POST['category_id_field']) ? sanitize_text_field($_POST['category_id_field']) : '';
+        $primary_photo_field = isset($_POST['primary_photo_field']) ? sanitize_text_field($_POST['primary_photo_field']) : '';
+        $price_field = isset($_POST['price_field']) ? sanitize_text_field($_POST['price_field']) : '';
+        $duration_field = isset($_POST['duration_field']) ? sanitize_text_field($_POST['duration_field']) : '';
+        $duration_format = isset($_POST['duration_format']) ? sanitize_text_field($_POST['duration_format']) : 'seconds';
+        $gallery_field = isset($_POST['gallery_field']) ? sanitize_text_field($_POST['gallery_field']) : '';
+        $extras_field = isset($_POST['extras_field']) ? sanitize_text_field($_POST['extras_field']) : '';
         
         // Build settings array
         $settings = array(
@@ -235,9 +242,23 @@ class Amelia_CPT_Sync_Admin_Settings {
         );
         
         // Save as JSON
-        update_option($this->option_name, json_encode($settings));
+        $json_settings = json_encode($settings);
+        $update_result = update_option($this->option_name, $json_settings);
         
-        wp_send_json_success(array('message' => 'Settings saved successfully!'));
+        // Debug log if WP_DEBUG is enabled
+        if (defined('WP_DEBUG') && WP_DEBUG === true) {
+            error_log('[Amelia CPT Sync] Settings Save Attempt');
+            error_log('[Amelia CPT Sync] Settings: ' . print_r($settings, true));
+            error_log('[Amelia CPT Sync] Update Result: ' . ($update_result ? 'SUCCESS' : 'FAILED'));
+        }
+        
+        wp_send_json_success(array(
+            'message' => 'Settings saved successfully!',
+            'debug' => array(
+                'saved' => $update_result,
+                'settings' => $settings
+            )
+        ));
     }
     
     /**

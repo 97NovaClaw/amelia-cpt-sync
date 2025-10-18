@@ -131,14 +131,24 @@
                 extras_field: $('#extras_field').val().trim()
             };
             
+            // Debug log
+            console.log('[Amelia CPT Sync] Saving settings:', formData);
+            
             // Save settings via AJAX
             $.ajax({
                 url: ameliaCptSync.ajax_url,
                 type: 'POST',
                 data: formData,
                 success: function(response) {
+                    console.log('[Amelia CPT Sync] Save response:', response);
+                    
                     if (response.success) {
                         $message.text(response.data.message).addClass('success');
+                        
+                        // Show debug info if available
+                        if (response.data.debug) {
+                            console.log('[Amelia CPT Sync] Debug info:', response.data.debug);
+                        }
                     } else {
                         var errorMsg = response.data && response.data.message 
                             ? response.data.message 
