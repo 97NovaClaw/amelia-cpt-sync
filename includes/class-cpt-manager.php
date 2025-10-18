@@ -259,6 +259,16 @@ class Amelia_CPT_Sync_CPT_Manager {
      * @param array $field_mappings The field mappings from settings
      */
     private function sync_custom_fields($post_id, $service_data, $field_mappings) {
+        // Service ID
+        if (!empty($field_mappings['service_id']) && isset($service_data['id'])) {
+            update_post_meta($post_id, $field_mappings['service_id'], intval($service_data['id']));
+        }
+        
+        // Category ID
+        if (!empty($field_mappings['category_id']) && isset($service_data['categoryId'])) {
+            update_post_meta($post_id, $field_mappings['category_id'], intval($service_data['categoryId']));
+        }
+        
         // Price
         if (!empty($field_mappings['price']) && isset($service_data['price'])) {
             update_post_meta($post_id, $field_mappings['price'], floatval($service_data['price']));

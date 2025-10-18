@@ -36,6 +36,8 @@ function activate_amelia_cpt_sync() {
             'cpt_slug' => '',
             'taxonomy_slug' => '',
             'field_mappings' => array(
+                'service_id' => '',
+                'category_id' => '',
                 'primary_photo' => '',
                 'price' => '',
                 'duration' => '',

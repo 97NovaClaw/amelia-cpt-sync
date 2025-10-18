@@ -120,6 +120,8 @@
                 nonce: ameliaCptSync.nonce,
                 cpt_slug: cptSlug,
                 taxonomy_slug: $('#taxonomy_slug').val(),
+                service_id_field: $('#service_id_field').val().trim(),
+                category_id_field: $('#category_id_field').val().trim(),
                 primary_photo_field: $('#primary_photo_field').val().trim(),
                 price_field: $('#price_field').val().trim(),
                 duration_field: $('#duration_field').val().trim(),

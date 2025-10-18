@@ -123,6 +123,8 @@ class Amelia_CPT_Sync_Admin_Settings {
                 'cpt_slug' => '',
                 'taxonomy_slug' => '',
                 'field_mappings' => array(
+                    'service_id' => '',
+                    'category_id' => '',
                     'primary_photo' => '',
                     'price' => '',
                     'duration' => '',
@@ -200,6 +202,8 @@ class Amelia_CPT_Sync_Admin_Settings {
         // Get POST data
         $cpt_slug = sanitize_text_field($_POST['cpt_slug']);
         $taxonomy_slug = sanitize_text_field($_POST['taxonomy_slug']);
+        $service_id_field = sanitize_text_field($_POST['service_id_field']);
+        $category_id_field = sanitize_text_field($_POST['category_id_field']);
         $primary_photo_field = sanitize_text_field($_POST['primary_photo_field']);
         $price_field = sanitize_text_field($_POST['price_field']);
         $duration_field = sanitize_text_field($_POST['duration_field']);
@@ -212,6 +216,8 @@ class Amelia_CPT_Sync_Admin_Settings {
             'cpt_slug' => $cpt_slug,
             'taxonomy_slug' => $taxonomy_slug,
             'field_mappings' => array(
+                'service_id' => $service_id_field,
+                'category_id' => $category_id_field,
                 'primary_photo' => $primary_photo_field,
                 'price' => $price_field,
                 'duration' => $duration_field,
