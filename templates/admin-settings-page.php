@@ -68,18 +68,6 @@ if (!defined('WPINC')) {
                             <p class="description"><?php _e('Select the taxonomy where Amelia service categories will be synced. This field will populate after you select a post type.', 'amelia-cpt-sync'); ?></p>
                         </td>
                     </tr>
-                    
-                    <tr>
-                        <th scope="row">
-                            <label for="taxonomy_category_id_field"><?php _e('Taxonomy Meta: Category ID', 'amelia-cpt-sync'); ?></label>
-                        </th>
-                        <td>
-                            <input type="text" name="taxonomy_category_id_field" id="taxonomy_category_id_field" class="regular-text" 
-                                   value="<?php echo esc_attr(isset($settings['taxonomy_meta']['category_id']) ? $settings['taxonomy_meta']['category_id'] : ''); ?>" 
-                                   placeholder="e.g., amelia_category_id">
-                            <p class="description"><?php _e('Enter the meta field slug to store Amelia Category ID on the taxonomy term itself. This allows you to query taxonomy terms by Amelia Category ID. Leave empty to skip.', 'amelia-cpt-sync'); ?></p>
-                        </td>
-                    </tr>
                 </tbody>
             </table>
         </div>
@@ -88,6 +76,11 @@ if (!defined('WPINC')) {
         <div id="tab-field-mapping" class="tab-content">
             <p class="description" style="margin-bottom: 20px;">
                 <?php _e('Map Amelia service data to your Custom Post Type fields. Enter the meta field slugs from your JetEngine CPT setup.', 'amelia-cpt-sync'); ?>
+            </p>
+            
+            <h3><?php _e('Service Mappings (Post Meta Fields)', 'amelia-cpt-sync'); ?></h3>
+            <p class="description" style="margin-bottom: 15px;">
+                <?php _e('These fields will be stored as meta data on each service post.', 'amelia-cpt-sync'); ?>
             </p>
             
             <table class="wp-list-table widefat fixed striped">
@@ -223,6 +216,36 @@ if (!defined('WPINC')) {
                             <em><?php _e('Selected Taxonomy (Locked)', 'amelia-cpt-sync'); ?></em>
                         </td>
                         <td><?php _e('Uses the taxonomy selected in Setup tab', 'amelia-cpt-sync'); ?></td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <hr style="margin: 40px 0;">
+            
+            <h3><?php _e('Taxonomy Mappings (Term Meta Fields)', 'amelia-cpt-sync'); ?></h3>
+            <p class="description" style="margin-bottom: 15px;">
+                <?php _e('These fields will be stored as meta data on taxonomy terms themselves. This allows you to query taxonomy terms by Amelia data.', 'amelia-cpt-sync'); ?>
+            </p>
+            
+            <table class="wp-list-table widefat fixed striped">
+                <thead>
+                    <tr>
+                        <th style="width: 20%;"><?php _e('Amelia Data Field', 'amelia-cpt-sync'); ?></th>
+                        <th style="width: 25%;"><?php _e('Description', 'amelia-cpt-sync'); ?></th>
+                        <th style="width: 25%;"><?php _e('Mapped To (Your Term Meta Field)', 'amelia-cpt-sync'); ?></th>
+                        <th style="width: 30%;"><?php _e('Recommended JetEngine Setup', 'amelia-cpt-sync'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong><?php _e('Category ID', 'amelia-cpt-sync'); ?></strong></td>
+                        <td><?php _e('The unique Amelia category ID', 'amelia-cpt-sync'); ?></td>
+                        <td>
+                            <input type="text" name="taxonomy_category_id_field" id="taxonomy_category_id_field" class="regular-text" 
+                                   value="<?php echo esc_attr(isset($settings['taxonomy_meta']['category_id']) ? $settings['taxonomy_meta']['category_id'] : ''); ?>" 
+                                   placeholder="e.g., amelia_category_id">
+                        </td>
+                        <td><?php _e('Type: Number (stored on taxonomy term, allows term queries by Amelia category)', 'amelia-cpt-sync'); ?></td>
                     </tr>
                 </tbody>
             </table>
