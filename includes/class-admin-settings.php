@@ -116,6 +116,9 @@ class Amelia_CPT_Sync_Admin_Settings {
      * Get settings from database
      */
     public function get_settings() {
+        // Clear any cached version to ensure fresh read
+        wp_cache_delete($this->option_name, 'options');
+        
         $settings_json = get_option($this->option_name);
         
         // Default settings structure
@@ -243,19 +246,37 @@ class Amelia_CPT_Sync_Admin_Settings {
         
         // Save as JSON
         $json_settings = json_encode($settings);
-        $update_result = update_option($this->option_name, $json_settings);
+        
+        // Delete option first to ensure fresh save (avoids caching issues)
+        delete_option($this->option_name);
+        
+        // Add option with autoload enabled
+        $add_result = add_option($this->option_name, $json_settings, '', 'yes');
+        
+        // Clear any object cache
+        wp_cache_delete($this->option_name, 'options');
+        
+        // Verify it was saved by reading back
+        $verify_saved = get_option($this->option_name, false);
+        $verify_success = ($verify_saved === $json_settings);
         
         // Debug log if WP_DEBUG is enabled
         if (defined('WP_DEBUG') && WP_DEBUG === true) {
             error_log('[Amelia CPT Sync] Settings Save Attempt');
             error_log('[Amelia CPT Sync] Settings: ' . print_r($settings, true));
-            error_log('[Amelia CPT Sync] Update Result: ' . ($update_result ? 'SUCCESS' : 'FAILED'));
+            error_log('[Amelia CPT Sync] Add Result: ' . ($add_result ? 'SUCCESS' : 'FAILED'));
+            error_log('[Amelia CPT Sync] Verify Read Back: ' . ($verify_success ? 'MATCHES' : 'MISMATCH'));
+            if (!$verify_success) {
+                error_log('[Amelia CPT Sync] Expected: ' . $json_settings);
+                error_log('[Amelia CPT Sync] Got: ' . $verify_saved);
+            }
         }
         
         wp_send_json_success(array(
             'message' => 'Settings saved successfully!',
             'debug' => array(
-                'saved' => $update_result,
+                'saved' => $add_result,
+                'verified' => $verify_success,
                 'settings' => $settings
             )
         ));

@@ -148,6 +148,12 @@
                         // Show debug info if available
                         if (response.data.debug) {
                             console.log('[Amelia CPT Sync] Debug info:', response.data.debug);
+                            
+                            // Warn if verification failed
+                            if (response.data.debug.verified === false) {
+                                console.error('[Amelia CPT Sync] WARNING: Settings saved but verification failed! Data may not persist.');
+                                $message.text('Settings saved but verification failed. Check console.').removeClass('success').addClass('error');
+                            }
                         }
                     } else {
                         var errorMsg = response.data && response.data.message 
