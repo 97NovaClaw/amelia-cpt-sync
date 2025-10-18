@@ -78,9 +78,9 @@ class Amelia_CPT_Sync_CPT_Manager {
         // Store Amelia service ID as meta for future lookups
         update_post_meta($post_id, '_amelia_service_id', $amelia_service_id);
         
-        // Handle featured image (Primary Photo)
-        if (isset($service_data['pictureFullPath']) && !empty($service_data['pictureFullPath'])) {
-            $this->set_featured_image($post_id, $service_data['pictureFullPath']);
+        // Handle primary photo (custom field)
+        if (!empty($settings['field_mappings']['primary_photo']) && isset($service_data['pictureFullPath']) && !empty($service_data['pictureFullPath'])) {
+            $this->set_primary_photo($post_id, $service_data['pictureFullPath'], $settings['field_mappings']['primary_photo']);
         }
         
         // Handle category/taxonomy
@@ -151,18 +151,19 @@ class Amelia_CPT_Sync_CPT_Manager {
     }
     
     /**
-     * Set featured image from URL
+     * Set primary photo to custom field from URL
      *
      * @param int $post_id The post ID
      * @param string $image_url The image URL
+     * @param string $field_slug The custom field slug
      */
-    private function set_featured_image($post_id, $image_url) {
-        // Check if image already exists
-        $current_thumbnail_id = get_post_thumbnail_id($post_id);
-        $current_thumbnail_url = $current_thumbnail_id ? wp_get_attachment_url($current_thumbnail_id) : '';
+    private function set_primary_photo($post_id, $image_url, $field_slug) {
+        // Get current primary photo attachment ID
+        $current_attachment_id = get_post_meta($post_id, $field_slug, true);
+        $current_image_url = $current_attachment_id ? wp_get_attachment_url($current_attachment_id) : '';
         
         // If the same image URL, skip
-        if ($current_thumbnail_url === $image_url) {
+        if ($current_image_url === $image_url) {
             return;
         }
         
@@ -175,7 +176,8 @@ class Amelia_CPT_Sync_CPT_Manager {
         $attachment_id = $this->sideload_image($image_url, $post_id);
         
         if ($attachment_id && !is_wp_error($attachment_id)) {
-            set_post_thumbnail($post_id, $attachment_id);
+            // Save attachment ID to custom field
+            update_post_meta($post_id, $field_slug, $attachment_id);
         }
     }
     

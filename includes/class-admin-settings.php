@@ -28,6 +28,7 @@ class Amelia_CPT_Sync_Admin_Settings {
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
         add_action('wp_ajax_amelia_cpt_sync_save_settings', array($this, 'ajax_save_settings'));
         add_action('wp_ajax_amelia_cpt_sync_get_taxonomies', array($this, 'ajax_get_taxonomies'));
+        add_action('wp_ajax_amelia_cpt_sync_full_sync', array($this, 'ajax_full_sync'));
     }
     
     /**
@@ -122,6 +123,7 @@ class Amelia_CPT_Sync_Admin_Settings {
                 'cpt_slug' => '',
                 'taxonomy_slug' => '',
                 'field_mappings' => array(
+                    'primary_photo' => '',
                     'price' => '',
                     'duration' => '',
                     'duration_format' => 'seconds',
@@ -198,6 +200,7 @@ class Amelia_CPT_Sync_Admin_Settings {
         // Get POST data
         $cpt_slug = sanitize_text_field($_POST['cpt_slug']);
         $taxonomy_slug = sanitize_text_field($_POST['taxonomy_slug']);
+        $primary_photo_field = sanitize_text_field($_POST['primary_photo_field']);
         $price_field = sanitize_text_field($_POST['price_field']);
         $duration_field = sanitize_text_field($_POST['duration_field']);
         $duration_format = sanitize_text_field($_POST['duration_format']);
@@ -209,6 +212,7 @@ class Amelia_CPT_Sync_Admin_Settings {
             'cpt_slug' => $cpt_slug,
             'taxonomy_slug' => $taxonomy_slug,
             'field_mappings' => array(
+                'primary_photo' => $primary_photo_field,
                 'price' => $price_field,
                 'duration' => $duration_field,
                 'duration_format' => $duration_format,
@@ -221,6 +225,125 @@ class Amelia_CPT_Sync_Admin_Settings {
         update_option($this->option_name, json_encode($settings));
         
         wp_send_json_success(array('message' => 'Settings saved successfully!'));
+    }
+    
+    /**
+     * AJAX handler for full sync
+     */
+    public function ajax_full_sync() {
+        check_ajax_referer('amelia_cpt_sync_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        // Get settings
+        $settings = $this->get_settings();
+        
+        if (empty($settings['cpt_slug'])) {
+            wp_send_json_error(array('message' => 'Please configure sync settings first'));
+        }
+        
+        global $wpdb;
+        
+        // Fetch all services from Amelia database
+        $services_table = $wpdb->prefix . 'amelia_services';
+        $categories_table = $wpdb->prefix . 'amelia_categories';
+        
+        // Check if Amelia tables exist
+        if ($wpdb->get_var("SHOW TABLES LIKE '$services_table'") !== $services_table) {
+            wp_send_json_error(array('message' => 'Amelia database tables not found'));
+        }
+        
+        // Get all services with category names
+        $services = $wpdb->get_results(
+            "SELECT s.*, c.name as categoryName 
+             FROM $services_table s 
+             LEFT JOIN $categories_table c ON s.categoryId = c.id 
+             ORDER BY s.id ASC",
+            ARRAY_A
+        );
+        
+        if (empty($services)) {
+            wp_send_json_error(array('message' => 'No services found in Amelia'));
+        }
+        
+        // Initialize CPT Manager
+        $cpt_manager = new Amelia_CPT_Sync_CPT_Manager();
+        
+        $results = array(
+            'total' => count($services),
+            'synced' => 0,
+            'created' => 0,
+            'updated' => 0,
+            'errors' => array()
+        );
+        
+        // Sync each service
+        foreach ($services as $service) {
+            // Prepare service data
+            $service_data = $this->prepare_service_data($service);
+            
+            // Sync the service
+            $result = $cpt_manager->sync_service($service_data);
+            
+            if (is_wp_error($result)) {
+                $results['errors'][] = array(
+                    'service' => $service['name'],
+                    'error' => $result->get_error_message()
+                );
+            } else {
+                $results['synced']++;
+                
+                // Check if it was created or updated
+                $existing = $wpdb->get_var($wpdb->prepare(
+                    "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_amelia_service_id' AND meta_value = %d",
+                    $service['id']
+                ));
+                
+                if ($existing) {
+                    $results['updated']++;
+                } else {
+                    $results['created']++;
+                }
+            }
+        }
+        
+        wp_send_json_success($results);
+    }
+    
+    /**
+     * Prepare service data for sync
+     */
+    private function prepare_service_data($service) {
+        global $wpdb;
+        
+        // Decode JSON fields
+        if (!empty($service['gallery']) && is_string($service['gallery'])) {
+            $service['gallery'] = json_decode($service['gallery'], true);
+        }
+        
+        if (!empty($service['extras']) && is_string($service['extras'])) {
+            $service['extras'] = json_decode($service['extras'], true);
+        }
+        
+        // Get full image paths
+        $upload_dir = wp_upload_dir();
+        
+        if (!empty($service['picture'])) {
+            $service['pictureFullPath'] = $upload_dir['baseurl'] . '/amelia/' . ltrim($service['picture'], '/');
+        }
+        
+        // Process gallery images
+        if (!empty($service['gallery']) && is_array($service['gallery'])) {
+            foreach ($service['gallery'] as $key => $image) {
+                if (isset($image['picture'])) {
+                    $service['gallery'][$key]['pictureFullPath'] = $upload_dir['baseurl'] . '/amelia/' . ltrim($image['picture'], '/');
+                }
+            }
+        }
+        
+        return $service;
     }
     
     /**

@@ -22,6 +22,7 @@ if (!defined('WPINC')) {
     <h2 class="nav-tab-wrapper">
         <a href="#setup" class="nav-tab nav-tab-active" data-tab="setup"><?php _e('Setup', 'amelia-cpt-sync'); ?></a>
         <a href="#field-mapping" class="nav-tab" data-tab="field-mapping"><?php _e('Field Mapping', 'amelia-cpt-sync'); ?></a>
+        <a href="#full-sync" class="nav-tab" data-tab="full-sync"><?php _e('Full Sync', 'amelia-cpt-sync'); ?></a>
     </h2>
     
     <!-- Tab Content -->
@@ -111,10 +112,11 @@ if (!defined('WPINC')) {
                         <td><strong><?php _e('Primary Photo', 'amelia-cpt-sync'); ?></strong></td>
                         <td><?php _e('The main service image', 'amelia-cpt-sync'); ?></td>
                         <td>
-                            <span class="dashicons dashicons-lock"></span>
-                            <em><?php _e('Featured Image (Locked)', 'amelia-cpt-sync'); ?></em>
+                            <input type="text" name="primary_photo_field" id="primary_photo_field" class="regular-text" 
+                                   value="<?php echo esc_attr($settings['field_mappings']['primary_photo']); ?>" 
+                                   placeholder="e.g., service_image">
                         </td>
-                        <td><?php _e('No setup needed - uses WordPress featured image', 'amelia-cpt-sync'); ?></td>
+                        <td><?php _e('Type: Media (stores attachment ID)', 'amelia-cpt-sync'); ?></td>
                     </tr>
                     
                     <tr>
@@ -192,6 +194,40 @@ if (!defined('WPINC')) {
             </table>
         </div>
         
+        <!-- Full Sync Tab -->
+        <div id="tab-full-sync" class="tab-content">
+            <h3><?php _e('Manual Full Sync', 'amelia-cpt-sync'); ?></h3>
+            
+            <div class="notice notice-warning">
+                <p><strong><?php _e('Warning:', 'amelia-cpt-sync'); ?></strong> <?php _e('This will sync ALL services from Amelia to your CPT. This may take some time depending on how many services you have.', 'amelia-cpt-sync'); ?></p>
+            </div>
+            
+            <p><?php _e('Use this feature to perform a one-time sync of all existing Amelia services. The sync will:', 'amelia-cpt-sync'); ?></p>
+            
+            <ul style="list-style: disc; margin-left: 30px; margin-bottom: 20px;">
+                <li><?php _e('Fetch all services from Amelia database', 'amelia-cpt-sync'); ?></li>
+                <li><?php _e('Compare with existing CPT posts', 'amelia-cpt-sync'); ?></li>
+                <li><?php _e('Create new posts for services that don\'t exist', 'amelia-cpt-sync'); ?></li>
+                <li><?php _e('Update existing posts with latest Amelia data', 'amelia-cpt-sync'); ?></li>
+                <li><?php _e('Sync all meta fields, images, and categories', 'amelia-cpt-sync'); ?></li>
+            </ul>
+            
+            <p><strong><?php _e('Note:', 'amelia-cpt-sync'); ?></strong> <?php _e('Make sure you have saved your settings in the Setup and Field Mapping tabs before running a full sync.', 'amelia-cpt-sync'); ?></p>
+            
+            <div style="margin: 30px 0;">
+                <button type="button" id="run-full-sync" class="button button-primary button-hero">
+                    <span class="dashicons dashicons-update-alt" style="vertical-align: middle; margin-right: 5px;"></span>
+                    <?php _e('Run Full Sync Now', 'amelia-cpt-sync'); ?>
+                </button>
+                <span class="spinner" id="sync-spinner" style="float: none; margin: 0 15px;"></span>
+            </div>
+            
+            <div id="sync-results" style="display: none; margin-top: 30px;">
+                <h3><?php _e('Sync Results', 'amelia-cpt-sync'); ?></h3>
+                <div id="sync-results-content" class="sync-results-box"></div>
+            </div>
+        </div>
+        
         <p class="submit">
             <button type="button" id="save-settings" class="button button-primary">
                 <?php _e('Save Settings', 'amelia-cpt-sync'); ?>
@@ -236,6 +272,53 @@ if (!defined('WPINC')) {
 #save-message.error {
     color: #dc3232;
     font-weight: 600;
+}
+
+.sync-results-box {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-left: 4px solid #46b450;
+    padding: 20px;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.sync-results-box.has-errors {
+    border-left-color: #dc3232;
+}
+
+.sync-stat {
+    display: inline-block;
+    margin-right: 30px;
+    margin-bottom: 10px;
+}
+
+.sync-stat-number {
+    font-size: 32px;
+    font-weight: 600;
+    color: #2271b1;
+    display: block;
+}
+
+.sync-stat-label {
+    font-size: 14px;
+    color: #646970;
+}
+
+.sync-errors-list {
+    margin-top: 20px;
+    padding: 15px;
+    background: #fcf0f0;
+    border-left: 4px solid #dc3232;
+}
+
+.sync-errors-list h4 {
+    margin-top: 0;
+    color: #dc3232;
+}
+
+.sync-errors-list ul {
+    list-style: disc;
+    margin-left: 20px;
 }
 </style>
 
@@ -361,6 +444,74 @@ jQuery(document).ready(function($) {
                         $(this).text('').removeClass('success error').show();
                     });
                 }, 5000);
+            }
+        });
+    });
+    
+    // Run full sync
+    $('#run-full-sync').on('click', function(e) {
+        e.preventDefault();
+        
+        var $button = $(this);
+        var $spinner = $('#sync-spinner');
+        var $results = $('#sync-results');
+        var $resultsContent = $('#sync-results-content');
+        
+        // Confirm before running
+        if (!confirm('<?php _e('Are you sure you want to run a full sync? This will process all Amelia services.', 'amelia-cpt-sync'); ?>')) {
+            return;
+        }
+        
+        // Show loading
+        $button.prop('disabled', true);
+        $spinner.addClass('is-active');
+        $results.hide();
+        $resultsContent.html('').removeClass('has-errors');
+        
+        // Run full sync
+        $.ajax({
+            url: ameliaCptSync.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'amelia_cpt_sync_full_sync',
+                nonce: ameliaCptSync.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    var data = response.data;
+                    
+                    // Build results HTML
+                    var html = '<div class="sync-stats">';
+                    html += '<div class="sync-stat"><span class="sync-stat-number">' + data.total + '</span><span class="sync-stat-label"><?php _e('Total Services', 'amelia-cpt-sync'); ?></span></div>';
+                    html += '<div class="sync-stat"><span class="sync-stat-number">' + data.synced + '</span><span class="sync-stat-label"><?php _e('Successfully Synced', 'amelia-cpt-sync'); ?></span></div>';
+                    html += '<div class="sync-stat"><span class="sync-stat-number">' + data.created + '</span><span class="sync-stat-label"><?php _e('Created', 'amelia-cpt-sync'); ?></span></div>';
+                    html += '<div class="sync-stat"><span class="sync-stat-number">' + data.updated + '</span><span class="sync-stat-label"><?php _e('Updated', 'amelia-cpt-sync'); ?></span></div>';
+                    html += '</div>';
+                    
+                    // Show errors if any
+                    if (data.errors && data.errors.length > 0) {
+                        html += '<div class="sync-errors-list">';
+                        html += '<h4><?php _e('Errors:', 'amelia-cpt-sync'); ?></h4>';
+                        html += '<ul>';
+                        $.each(data.errors, function(index, error) {
+                            html += '<li><strong>' + error.service + ':</strong> ' + error.error + '</li>';
+                        });
+                        html += '</ul></div>';
+                        $resultsContent.addClass('has-errors');
+                    }
+                    
+                    $resultsContent.html(html);
+                    $results.slideDown();
+                } else {
+                    alert('<?php _e('Error:', 'amelia-cpt-sync'); ?> ' + (response.data.message || '<?php _e('Unknown error occurred', 'amelia-cpt-sync'); ?>'));
+                }
+            },
+            error: function(xhr, status, error) {
+                alert('<?php _e('AJAX Error:', 'amelia-cpt-sync'); ?> ' + error);
+            },
+            complete: function() {
+                $button.prop('disabled', false);
+                $spinner.removeClass('is-active');
             }
         });
     });
