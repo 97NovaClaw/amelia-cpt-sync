@@ -85,7 +85,7 @@ class Amelia_CPT_Sync_CPT_Manager {
         
         // Handle category/taxonomy
         if (!empty($settings['taxonomy_slug']) && isset($service_data['categoryId'])) {
-            $this->sync_category($post_id, $service_data, $settings['taxonomy_slug']);
+            $this->sync_category($post_id, $service_data, $settings['taxonomy_slug'], $settings);
         }
         
         // Handle field mappings
@@ -222,10 +222,12 @@ class Amelia_CPT_Sync_CPT_Manager {
      * @param int $post_id The post ID
      * @param array $service_data The Amelia service data
      * @param string $taxonomy_slug The taxonomy slug
+     * @param array $settings The plugin settings
      */
-    private function sync_category($post_id, $service_data, $taxonomy_slug) {
-        // Get category name from service data
+    private function sync_category($post_id, $service_data, $taxonomy_slug, $settings) {
+        // Get category name and ID from service data
         $category_name = isset($service_data['categoryName']) ? $service_data['categoryName'] : '';
+        $category_id = isset($service_data['categoryId']) ? intval($service_data['categoryId']) : 0;
         
         if (empty($category_name)) {
             return;
@@ -245,6 +247,11 @@ class Amelia_CPT_Sync_CPT_Manager {
             $term_id = $term_data['term_id'];
         } else {
             $term_id = $term->term_id;
+        }
+        
+        // Save Amelia Category ID as term meta if field mapping is configured
+        if (!empty($settings['taxonomy_meta']['category_id']) && $category_id > 0) {
+            update_term_meta($term_id, $settings['taxonomy_meta']['category_id'], $category_id);
         }
         
         // Assign term to post

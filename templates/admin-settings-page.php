@@ -68,6 +68,18 @@ if (!defined('WPINC')) {
                             <p class="description"><?php _e('Select the taxonomy where Amelia service categories will be synced. This field will populate after you select a post type.', 'amelia-cpt-sync'); ?></p>
                         </td>
                     </tr>
+                    
+                    <tr>
+                        <th scope="row">
+                            <label for="taxonomy_category_id_field"><?php _e('Taxonomy Meta: Category ID', 'amelia-cpt-sync'); ?></label>
+                        </th>
+                        <td>
+                            <input type="text" name="taxonomy_category_id_field" id="taxonomy_category_id_field" class="regular-text" 
+                                   value="<?php echo esc_attr(isset($settings['taxonomy_meta']['category_id']) ? $settings['taxonomy_meta']['category_id'] : ''); ?>" 
+                                   placeholder="e.g., amelia_category_id">
+                            <p class="description"><?php _e('Enter the meta field slug to store Amelia Category ID on the taxonomy term itself. This allows you to query taxonomy terms by Amelia Category ID. Leave empty to skip.', 'amelia-cpt-sync'); ?></p>
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>

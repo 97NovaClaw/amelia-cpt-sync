@@ -35,6 +35,9 @@ function activate_amelia_cpt_sync() {
         $default_settings = array(
             'cpt_slug' => '',
             'taxonomy_slug' => '',
+            'taxonomy_meta' => array(
+                'category_id' => ''
+            ),
             'field_mappings' => array(
                 'service_id' => '',
                 'category_id' => '',
