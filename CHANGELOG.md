@@ -62,6 +62,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FAQ section
 - Best practices guide
 
+## [1.0.5] - 2024-10-18
+
+### Fixed
+- Fixed settings save/load functionality with proper array merging for backward compatibility
+- Added array_replace_recursive() to merge saved settings with defaults
+- Fixed new field mappings (Service ID, Category ID, Primary Photo, Taxonomy Category ID) to match original pattern
+- Removed unnecessary isset() checks to use same proven logic as working fields
+- Added comprehensive debug logging for troubleshooting (console.log and error_log)
+- Added proper isset() checks for all POST variables in AJAX handler
+
+### Changed
+- Reorganized admin UI - Moved Taxonomy Mappings to separate table in Field Mapping tab
+- Improved settings structure for better maintainability
+- Enhanced JavaScript with debug console logging
+- Improved error messages in AJAX responses
+
 ## [1.1.0] - 2024-10-18
 
 ### Added

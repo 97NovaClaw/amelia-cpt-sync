@@ -4,7 +4,7 @@
 
 A production-ready WordPress plugin that provides **real-time, one-way synchronization** from the AmeliaWP booking plugin to JetEngine Custom Post Types. The plugin is fully event-driven and requires zero manual intervention once configured. Now includes **Full Sync** feature for manual bulk synchronization of all existing Amelia services.
 
-**Current Version**: 1.1.0
+**Current Version**: 1.0.5
 
 ## ✅ Completed Features
 
