@@ -114,23 +114,29 @@
             $spinner.addClass('is-active');
             $message.text('').removeClass('success error');
             
-            // Gather form data
+            // Gather form data - read all fields regardless of tab visibility
             var formData = {
                 action: 'amelia_cpt_sync_save_settings',
                 nonce: ameliaCptSync.nonce,
                 cpt_slug: cptSlug,
                 taxonomy_slug: $('#taxonomy_slug').val(),
                 debug_enabled: $('#debug_enabled').is(':checked') ? 'true' : 'false',
-                taxonomy_category_id_field: $('#taxonomy_category_id_field').val().trim(),
-                service_id_field: $('#service_id_field').val().trim(),
-                category_id_field: $('#category_id_field').val().trim(),
-                primary_photo_field: $('#primary_photo_field').val().trim(),
-                price_field: $('#price_field').val().trim(),
-                duration_field: $('#duration_field').val().trim(),
-                duration_format: $('#duration_format').val(),
-                gallery_field: $('#gallery_field').val().trim(),
-                extras_field: $('#extras_field').val().trim()
+                taxonomy_category_id_field: $('#taxonomy_category_id_field').val() || '',
+                service_id_field: $('#service_id_field').val() || '',
+                category_id_field: $('#category_id_field').val() || '',
+                primary_photo_field: $('#primary_photo_field').val() || '',
+                price_field: $('#price_field').val() || '',
+                duration_field: $('#duration_field').val() || '',
+                duration_format: $('#duration_format').val() || 'seconds',
+                gallery_field: $('#gallery_field').val() || '',
+                extras_field: $('#extras_field').val() || ''
             };
+            
+            // Debug: Log field values being sent
+            console.log('[Save] service_id_field:', formData.service_id_field);
+            console.log('[Save] category_id_field:', formData.category_id_field);
+            console.log('[Save] primary_photo_field:', formData.primary_photo_field);
+            console.log('[Save] taxonomy_category_id_field:', formData.taxonomy_category_id_field);
             
             // Save settings via AJAX
             $.ajax({
