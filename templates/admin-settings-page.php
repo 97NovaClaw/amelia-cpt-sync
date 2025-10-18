@@ -118,7 +118,7 @@ if (!defined('WPINC')) {
                         <td><?php _e('The unique Amelia service ID', 'amelia-cpt-sync'); ?></td>
                         <td>
                             <input type="text" name="service_id_field" id="service_id_field" class="regular-text" 
-                                   value="<?php echo esc_attr($settings['field_mappings']['service_id']); ?>" 
+                                   value="<?php echo esc_attr(isset($settings['field_mappings']['service_id']) ? $settings['field_mappings']['service_id'] : ''); ?>" 
                                    placeholder="e.g., amelia_service_id">
                         </td>
                         <td><?php _e('Type: Number (useful for shortcodes and queries)', 'amelia-cpt-sync'); ?></td>
@@ -129,7 +129,7 @@ if (!defined('WPINC')) {
                         <td><?php _e('The Amelia category ID', 'amelia-cpt-sync'); ?></td>
                         <td>
                             <input type="text" name="category_id_field" id="category_id_field" class="regular-text" 
-                                   value="<?php echo esc_attr($settings['field_mappings']['category_id']); ?>" 
+                                   value="<?php echo esc_attr(isset($settings['field_mappings']['category_id']) ? $settings['field_mappings']['category_id'] : ''); ?>" 
                                    placeholder="e.g., amelia_category_id">
                         </td>
                         <td><?php _e('Type: Number (useful for filtering and queries)', 'amelia-cpt-sync'); ?></td>
@@ -140,7 +140,7 @@ if (!defined('WPINC')) {
                         <td><?php _e('The main service image', 'amelia-cpt-sync'); ?></td>
                         <td>
                             <input type="text" name="primary_photo_field" id="primary_photo_field" class="regular-text" 
-                                   value="<?php echo esc_attr($settings['field_mappings']['primary_photo']); ?>" 
+                                   value="<?php echo esc_attr(isset($settings['field_mappings']['primary_photo']) ? $settings['field_mappings']['primary_photo'] : ''); ?>" 
                                    placeholder="e.g., service_image">
                         </td>
                         <td><?php _e('Type: Media (stores attachment ID)', 'amelia-cpt-sync'); ?></td>
