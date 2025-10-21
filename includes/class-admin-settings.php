@@ -33,11 +33,15 @@ class Amelia_CPT_Sync_Admin_Settings {
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'register_settings'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
+        add_action('admin_footer', array($this, 'add_custom_fields_modal_html'));
         add_action('wp_ajax_amelia_cpt_sync_save_settings', array($this, 'ajax_save_settings'));
         add_action('wp_ajax_amelia_cpt_sync_get_taxonomies', array($this, 'ajax_get_taxonomies'));
         add_action('wp_ajax_amelia_cpt_sync_full_sync', array($this, 'ajax_full_sync'));
         add_action('wp_ajax_amelia_cpt_sync_view_log', array($this, 'ajax_view_log'));
         add_action('wp_ajax_amelia_cpt_sync_clear_log', array($this, 'ajax_clear_log'));
+        add_action('wp_ajax_amelia_cpt_sync_save_custom_fields_defs', array($this, 'ajax_save_custom_fields_defs'));
+        add_action('wp_ajax_amelia_cpt_sync_get_custom_fields_modal', array($this, 'ajax_get_custom_fields_modal'));
+        add_action('wp_ajax_amelia_cpt_sync_save_custom_field_values', array($this, 'ajax_save_custom_field_values'));
     }
     
     /**
@@ -70,38 +74,55 @@ class Amelia_CPT_Sync_Admin_Settings {
      * Enqueue admin scripts and styles
      */
     public function enqueue_admin_scripts($hook) {
-        // Only load on our settings page
-        if ('toplevel_page_amelia-cpt-sync' !== $hook) {
-            return;
-        }
-        
-        // Aggressive cache busting: version + file modification time
         $js_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'assets/js/admin.js';
         $css_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'assets/css/admin.css';
+        $modal_js_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'assets/js/amelia-modal.js';
         
         $js_version = AMELIA_CPT_SYNC_VERSION . '.' . (file_exists($js_file) ? filemtime($js_file) : time());
         $css_version = AMELIA_CPT_SYNC_VERSION . '.' . (file_exists($css_file) ? filemtime($css_file) : time());
+        $modal_js_version = AMELIA_CPT_SYNC_VERSION . '.' . (file_exists($modal_js_file) ? filemtime($modal_js_file) : time());
         
-        wp_enqueue_style(
-            'amelia-cpt-sync-admin',
-            AMELIA_CPT_SYNC_PLUGIN_URL . 'assets/css/admin.css',
-            array(),
-            $css_version
-        );
+        // Load on our settings page
+        if ('toplevel_page_amelia-cpt-sync' === $hook) {
+            wp_enqueue_style(
+                'amelia-cpt-sync-admin',
+                AMELIA_CPT_SYNC_PLUGIN_URL . 'assets/css/admin.css',
+                array(),
+                $css_version
+            );
+            
+            wp_enqueue_script(
+                'amelia-cpt-sync-admin',
+                AMELIA_CPT_SYNC_PLUGIN_URL . 'assets/js/admin.js',
+                array('jquery', 'jquery-ui-sortable'),
+                $js_version,
+                true
+            );
+            
+            wp_localize_script('amelia-cpt-sync-admin', 'ameliaCptSync', array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('amelia_cpt_sync_nonce')
+            ));
+        }
         
-        wp_enqueue_script(
-            'amelia-cpt-sync-admin',
-            AMELIA_CPT_SYNC_PLUGIN_URL . 'assets/js/admin.js',
-            array('jquery'),
-            $js_version,
-            true
-        );
-        
-        // Pass AJAX URL and nonce to JavaScript
-        wp_localize_script('amelia-cpt-sync-admin', 'ameliaCptSync', array(
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('amelia_cpt_sync_nonce')
-        ));
+        // Load modal script on Amelia's service pages
+        if (isset($_GET['page']) && $_GET['page'] === 'wpamelia-services') {
+            wp_enqueue_style('wp-jquery-ui-dialog');
+            wp_enqueue_script('jquery-ui-dialog');
+            
+            wp_enqueue_script(
+                'amelia-cpt-sync-modal',
+                AMELIA_CPT_SYNC_PLUGIN_URL . 'assets/js/amelia-modal.js',
+                array('jquery', 'jquery-ui-dialog'),
+                $modal_js_version,
+                true
+            );
+            
+            wp_localize_script('amelia-cpt-sync-modal', 'ameliaCptSyncModal', array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('amelia_cpt_sync_nonce')
+            ));
+        }
     }
     
     /**
@@ -594,6 +615,144 @@ class Amelia_CPT_Sync_Admin_Settings {
     }
     
     /**
+     * AJAX handler to save custom field definitions
+     */
+    public function ajax_save_custom_fields_defs() {
+        check_ajax_referer('amelia_cpt_sync_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $definitions = isset($_POST['definitions']) ? $_POST['definitions'] : array();
+        
+        amelia_cpt_sync_debug_log('Saving custom field definitions: ' . print_r($definitions, true));
+        
+        $manager = new Amelia_CPT_Sync_Custom_Fields_Manager();
+        $result = $manager->save_field_definitions($definitions);
+        
+        if ($result) {
+            wp_send_json_success(array('message' => 'Custom field definitions saved!'));
+        } else {
+            wp_send_json_error(array('message' => 'Failed to save custom field definitions'));
+        }
+    }
+    
+    /**
+     * AJAX handler to get custom fields modal HTML
+     */
+    public function ajax_get_custom_fields_modal() {
+        check_ajax_referer('amelia_cpt_sync_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $service_id = isset($_POST['service_id']) ? intval($_POST['service_id']) : 0;
+        $service_name = isset($_POST['service_name']) ? sanitize_text_field($_POST['service_name']) : 'Unknown Service';
+        
+        if (!$service_id) {
+            wp_send_json_error(array('message' => 'No service ID provided'));
+        }
+        
+        $manager = new Amelia_CPT_Sync_Custom_Fields_Manager();
+        $definitions = $manager->get_field_definitions();
+        $values = $manager->get_service_field_values($service_id);
+        
+        if (empty($definitions)) {
+            wp_send_json_error(array(
+                'message' => 'No custom fields defined. Please configure custom fields in Amelia to CPT Sync settings first.'
+            ));
+            return;
+        }
+        
+        // Build modal HTML
+        ob_start();
+        ?>
+        <div class="amelia-custom-fields-form">
+            <p><strong>Service:</strong> <?php echo esc_html($service_name); ?> (ID: <?php echo esc_html($service_id); ?>)</p>
+            <p class="description">Fill in the custom details for this service. These will be synced to your CPT.</p>
+            
+            <table class="form-table">
+                <?php foreach ($definitions as $def): ?>
+                    <tr>
+                        <th scope="row">
+                            <label for="custom_field_<?php echo esc_attr($def['meta_key']); ?>">
+                                <?php echo esc_html($def['field_title']); ?>
+                            </label>
+                        </th>
+                        <td>
+                            <input type="text" 
+                                   id="custom_field_<?php echo esc_attr($def['meta_key']); ?>" 
+                                   name="custom_fields[<?php echo esc_attr($def['meta_key']); ?>]"
+                                   class="regular-text"
+                                   value="<?php echo esc_attr(isset($values[$def['meta_key']]) ? $values[$def['meta_key']] : ''); ?>"
+                                   placeholder="<?php echo esc_attr($def['description']); ?>">
+                            <?php if (!empty($def['description'])): ?>
+                                <p class="description"><?php echo esc_html($def['description']); ?></p>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </table>
+        </div>
+        <?php
+        $html = ob_get_clean();
+        
+        wp_send_json_success(array(
+            'html' => $html,
+            'service_id' => $service_id,
+            'service_name' => $service_name
+        ));
+    }
+    
+    /**
+     * AJAX handler to save custom field values
+     */
+    public function ajax_save_custom_field_values() {
+        check_ajax_referer('amelia_cpt_sync_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $service_id = isset($_POST['service_id']) ? intval($_POST['service_id']) : 0;
+        $values = isset($_POST['custom_fields']) ? $_POST['custom_fields'] : array();
+        
+        if (!$service_id) {
+            wp_send_json_error(array('message' => 'No service ID provided'));
+        }
+        
+        amelia_cpt_sync_debug_log("Saving custom field values for service {$service_id}");
+        
+        $manager = new Amelia_CPT_Sync_Custom_Fields_Manager();
+        $result = $manager->save_service_field_values($service_id, $values);
+        
+        if ($result) {
+            wp_send_json_success(array('message' => 'Custom field values saved successfully!'));
+        } else {
+            wp_send_json_error(array('message' => 'Failed to save custom field values'));
+        }
+    }
+    
+    /**
+     * Add custom fields modal HTML to admin footer
+     */
+    public function add_custom_fields_modal_html() {
+        // Only on Amelia's service pages
+        if (!isset($_GET['page']) || $_GET['page'] !== 'wpamelia-services') {
+            return;
+        }
+        ?>
+        <div id="amelia-cpt-sync-custom-fields-modal" style="display: none;" title="Additional Service Details">
+            <div id="amelia-cpt-sync-modal-content">
+                <p>Loading...</p>
+            </div>
+        </div>
+        <?php
+    }
+    
+    /**
      * Sanitize settings
      */
     public function sanitize_settings($input) {
@@ -601,4 +760,5 @@ class Amelia_CPT_Sync_Admin_Settings {
         return $input;
     }
 }
+
 

@@ -55,6 +55,11 @@ function activate_amelia_cpt_sync() {
         
         file_put_contents($settings_file, json_encode($default_settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
     }
+    
+    // Create custom fields database tables
+    require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-custom-fields-manager.php';
+    $custom_fields_manager = new Amelia_CPT_Sync_Custom_Fields_Manager();
+    $custom_fields_manager->create_tables();
 
     // Flush rewrite rules
     flush_rewrite_rules();
@@ -75,6 +80,7 @@ register_deactivation_hook(__FILE__, 'deactivate_amelia_cpt_sync');
  * Load plugin classes and functions
  */
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/debug-functions.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-custom-fields-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-admin-settings.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-cpt-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-sync-handler.php';

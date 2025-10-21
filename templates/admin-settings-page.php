@@ -263,6 +263,101 @@ if (!defined('WPINC')) {
                     </tr>
                 </tbody>
             </table>
+            
+            <hr style="margin: 40px 0;">
+            
+            <h3><?php _e('Custom Service Fields', 'amelia-cpt-sync'); ?></h3>
+            <p class="description" style="margin-bottom: 15px;">
+                <?php _e('Define custom fields that will appear in a modal when adding/editing services in Amelia. These fields will be synced to your CPT as meta fields.', 'amelia-cpt-sync'); ?>
+            </p>
+            
+            <table class="wp-list-table widefat fixed striped" id="custom-fields-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;"><?php _e('Order', 'amelia-cpt-sync'); ?></th>
+                        <th style="width: 20%;"><?php _e('Field Title (Shown in Modal)', 'amelia-cpt-sync'); ?></th>
+                        <th style="width: 20%;"><?php _e('Meta Field Key', 'amelia-cpt-sync'); ?></th>
+                        <th style="width: 25%;"><?php _e('Description (Placeholder)', 'amelia-cpt-sync'); ?></th>
+                        <th style="width: 25%;"><?php _e('Admin Note', 'amelia-cpt-sync'); ?></th>
+                        <th style="width: 5%;"><?php _e('Actions', 'amelia-cpt-sync'); ?></th>
+                    </tr>
+                </thead>
+                <tbody id="custom-fields-tbody">
+                    <?php 
+                    $manager = new Amelia_CPT_Sync_Custom_Fields_Manager();
+                    $custom_fields = $manager->get_field_definitions();
+                    
+                    if (empty($custom_fields)): ?>
+                        <tr class="no-fields-row">
+                            <td colspan="6" style="text-align: center; color: #999; padding: 20px;">
+                                <?php _e('No custom fields defined. Click "Add Custom Field" to get started.', 'amelia-cpt-sync'); ?>
+                            </td>
+                        </tr>
+                    <?php else:
+                        foreach ($custom_fields as $index => $field): ?>
+                            <tr class="custom-field-row">
+                                <td class="drag-handle" style="text-align: center; cursor: move;">
+                                    <span class="dashicons dashicons-menu"></span>
+                                </td>
+                                <td>
+                                    <input type="text" name="custom_fields[<?php echo $index; ?>][field_title]" 
+                                           class="regular-text" 
+                                           value="<?php echo esc_attr($field['field_title']); ?>"
+                                           placeholder="e.g., Vehicle Capacity">
+                                </td>
+                                <td>
+                                    <input type="text" name="custom_fields[<?php echo $index; ?>][meta_key]" 
+                                           class="regular-text" 
+                                           value="<?php echo esc_attr($field['meta_key']); ?>"
+                                           placeholder="e.g., vehicle_capacity">
+                                </td>
+                                <td>
+                                    <input type="text" name="custom_fields[<?php echo $index; ?>][description]" 
+                                           class="regular-text" 
+                                           value="<?php echo esc_attr($field['description']); ?>"
+                                           placeholder="e.g., Number of passengers">
+                                </td>
+                                <td>
+                                    <input type="text" name="custom_fields[<?php echo $index; ?>][admin_note]" 
+                                           class="regular-text" 
+                                           value="<?php echo esc_attr($field['admin_note']); ?>"
+                                           placeholder="e.g., JetEngine field: Text">
+                                </td>
+                                <td style="text-align: center;">
+                                    <button type="button" class="button button-small remove-custom-field" title="Remove Field">
+                                        <span class="dashicons dashicons-trash"></span>
+                                    </button>
+                                </td>
+                            </tr>
+                        <?php endforeach;
+                    endif; ?>
+                </tbody>
+            </table>
+            
+            <div style="margin-top: 15px;">
+                <button type="button" id="add-custom-field" class="button button-secondary">
+                    <span class="dashicons dashicons-plus-alt" style="vertical-align: middle; margin-right: 5px;"></span>
+                    <?php _e('Add Custom Field', 'amelia-cpt-sync'); ?>
+                </button>
+                
+                <button type="button" id="save-custom-fields" class="button button-primary" style="margin-left: 10px;">
+                    <span class="dashicons dashicons-saved" style="vertical-align: middle; margin-right: 5px;"></span>
+                    <?php _e('Save Custom Fields', 'amelia-cpt-sync'); ?>
+                </button>
+                
+                <span class="spinner" id="custom-fields-spinner" style="float: none; margin: 0 10px;"></span>
+                <span id="custom-fields-message"></span>
+            </div>
+            
+            <div class="notice notice-info" style="margin-top: 20px;">
+                <p><strong><?php _e('How it works:', 'amelia-cpt-sync'); ?></strong></p>
+                <ol style="margin-left: 20px;">
+                    <li><?php _e('Define your custom fields above (e.g., Capacity, Chauffer, Transmission)', 'amelia-cpt-sync'); ?></li>
+                    <li><?php _e('Click "Save Custom Fields" to store your field definitions', 'amelia-cpt-sync'); ?></li>
+                    <li><?php _e('When you add or edit a service in Amelia, a modal will appear asking for these custom details', 'amelia-cpt-sync'); ?></li>
+                    <li><?php _e('Custom field values are stored separately and synced to your CPT meta fields', 'amelia-cpt-sync'); ?></li>
+                </ol>
+            </div>
         </div>
         
         <!-- Full Sync Tab -->
@@ -393,15 +488,30 @@ if (!defined('WPINC')) {
 }
 
 #save-message.success,
-#log-message.success {
+#log-message.success,
+#custom-fields-message.success {
     color: #46b450;
     font-weight: 600;
 }
 
 #save-message.error,
-#log-message.error {
+#log-message.error,
+#custom-fields-message.error {
     color: #dc3232;
     font-weight: 600;
+}
+
+#custom-fields-tbody .drag-handle {
+    cursor: move;
+}
+
+#custom-fields-tbody .drag-handle:hover {
+    background: #f0f0f0;
+}
+
+.custom-field-row.ui-sortable-helper {
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
 .sync-results-box {

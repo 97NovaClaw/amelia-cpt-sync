@@ -345,6 +345,127 @@
             });
         });
         
+        // Custom Fields: Make table sortable
+        if ($('#custom-fields-tbody').length) {
+            $('#custom-fields-tbody').sortable({
+                handle: '.drag-handle',
+                placeholder: 'ui-state-highlight',
+                helper: function(e, tr) {
+                    var $originals = tr.children();
+                    var $helper = tr.clone();
+                    $helper.children().each(function(index) {
+                        $(this).width($originals.eq(index).width());
+                    });
+                    return $helper;
+                }
+            });
+        }
+        
+        // Custom Fields: Add new field row
+        $('#add-custom-field').on('click', function() {
+            var $tbody = $('#custom-fields-tbody');
+            var $noFieldsRow = $('.no-fields-row');
+            
+            // Remove "no fields" row if it exists
+            if ($noFieldsRow.length) {
+                $noFieldsRow.remove();
+            }
+            
+            var index = $tbody.find('tr').length;
+            var newRow = '<tr class="custom-field-row">' +
+                '<td class="drag-handle" style="text-align: center; cursor: move;"><span class="dashicons dashicons-menu"></span></td>' +
+                '<td><input type="text" name="custom_fields[' + index + '][field_title]" class="regular-text" placeholder="e.g., Vehicle Capacity"></td>' +
+                '<td><input type="text" name="custom_fields[' + index + '][meta_key]" class="regular-text" placeholder="e.g., vehicle_capacity"></td>' +
+                '<td><input type="text" name="custom_fields[' + index + '][description]" class="regular-text" placeholder="e.g., Number of passengers"></td>' +
+                '<td><input type="text" name="custom_fields[' + index + '][admin_note]" class="regular-text" placeholder="e.g., JetEngine field: Text"></td>' +
+                '<td style="text-align: center;"><button type="button" class="button button-small remove-custom-field" title="Remove Field"><span class="dashicons dashicons-trash"></span></button></td>' +
+                '</tr>';
+            
+            $tbody.append(newRow);
+            
+            // Refresh sortable
+            $tbody.sortable('refresh');
+        });
+        
+        // Custom Fields: Remove field row
+        $(document).on('click', '.remove-custom-field', function() {
+            var $row = $(this).closest('tr');
+            var $tbody = $('#custom-fields-tbody');
+            
+            $row.fadeOut(300, function() {
+                $(this).remove();
+                
+                // If no rows left, show "no fields" message
+                if ($tbody.find('tr').length === 0) {
+                    $tbody.html('<tr class="no-fields-row"><td colspan="6" style="text-align: center; color: #999; padding: 20px;">No custom fields defined. Click "Add Custom Field" to get started.</td></tr>');
+                }
+            });
+        });
+        
+        // Custom Fields: Save definitions
+        $('#save-custom-fields').on('click', function(e) {
+            e.preventDefault();
+            
+            var $button = $(this);
+            var $spinner = $('#custom-fields-spinner');
+            var $message = $('#custom-fields-message');
+            
+            // Gather custom field definitions
+            var definitions = [];
+            $('#custom-fields-tbody tr.custom-field-row').each(function(index) {
+                var $row = $(this);
+                var fieldTitle = $row.find('[name*="[field_title]"]').val();
+                var metaKey = $row.find('[name*="[meta_key]"]').val();
+                var description = $row.find('[name*="[description]"]').val();
+                var adminNote = $row.find('[name*="[admin_note]"]').val();
+                
+                if (fieldTitle && metaKey) {
+                    definitions.push({
+                        field_title: fieldTitle,
+                        meta_key: metaKey,
+                        description: description,
+                        admin_note: adminNote
+                    });
+                }
+            });
+            
+            // Show loading
+            $button.prop('disabled', true);
+            $spinner.addClass('is-active');
+            $message.text('').removeClass('success error');
+            
+            // Save via AJAX
+            $.ajax({
+                url: ameliaCptSync.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'amelia_cpt_sync_save_custom_fields_defs',
+                    nonce: ameliaCptSync.nonce,
+                    definitions: definitions
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $message.text(response.data.message).addClass('success');
+                    } else {
+                        $message.text(response.data.message).addClass('error');
+                    }
+                },
+                error: function() {
+                    $message.text('Error saving custom fields').addClass('error');
+                },
+                complete: function() {
+                    $button.prop('disabled', false);
+                    $spinner.removeClass('is-active');
+                    
+                    setTimeout(function() {
+                        $message.fadeOut(400, function() {
+                            $(this).text('').removeClass('success error').css('display', '');
+                        });
+                    }, 3000);
+                }
+            });
+        });
+        
         // Add tooltips for better UX (optional enhancement)
         if ($.fn.tooltip) {
             $('.description').tooltip({

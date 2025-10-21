@@ -109,7 +109,33 @@ class Amelia_CPT_Sync_CPT_Manager {
         // Handle field mappings
         $this->sync_custom_fields($post_id, $service_data, $settings['field_mappings']);
         
+        // Handle custom fields from database
+        $this->sync_user_defined_custom_fields($post_id, $amelia_service_id);
+        
         return $post_id;
+    }
+    
+    /**
+     * Sync user-defined custom fields from database
+     *
+     * @param int $post_id The CPT post ID
+     * @param int $amelia_service_id The Amelia service ID
+     */
+    private function sync_user_defined_custom_fields($post_id, $amelia_service_id) {
+        $manager = new Amelia_CPT_Sync_Custom_Fields_Manager();
+        $custom_field_values = $manager->get_service_field_values($amelia_service_id);
+        
+        if (empty($custom_field_values)) {
+            amelia_cpt_sync_debug_log("No custom field values for service {$amelia_service_id}");
+            return;
+        }
+        
+        amelia_cpt_sync_debug_log("Syncing custom fields for service {$amelia_service_id}: " . print_r($custom_field_values, true));
+        
+        foreach ($custom_field_values as $meta_key => $meta_value) {
+            update_post_meta($post_id, $meta_key, $meta_value);
+            amelia_cpt_sync_debug_log("  - Set {$meta_key} = {$meta_value}");
+        }
     }
     
     /**
