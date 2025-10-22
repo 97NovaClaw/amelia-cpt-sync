@@ -19,16 +19,62 @@
         var pendingServiceName = null;
         
         /**
-         * Intercept ALL AJAX requests for debugging
+         * Intercept fetch() API calls (Amelia likely uses fetch instead of jQuery.ajax)
+         */
+        var originalFetch = window.fetch;
+        window.fetch = function() {
+            console.log('[Amelia CPT Sync] FETCH intercepted:', arguments[0]);
+            
+            return originalFetch.apply(this, arguments).then(function(response) {
+                // Clone response so we can read it
+                var clonedResponse = response.clone();
+                
+                // Check if this is an Amelia API call
+                if (arguments[0] && arguments[0].includes && arguments[0].includes('wpamelia_api')) {
+                    console.log('[Amelia CPT Sync] Amelia API fetch detected:', arguments[0]);
+                    
+                    // Read the response
+                    clonedResponse.json().then(function(data) {
+                        console.log('[Amelia CPT Sync] Fetch response data:', data);
+                        
+                        // Check if it's a service save
+                        if (data.message && 
+                            (data.message.includes('Successfully added') || 
+                             data.message.includes('Successfully updated'))) {
+                            
+                            if (data.data && data.data.service) {
+                                var serviceId = data.data.service.id;
+                                var serviceName = data.data.service.name;
+                                
+                                console.log('[Amelia CPT Sync] ✅ Service save detected via fetch!');
+                                console.log('[Amelia CPT Sync] Service ID:', serviceId);
+                                console.log('[Amelia CPT Sync] Service Name:', serviceName);
+                                
+                                setTimeout(function() {
+                                    showCustomFieldsPrompt(serviceId, serviceName);
+                                }, 500);
+                            }
+                        }
+                    }).catch(function(e) {
+                        console.log('[Amelia CPT Sync] Error parsing fetch response:', e);
+                    });
+                }
+                
+                return response;
+            });
+        };
+        
+        /**
+         * Also try jQuery AJAX intercept (fallback)
          */
         $(document).ajaxSend(function(event, jqxhr, settings) {
             if (settings.url && settings.url.includes('wpamelia_api')) {
-                console.log('[Amelia CPT Sync] AJAX SEND:', settings.url);
+                console.log('[Amelia CPT Sync] jQuery AJAX SEND:', settings.url);
             }
         });
         
         /**
-         * Intercept Amelia AJAX success responses
+         * Intercept Amelia AJAX success responses (jQuery)
          */
         $(document).ajaxSuccess(function(event, xhr, settings) {
             // Log all Amelia API calls
