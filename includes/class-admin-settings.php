@@ -42,6 +42,7 @@ class Amelia_CPT_Sync_Admin_Settings {
         add_action('wp_ajax_amelia_cpt_sync_save_custom_fields_defs', array($this, 'ajax_save_custom_fields_defs'));
         add_action('wp_ajax_amelia_cpt_sync_get_custom_fields_modal', array($this, 'ajax_get_custom_fields_modal'));
         add_action('wp_ajax_amelia_cpt_sync_save_custom_field_values', array($this, 'ajax_save_custom_field_values'));
+        add_action('wp_ajax_amelia_cpt_sync_log_debug', array($this, 'ajax_log_debug'));
     }
     
     /**
@@ -105,8 +106,19 @@ class Amelia_CPT_Sync_Admin_Settings {
             ));
         }
         
-        // Load modal script on Amelia's service pages
-        if (isset($_GET['page']) && $_GET['page'] === 'wpamelia-services') {
+        // Load modal script on ALL admin pages (Amelia might use different page slugs)
+        // Check more broadly to ensure we catch Amelia's service pages
+        $current_screen = get_current_screen();
+        $is_amelia_page = false;
+        
+        // Check multiple conditions
+        if ((isset($_GET['page']) && strpos($_GET['page'], 'wpamelia') !== false) ||
+            (isset($_GET['page']) && strpos($_GET['page'], 'amelia') !== false) ||
+            ($current_screen && strpos($current_screen->id, 'amelia') !== false)) {
+            $is_amelia_page = true;
+        }
+        
+        if ($is_amelia_page) {
             wp_enqueue_style('wp-jquery-ui-dialog');
             wp_enqueue_script('jquery-ui-dialog');
             
@@ -120,8 +132,11 @@ class Amelia_CPT_Sync_Admin_Settings {
             
             wp_localize_script('amelia-cpt-sync-modal', 'ameliaCptSyncModal', array(
                 'ajax_url' => admin_url('admin-ajax.php'),
-                'nonce' => wp_create_nonce('amelia_cpt_sync_nonce')
+                'nonce' => wp_create_nonce('amelia_cpt_sync_nonce'),
+                'debug' => true
             ));
+            
+            amelia_cpt_sync_debug_log('Modal script enqueued on page: ' . (isset($_GET['page']) ? $_GET['page'] : 'unknown'));
         }
     }
     
@@ -739,17 +754,46 @@ class Amelia_CPT_Sync_Admin_Settings {
      * Add custom fields modal HTML to admin footer
      */
     public function add_custom_fields_modal_html() {
-        // Only on Amelia's service pages
-        if (!isset($_GET['page']) || $_GET['page'] !== 'wpamelia-services') {
+        // Check if we're on an Amelia page (broadly)
+        $is_amelia_page = false;
+        
+        if ((isset($_GET['page']) && strpos($_GET['page'], 'wpamelia') !== false) ||
+            (isset($_GET['page']) && strpos($_GET['page'], 'amelia') !== false)) {
+            $is_amelia_page = true;
+        }
+        
+        if (!$is_amelia_page) {
             return;
         }
+        
+        amelia_cpt_sync_debug_log('Adding modal HTML to footer on page: ' . (isset($_GET['page']) ? $_GET['page'] : 'unknown'));
         ?>
+        <!-- Amelia CPT Sync Custom Fields Modal -->
         <div id="amelia-cpt-sync-custom-fields-modal" style="display: none;" title="Additional Service Details">
             <div id="amelia-cpt-sync-modal-content">
                 <p>Loading...</p>
             </div>
         </div>
+        <script>
+            console.log('[Amelia CPT Sync] Modal HTML added to page');
+            console.log('[Amelia CPT Sync] Modal element exists:', jQuery('#amelia-cpt-sync-custom-fields-modal').length > 0);
+        </script>
         <?php
+    }
+    
+    /**
+     * AJAX handler to log debug message from JavaScript
+     */
+    public function ajax_log_debug() {
+        check_ajax_referer('amelia_cpt_sync_nonce', 'nonce');
+        
+        $message = isset($_POST['message']) ? sanitize_text_field($_POST['message']) : '';
+        
+        if ($message) {
+            amelia_cpt_sync_debug_log('[JS] ' . $message);
+        }
+        
+        wp_send_json_success();
     }
     
     /**

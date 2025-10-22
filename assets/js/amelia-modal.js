@@ -10,51 +10,88 @@
     'use strict';
     
     $(document).ready(function() {
-        console.log('[Amelia CPT Sync] Modal script loaded on Amelia services page');
+        console.log('[Amelia CPT Sync] ========== MODAL SCRIPT LOADED ==========');
+        console.log('[Amelia CPT Sync] Current page:', window.location.href);
+        console.log('[Amelia CPT Sync] Modal config:', ameliaCptSyncModal);
         
         var modalDialog = null;
         var pendingServiceId = null;
         var pendingServiceName = null;
         
         /**
+         * Intercept ALL AJAX requests for debugging
+         */
+        $(document).ajaxSend(function(event, jqxhr, settings) {
+            if (settings.url && settings.url.includes('wpamelia_api')) {
+                console.log('[Amelia CPT Sync] AJAX SEND:', settings.url);
+            }
+        });
+        
+        /**
          * Intercept Amelia AJAX success responses
          */
         $(document).ajaxSuccess(function(event, xhr, settings) {
+            // Log all Amelia API calls
+            if (settings.url && settings.url.includes('wpamelia_api')) {
+                console.log('[Amelia CPT Sync] AJAX SUCCESS:', settings.url);
+                console.log('[Amelia CPT Sync] Response status:', xhr.status);
+            }
+            
             try {
                 // Check if this is an Amelia API call for services
                 if (!settings.url || !settings.url.includes('wpamelia_api')) {
                     return;
                 }
                 
-                // Check if it's a service save endpoint
-                var isServiceCall = settings.url.includes('call=/services');
+                // Log the URL for debugging
+                if (settings.url.includes('call=/services')) {
+                    console.log('[Amelia CPT Sync] Service API call detected:', settings.url);
+                    console.log('[Amelia CPT Sync] Method:', settings.type);
+                }
                 
-                if (!isServiceCall) {
+                // Check if it's a service save endpoint (not positions or list)
+                var urlMatch = settings.url.match(/call=\/services(\/\d+)?(&|$)/);
+                if (!urlMatch) {
                     return;
                 }
                 
+                console.log('[Amelia CPT Sync] Attempting to parse response...');
+                
                 // Parse response
                 var response = JSON.parse(xhr.responseText);
+                console.log('[Amelia CPT Sync] Response parsed:', response);
                 
                 // Check if service was successfully saved
-                if (response.message && 
-                    (response.message.includes('Successfully added') || 
-                     response.message.includes('Successfully updated'))) {
+                if (response.message) {
+                    console.log('[Amelia CPT Sync] Response message:', response.message);
                     
-                    if (response.data && response.data.service) {
-                        var serviceId = response.data.service.id;
-                        var serviceName = response.data.service.name;
+                    if (response.message.includes('Successfully added') || 
+                        response.message.includes('Successfully updated') ||
+                        response.message.includes('Successfully retrieved')) {
                         
-                        console.log('[Amelia CPT Sync] Service saved detected:', serviceId, serviceName);
-                        
-                        // Small delay to let Amelia finish its UI updates
-                        setTimeout(function() {
-                            showCustomFieldsPrompt(serviceId, serviceName);
-                        }, 500);
+                        if (response.data && response.data.service) {
+                            var serviceId = response.data.service.id;
+                            var serviceName = response.data.service.name;
+                            
+                            console.log('[Amelia CPT Sync] ✅ Service detected:', serviceId, serviceName);
+                            console.log('[Amelia CPT Sync] Message type:', response.message);
+                            
+                            // Only show modal for add/update, not retrieve
+                            if (response.message.includes('Successfully added') || 
+                                response.message.includes('Successfully updated')) {
+                                
+                                console.log('[Amelia CPT Sync] Showing modal in 500ms...');
+                                
+                                // Small delay to let Amelia finish its UI updates
+                                setTimeout(function() {
+                                    showCustomFieldsPrompt(serviceId, serviceName);
+                                }, 500);
+                            }
+                        }
                     }
                 }
             } catch (e) {
-                // Not a JSON response or not relevant
+                console.log('[Amelia CPT Sync] Error parsing response:', e);
             }
         });
         
@@ -75,6 +112,13 @@
         function loadCustomFieldsModal(serviceId, serviceName) {
             console.log('[Amelia CPT Sync] Loading custom fields modal for service:', serviceId);
             
+            // Log to server debug.txt as well
+            $.post(ameliaCptSyncModal.ajax_url, {
+                action: 'amelia_cpt_sync_log_debug',
+                nonce: ameliaCptSyncModal.nonce,
+                message: 'Modal: Loading custom fields for service ' + serviceId + ' (' + serviceName + ')'
+            });
+            
             $.ajax({
                 url: ameliaCptSyncModal.ajax_url,
                 type: 'POST',
@@ -85,7 +129,10 @@
                     service_name: serviceName
                 },
                 success: function(response) {
+                    console.log('[Amelia CPT Sync] Modal AJAX response:', response);
+                    
                     if (response.success) {
+                        console.log('[Amelia CPT Sync] Opening modal...');
                         // Populate modal content
                         $('#amelia-cpt-sync-modal-content').html(response.data.html);
                         
@@ -94,11 +141,25 @@
                     } else {
                         // No custom fields defined or error
                         console.log('[Amelia CPT Sync] No custom fields defined or error:', response.data.message);
+                        
+                        // Log to server
+                        $.post(ameliaCptSyncModal.ajax_url, {
+                            action: 'amelia_cpt_sync_log_debug',
+                            nonce: ameliaCptSyncModal.nonce,
+                            message: 'Modal ERROR: ' + response.data.message
+                        });
                         // Don't show modal if no fields are configured
                     }
                 },
                 error: function(xhr, status, error) {
                     console.error('[Amelia CPT Sync] Error loading modal:', error);
+                    
+                    // Log to server
+                    $.post(ameliaCptSyncModal.ajax_url, {
+                        action: 'amelia_cpt_sync_log_debug',
+                        nonce: ameliaCptSyncModal.nonce,
+                        message: 'Modal AJAX ERROR: ' + error
+                    });
                 }
             });
         }
