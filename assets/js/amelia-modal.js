@@ -19,49 +19,57 @@
         var pendingServiceName = null;
         
         /**
-         * Intercept fetch() API calls (Amelia likely uses fetch instead of jQuery.ajax)
+         * Intercept XMLHttpRequest (Amelia uses this based on network tab showing "XHR")
          */
-        var originalFetch = window.fetch;
-        window.fetch = function() {
-            console.log('[Amelia CPT Sync] FETCH intercepted:', arguments[0]);
+        var originalXHROpen = XMLHttpRequest.prototype.open;
+        var originalXHRSend = XMLHttpRequest.prototype.send;
+        
+        XMLHttpRequest.prototype.open = function(method, url) {
+            this._ameliaURL = url;
+            this._ameliaMethod = method;
+            return originalXHROpen.apply(this, arguments);
+        };
+        
+        XMLHttpRequest.prototype.send = function() {
+            var xhr = this;
             
-            return originalFetch.apply(this, arguments).then(function(response) {
-                // Clone response so we can read it
-                var clonedResponse = response.clone();
+            if (this._ameliaURL && this._ameliaURL.includes('wpamelia_api')) {
+                console.log('[Amelia CPT Sync] XHR SEND:', this._ameliaMethod, this._ameliaURL);
                 
-                // Check if this is an Amelia API call
-                if (arguments[0] && arguments[0].includes && arguments[0].includes('wpamelia_api')) {
-                    console.log('[Amelia CPT Sync] Amelia API fetch detected:', arguments[0]);
-                    
-                    // Read the response
-                    clonedResponse.json().then(function(data) {
-                        console.log('[Amelia CPT Sync] Fetch response data:', data);
+                this.addEventListener('load', function() {
+                    if (xhr._ameliaURL.includes('call=/services')) {
+                        console.log('[Amelia CPT Sync] XHR Service call completed');
+                        console.log('[Amelia CPT Sync] Response text:', xhr.responseText);
                         
-                        // Check if it's a service save
-                        if (data.message && 
-                            (data.message.includes('Successfully added') || 
-                             data.message.includes('Successfully updated'))) {
+                        try {
+                            var response = JSON.parse(xhr.responseText);
+                            console.log('[Amelia CPT Sync] Parsed response:', response);
                             
-                            if (data.data && data.data.service) {
-                                var serviceId = data.data.service.id;
-                                var serviceName = data.data.service.name;
+                            if (response.message &&
+                                (response.message.includes('Successfully added') ||
+                                 response.message.includes('Successfully updated'))) {
                                 
-                                console.log('[Amelia CPT Sync] ✅ Service save detected via fetch!');
-                                console.log('[Amelia CPT Sync] Service ID:', serviceId);
-                                console.log('[Amelia CPT Sync] Service Name:', serviceName);
-                                
-                                setTimeout(function() {
-                                    showCustomFieldsPrompt(serviceId, serviceName);
-                                }, 500);
+                                if (response.data && response.data.service) {
+                                    var serviceId = response.data.service.id;
+                                    var serviceName = response.data.service.name;
+                                    
+                                    console.log('[Amelia CPT Sync] ✅ Service save detected via XHR!');
+                                    console.log('[Amelia CPT Sync] Service ID:', serviceId);
+                                    console.log('[Amelia CPT Sync] Service Name:', serviceName);
+                                    
+                                    setTimeout(function() {
+                                        showCustomFieldsPrompt(serviceId, serviceName);
+                                    }, 500);
+                                }
                             }
+                        } catch (e) {
+                            console.log('[Amelia CPT Sync] Error parsing XHR response:', e);
                         }
-                    }).catch(function(e) {
-                        console.log('[Amelia CPT Sync] Error parsing fetch response:', e);
-                    });
-                }
-                
-                return response;
-            });
+                    }
+                });
+            }
+            
+            return originalXHRSend.apply(this, arguments);
         };
         
         /**
