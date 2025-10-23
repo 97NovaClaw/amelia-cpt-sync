@@ -30,6 +30,7 @@ class Amelia_CPT_Sync_Admin_Settings {
         add_action('wp_ajax_amelia_cpt_sync_save_all', array($this, 'ajax_save_all'));
         add_action('wp_ajax_amelia_cpt_sync_get_taxonomies', array($this, 'ajax_get_taxonomies'));
         add_action('wp_ajax_amelia_cpt_sync_get_cpt_fields', array($this, 'ajax_get_cpt_fields'));
+        add_action('wp_ajax_amelia_cpt_sync_get_taxonomy_fields', array($this, 'ajax_get_taxonomy_fields'));
         add_action('wp_ajax_amelia_cpt_sync_full_sync', array($this, 'ajax_full_sync'));
         add_action('wp_ajax_amelia_cpt_sync_view_log', array($this, 'ajax_view_log'));
         add_action('wp_ajax_amelia_cpt_sync_clear_log', array($this, 'ajax_clear_log'));
@@ -407,6 +408,31 @@ class Amelia_CPT_Sync_Admin_Settings {
         
         $detector = new Amelia_CPT_Sync_Field_Detector();
         $fields = $detector->get_cpt_meta_fields($cpt_slug);
+        
+        wp_send_json_success(array(
+            'fields' => $fields,
+            'count' => count($fields)
+        ));
+    }
+    
+    /**
+     * AJAX handler to get available taxonomy term meta fields for dropdowns
+     */
+    public function ajax_get_taxonomy_fields() {
+        check_ajax_referer('amelia_cpt_sync_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $taxonomy_slug = isset($_POST['taxonomy_slug']) ? sanitize_text_field($_POST['taxonomy_slug']) : '';
+        
+        if (empty($taxonomy_slug)) {
+            wp_send_json_error(array('message' => 'No taxonomy slug provided'));
+        }
+        
+        $detector = new Amelia_CPT_Sync_Field_Detector();
+        $fields = $detector->get_taxonomy_meta_fields($taxonomy_slug);
         
         wp_send_json_success(array(
             'fields' => $fields,

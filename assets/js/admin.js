@@ -150,6 +150,71 @@
             populateCptFieldDropdowns($('#cpt_slug').val());
         }
         
+        // Populate taxonomy meta fields when taxonomy changes
+        $('#taxonomy_slug').on('change', function() {
+            var taxonomySlug = $(this).val();
+            
+            if (!taxonomySlug) {
+                return;
+            }
+            
+            populateTaxonomyFieldDropdowns(taxonomySlug);
+        });
+        
+        /**
+         * Populate taxonomy field dropdowns with available term meta fields
+         */
+        function populateTaxonomyFieldDropdowns(taxonomySlug) {
+            console.log('[Fields] Fetching available term meta fields for taxonomy:', taxonomySlug);
+            
+            $.ajax({
+                url: ameliaCptSync.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'amelia_cpt_sync_get_taxonomy_fields',
+                    nonce: ameliaCptSync.nonce,
+                    taxonomy_slug: taxonomySlug
+                },
+                success: function(response) {
+                    if (response.success && response.data.fields) {
+                        console.log('[Fields] Received', response.data.count, 'taxonomy fields:', response.data.fields);
+                        
+                        // Update taxonomy field selectors
+                        $('.taxonomy-field-selector').each(function() {
+                            var $select = $(this);
+                            var currentValue = $select.data('current-value') || $select.val();
+                            
+                            // Build options
+                            var options = '<option value="">-- Select Field --</option>';
+                            
+                            $.each(response.data.fields, function(index, field) {
+                                var selected = (field === currentValue) ? ' selected' : '';
+                                options += '<option value="' + field + '"' + selected + '>' + field + '</option>';
+                            });
+                            
+                            // Update dropdown
+                            $select.html(options);
+                            
+                            // If current value wasn't in list, add it as selected
+                            if (currentValue && response.data.fields.indexOf(currentValue) === -1) {
+                                $select.prepend('<option value="' + currentValue + '" selected>' + currentValue + ' (custom)</option>');
+                            }
+                        });
+                    } else {
+                        console.error('[Fields] Error loading taxonomy fields:', response);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('[Fields] AJAX Error:', status, error);
+                }
+            });
+        }
+        
+        // Populate taxonomy fields on page load if taxonomy is already selected
+        if ($('#taxonomy_slug').val()) {
+            populateTaxonomyFieldDropdowns($('#taxonomy_slug').val());
+        }
+        
         // Save all settings (unified handler)
         var savePending = false;
         
