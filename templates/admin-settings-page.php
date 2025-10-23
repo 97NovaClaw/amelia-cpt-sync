@@ -131,9 +131,14 @@ if (!defined('WPINC')) {
                         <td><strong><?php _e('Service ID', 'amelia-cpt-sync'); ?></strong></td>
                         <td><?php _e('The unique Amelia service ID', 'amelia-cpt-sync'); ?></td>
                         <td>
-                            <input type="text" name="service_id_field" id="service_id_field" class="regular-text" 
-                                   value="<?php echo esc_attr($settings['field_mappings']['service_id']); ?>" 
-                                   placeholder="e.g., amelia_service_id">
+                            <select name="service_id_field" id="service_id_field" class="regular-text field-selector" data-current-value="<?php echo esc_attr($settings['field_mappings']['service_id']); ?>">
+                                <option value="">-- Select Field --</option>
+                                <?php if (!empty($settings['field_mappings']['service_id'])): ?>
+                                    <option value="<?php echo esc_attr($settings['field_mappings']['service_id']); ?>" selected>
+                                        <?php echo esc_html($settings['field_mappings']['service_id']); ?>
+                                    </option>
+                                <?php endif; ?>
+                            </select>
                         </td>
                         <td><?php _e('Type: Number (useful for shortcodes and queries)', 'amelia-cpt-sync'); ?></td>
                     </tr>
@@ -142,9 +147,14 @@ if (!defined('WPINC')) {
                         <td><strong><?php _e('Category ID', 'amelia-cpt-sync'); ?></strong></td>
                         <td><?php _e('The Amelia category ID', 'amelia-cpt-sync'); ?></td>
                         <td>
-                            <input type="text" name="category_id_field" id="category_id_field" class="regular-text" 
-                                   value="<?php echo esc_attr($settings['field_mappings']['category_id']); ?>" 
-                                   placeholder="e.g., amelia_category_id">
+                            <select name="category_id_field" id="category_id_field" class="regular-text field-selector" data-current-value="<?php echo esc_attr($settings['field_mappings']['category_id']); ?>">
+                                <option value="">-- Select Field --</option>
+                                <?php if (!empty($settings['field_mappings']['category_id'])): ?>
+                                    <option value="<?php echo esc_attr($settings['field_mappings']['category_id']); ?>" selected>
+                                        <?php echo esc_html($settings['field_mappings']['category_id']); ?>
+                                    </option>
+                                <?php endif; ?>
+                            </select>
                         </td>
                         <td><?php _e('Type: Number (useful for filtering and queries)', 'amelia-cpt-sync'); ?></td>
                     </tr>
@@ -153,9 +163,14 @@ if (!defined('WPINC')) {
                         <td><strong><?php _e('Primary Photo', 'amelia-cpt-sync'); ?></strong></td>
                         <td><?php _e('The main service image', 'amelia-cpt-sync'); ?></td>
                         <td>
-                            <input type="text" name="primary_photo_field" id="primary_photo_field" class="regular-text" 
-                                   value="<?php echo esc_attr($settings['field_mappings']['primary_photo']); ?>" 
-                                   placeholder="e.g., service_image">
+                            <select name="primary_photo_field" id="primary_photo_field" class="regular-text field-selector" data-current-value="<?php echo esc_attr($settings['field_mappings']['primary_photo']); ?>">
+                                <option value="">-- Select Field --</option>
+                                <?php if (!empty($settings['field_mappings']['primary_photo'])): ?>
+                                    <option value="<?php echo esc_attr($settings['field_mappings']['primary_photo']); ?>" selected>
+                                        <?php echo esc_html($settings['field_mappings']['primary_photo']); ?>
+                                    </option>
+                                <?php endif; ?>
+                            </select>
                         </td>
                         <td><?php _e('Type: Media (stores attachment ID)', 'amelia-cpt-sync'); ?></td>
                     </tr>
@@ -164,9 +179,14 @@ if (!defined('WPINC')) {
                         <td><strong><?php _e('Price', 'amelia-cpt-sync'); ?></strong></td>
                         <td><?php _e('The service price', 'amelia-cpt-sync'); ?></td>
                         <td>
-                            <input type="text" name="price_field" id="price_field" class="regular-text" 
-                                   value="<?php echo esc_attr($settings['field_mappings']['price']); ?>" 
-                                   placeholder="e.g., service_price">
+                            <select name="price_field" id="price_field" class="regular-text field-selector" data-current-value="<?php echo esc_attr($settings['field_mappings']['price']); ?>">
+                                <option value="">-- Select Field --</option>
+                                <?php if (!empty($settings['field_mappings']['price'])): ?>
+                                    <option value="<?php echo esc_attr($settings['field_mappings']['price']); ?>" selected>
+                                        <?php echo esc_html($settings['field_mappings']['price']); ?>
+                                    </option>
+                                <?php endif; ?>
+                            </select>
                         </td>
                         <td><?php _e('Type: Number', 'amelia-cpt-sync'); ?></td>
                     </tr>
@@ -175,9 +195,14 @@ if (!defined('WPINC')) {
                         <td><strong><?php _e('Duration', 'amelia-cpt-sync'); ?></strong></td>
                         <td><?php _e('The service duration', 'amelia-cpt-sync'); ?></td>
                         <td>
-                            <input type="text" name="duration_field" id="duration_field" class="regular-text" 
-                                   value="<?php echo esc_attr($settings['field_mappings']['duration']); ?>" 
-                                   placeholder="e.g., service_duration">
+                            <select name="duration_field" id="duration_field" class="regular-text field-selector" data-current-value="<?php echo esc_attr($settings['field_mappings']['duration']); ?>">
+                                <option value="">-- Select Field --</option>
+                                <?php if (!empty($settings['field_mappings']['duration'])): ?>
+                                    <option value="<?php echo esc_attr($settings['field_mappings']['duration']); ?>" selected>
+                                        <?php echo esc_html($settings['field_mappings']['duration']); ?>
+                                    </option>
+                                <?php endif; ?>
+                            </select>
                             <br><br>
                             <label><?php _e('Save Duration As:', 'amelia-cpt-sync'); ?></label><br>
                             <select name="duration_format" id="duration_format" class="regular-text">
@@ -204,9 +229,14 @@ if (!defined('WPINC')) {
                         <td><strong><?php _e('Gallery', 'amelia-cpt-sync'); ?></strong></td>
                         <td><?php _e('Additional service images', 'amelia-cpt-sync'); ?></td>
                         <td>
-                            <input type="text" name="gallery_field" id="gallery_field" class="regular-text" 
-                                   value="<?php echo esc_attr($settings['field_mappings']['gallery']); ?>" 
-                                   placeholder="e.g., service_gallery">
+                            <select name="gallery_field" id="gallery_field" class="regular-text field-selector" data-current-value="<?php echo esc_attr($settings['field_mappings']['gallery']); ?>">
+                                <option value="">-- Select Field --</option>
+                                <?php if (!empty($settings['field_mappings']['gallery'])): ?>
+                                    <option value="<?php echo esc_attr($settings['field_mappings']['gallery']); ?>" selected>
+                                        <?php echo esc_html($settings['field_mappings']['gallery']); ?>
+                                    </option>
+                                <?php endif; ?>
+                            </select>
                         </td>
                         <td><?php _e('Type: Gallery (stores array of attachment IDs)', 'amelia-cpt-sync'); ?></td>
                     </tr>
@@ -215,9 +245,14 @@ if (!defined('WPINC')) {
                         <td><strong><?php _e('Extras', 'amelia-cpt-sync'); ?></strong></td>
                         <td><?php _e('Service extras/add-ons', 'amelia-cpt-sync'); ?></td>
                         <td>
-                            <input type="text" name="extras_field" id="extras_field" class="regular-text" 
-                                   value="<?php echo esc_attr($settings['field_mappings']['extras']); ?>" 
-                                   placeholder="e.g., service_extras">
+                            <select name="extras_field" id="extras_field" class="regular-text field-selector" data-current-value="<?php echo esc_attr($settings['field_mappings']['extras']); ?>">
+                                <option value="">-- Select Field --</option>
+                                <?php if (!empty($settings['field_mappings']['extras'])): ?>
+                                    <option value="<?php echo esc_attr($settings['field_mappings']['extras']); ?>" selected>
+                                        <?php echo esc_html($settings['field_mappings']['extras']); ?>
+                                    </option>
+                                <?php endif; ?>
+                            </select>
                         </td>
                         <td><?php _e('Type: Repeater (stores array of extra objects)', 'amelia-cpt-sync'); ?></td>
                     </tr>
@@ -255,9 +290,14 @@ if (!defined('WPINC')) {
                         <td><strong><?php _e('Category ID', 'amelia-cpt-sync'); ?></strong></td>
                         <td><?php _e('The unique Amelia category ID', 'amelia-cpt-sync'); ?></td>
                         <td>
-                            <input type="text" name="taxonomy_category_id_field" id="taxonomy_category_id_field" class="regular-text" 
-                                   value="<?php echo esc_attr($settings['taxonomy_meta']['category_id']); ?>" 
-                                   placeholder="e.g., amelia_category_id">
+                            <select name="taxonomy_category_id_field" id="taxonomy_category_id_field" class="regular-text taxonomy-field-selector" data-current-value="<?php echo esc_attr($settings['taxonomy_meta']['category_id']); ?>">
+                                <option value="">-- Select Field --</option>
+                                <?php if (!empty($settings['taxonomy_meta']['category_id'])): ?>
+                                    <option value="<?php echo esc_attr($settings['taxonomy_meta']['category_id']); ?>" selected>
+                                        <?php echo esc_html($settings['taxonomy_meta']['category_id']); ?>
+                                    </option>
+                                <?php endif; ?>
+                            </select>
                         </td>
                         <td><?php _e('Type: Number (stored on taxonomy term, allows term queries by Amelia category)', 'amelia-cpt-sync'); ?></td>
                     </tr>
@@ -306,10 +346,16 @@ if (!defined('WPINC')) {
                                            placeholder="e.g., Vehicle Capacity">
                                 </td>
                                 <td>
-                                    <input type="text" name="custom_fields[<?php echo $index; ?>][meta_key]" 
-                                           class="regular-text" 
-                                           value="<?php echo esc_attr($field['meta_key']); ?>"
-                                           placeholder="e.g., vehicle_capacity">
+                                    <select name="custom_fields[<?php echo $index; ?>][meta_key]" 
+                                            class="regular-text custom-field-selector" 
+                                            data-current-value="<?php echo esc_attr($field['meta_key']); ?>">
+                                        <option value="">-- Select Field --</option>
+                                        <?php if (!empty($field['meta_key'])): ?>
+                                            <option value="<?php echo esc_attr($field['meta_key']); ?>" selected>
+                                                <?php echo esc_html($field['meta_key']); ?>
+                                            </option>
+                                        <?php endif; ?>
+                                    </select>
                                 </td>
                                 <td>
                                     <input type="text" name="custom_fields[<?php echo $index; ?>][description]" 
@@ -339,14 +385,6 @@ if (!defined('WPINC')) {
                     <span class="dashicons dashicons-plus-alt" style="vertical-align: middle; margin-right: 5px;"></span>
                     <?php _e('Add Custom Field', 'amelia-cpt-sync'); ?>
                 </button>
-                
-                <button type="button" id="save-custom-fields" class="button button-primary" style="margin-left: 10px;">
-                    <span class="dashicons dashicons-saved" style="vertical-align: middle; margin-right: 5px;"></span>
-                    <?php _e('Save Custom Fields', 'amelia-cpt-sync'); ?>
-                </button>
-                
-                <span class="spinner" id="custom-fields-spinner" style="float: none; margin: 0 10px;"></span>
-                <span id="custom-fields-message"></span>
             </div>
             
             <div class="notice notice-info" style="margin-top: 20px;">
@@ -452,11 +490,15 @@ if (!defined('WPINC')) {
         </div>
         
         <p class="submit">
-            <button type="button" id="save-settings" class="button button-primary">
-                <?php _e('Save Settings', 'amelia-cpt-sync'); ?>
+            <button type="button" id="save-all-settings" class="button button-primary button-hero">
+                <span class="dashicons dashicons-saved" style="vertical-align: middle; margin-right: 8px;"></span>
+                <?php _e('Save All Settings', 'amelia-cpt-sync'); ?>
             </button>
             <span class="spinner" style="float: none; margin: 0 10px;"></span>
             <span id="save-message"></span>
+        </p>
+        <p class="description" style="margin-top: -15px; margin-left: 5px;">
+            <?php _e('Saves CPT/taxonomy selection, field mappings, and custom field definitions to the database.', 'amelia-cpt-sync'); ?>
         </p>
     </form>
 </div>

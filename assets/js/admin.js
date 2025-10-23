@@ -40,7 +40,7 @@
             }
         }
         
-        // Load taxonomies when CPT changes
+        // Load taxonomies and CPT fields when CPT changes
         $('#cpt_slug').on('change', function() {
             var cptSlug = $(this).val();
             var $taxonomySelect = $('#taxonomy_slug');
@@ -91,12 +91,69 @@
                     $taxonomySelect.prop('disabled', false);
                 }
             });
+            
+            // Also fetch CPT meta fields for dropdowns
+            populateCptFieldDropdowns(cptSlug);
         });
         
-        // Save settings via AJAX
+        /**
+         * Populate CPT field dropdowns with available meta fields
+         */
+        function populateCptFieldDropdowns(cptSlug) {
+            console.log('[Fields] Fetching available fields for CPT:', cptSlug);
+            
+            $.ajax({
+                url: ameliaCptSync.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'amelia_cpt_sync_get_cpt_fields',
+                    nonce: ameliaCptSync.nonce,
+                    cpt_slug: cptSlug
+                },
+                success: function(response) {
+                    if (response.success && response.data.fields) {
+                        console.log('[Fields] Received', response.data.count, 'fields:', response.data.fields);
+                        
+                        // Update all field selectors
+                        $('.field-selector, .custom-field-selector').each(function() {
+                            var $select = $(this);
+                            var currentValue = $select.data('current-value') || $select.val();
+                            
+                            // Build options
+                            var options = '<option value="">-- Select Field --</option>';
+                            
+                            $.each(response.data.fields, function(index, field) {
+                                var selected = (field === currentValue) ? ' selected' : '';
+                                options += '<option value="' + field + '"' + selected + '>' + field + '</option>';
+                            });
+                            
+                            // Update dropdown
+                            $select.html(options);
+                            
+                            // If current value wasn't in list, add it as selected
+                            if (currentValue && response.data.fields.indexOf(currentValue) === -1) {
+                                $select.prepend('<option value="' + currentValue + '" selected>' + currentValue + ' (custom)</option>');
+                            }
+                        });
+                    } else {
+                        console.error('[Fields] Error loading fields:', response);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('[Fields] AJAX Error:', status, error);
+                }
+            });
+        }
+        
+        // Populate fields on page load if CPT is already selected
+        if ($('#cpt_slug').val()) {
+            populateCptFieldDropdowns($('#cpt_slug').val());
+        }
+        
+        // Save all settings (unified handler)
         var savePending = false;
         
-        $('#save-settings').on('click', function(e) {
+        $('#save-all-settings').on('click', function(e) {
             e.preventDefault();
             
             // Prevent double-saves
@@ -135,10 +192,8 @@
             console.log('  taxonomy_category_id_field exists?', $('#taxonomy_category_id_field').length, 'value:', $('#taxonomy_category_id_field').val());
             console.log('  price_field exists?', $('#price_field').length, 'value:', $('#price_field').val());
             
-            // Gather form data - read all fields regardless of tab visibility
-            var formData = {
-                action: 'amelia_cpt_sync_save_settings',
-                nonce: ameliaCptSync.nonce,
+            // Gather settings data
+            var settingsData = {
                 cpt_slug: cptSlug,
                 taxonomy_slug: $('#taxonomy_slug').val(),
                 debug_enabled: $('#debug_enabled').is(':checked') ? 'true' : 'false',
@@ -153,8 +208,40 @@
                 extras_field: $('#extras_field').val() || ''
             };
             
+            // Gather custom field definitions
+            var customFields = [];
+            $('#custom-fields-tbody tr.custom-field-row').each(function() {
+                var $row = $(this);
+                var fieldTitle = $row.find('[name*="[field_title]"]').val();
+                var metaKey = $row.find('[name*="[meta_key]"]').val();
+                var description = $row.find('[name*="[description]"]').val();
+                var adminNote = $row.find('[name*="[admin_note]"]').val();
+                
+                if (fieldTitle && metaKey) {
+                    customFields.push({
+                        field_title: fieldTitle,
+                        meta_key: metaKey,
+                        description: description,
+                        admin_note: adminNote
+                    });
+                }
+            });
+            
+            // Combine everything
+            var formData = {
+                action: 'amelia_cpt_sync_save_all',
+                nonce: ameliaCptSync.nonce
+            };
+            
+            // Merge settings data
+            $.extend(formData, settingsData);
+            
+            // Add custom fields array
+            formData.custom_fields = customFields;
+            
             // Debug: Log complete formData
             console.log('[Save] Complete formData object:', formData);
+            console.log('[Save] Custom fields count:', customFields.length);
             
             // Save settings via AJAX
             $.ajax({
@@ -205,7 +292,7 @@
                 console.log('[Save] Enter key pressed - triggering save');
                 // Only trigger if not already saving
                 if (!savePending) {
-                    $('#save-settings').trigger('click');
+                    $('#save-all-settings').trigger('click');
                 }
             }
         });
@@ -401,13 +488,18 @@
             var newRow = '<tr class="custom-field-row">' +
                 '<td class="drag-handle" style="text-align: center; cursor: move;"><span class="dashicons dashicons-menu"></span></td>' +
                 '<td><input type="text" name="custom_fields[' + index + '][field_title]" class="regular-text" placeholder="e.g., Vehicle Capacity"></td>' +
-                '<td><input type="text" name="custom_fields[' + index + '][meta_key]" class="regular-text" placeholder="e.g., vehicle_capacity"></td>' +
+                '<td><select name="custom_fields[' + index + '][meta_key]" class="regular-text custom-field-selector"><option value="">-- Select Field --</option></select></td>' +
                 '<td><input type="text" name="custom_fields[' + index + '][description]" class="regular-text" placeholder="e.g., Number of passengers"></td>' +
                 '<td><input type="text" name="custom_fields[' + index + '][admin_note]" class="regular-text" placeholder="e.g., JetEngine field: Text"></td>' +
                 '<td style="text-align: center;"><button type="button" class="button button-small remove-custom-field" title="Remove Field"><span class="dashicons dashicons-trash"></span></button></td>' +
                 '</tr>';
             
             $tbody.append(newRow);
+            
+            // Populate the new dropdown if CPT is selected
+            if ($('#cpt_slug').val()) {
+                populateCptFieldDropdowns($('#cpt_slug').val());
+            }
             
             // Refresh sortable
             $tbody.sortable('refresh');
@@ -424,70 +516,6 @@
                 // If no rows left, show "no fields" message
                 if ($tbody.find('tr').length === 0) {
                     $tbody.html('<tr class="no-fields-row"><td colspan="6" style="text-align: center; color: #999; padding: 20px;">No custom fields defined. Click "Add Custom Field" to get started.</td></tr>');
-                }
-            });
-        });
-        
-        // Custom Fields: Save definitions
-        $('#save-custom-fields').on('click', function(e) {
-            e.preventDefault();
-            
-            var $button = $(this);
-            var $spinner = $('#custom-fields-spinner');
-            var $message = $('#custom-fields-message');
-            
-            // Gather custom field definitions
-            var definitions = [];
-            $('#custom-fields-tbody tr.custom-field-row').each(function(index) {
-                var $row = $(this);
-                var fieldTitle = $row.find('[name*="[field_title]"]').val();
-                var metaKey = $row.find('[name*="[meta_key]"]').val();
-                var description = $row.find('[name*="[description]"]').val();
-                var adminNote = $row.find('[name*="[admin_note]"]').val();
-                
-                if (fieldTitle && metaKey) {
-                    definitions.push({
-                        field_title: fieldTitle,
-                        meta_key: metaKey,
-                        description: description,
-                        admin_note: adminNote
-                    });
-                }
-            });
-            
-            // Show loading
-            $button.prop('disabled', true);
-            $spinner.addClass('is-active');
-            $message.text('').removeClass('success error');
-            
-            // Save via AJAX
-            $.ajax({
-                url: ameliaCptSync.ajax_url,
-                type: 'POST',
-                data: {
-                    action: 'amelia_cpt_sync_save_custom_fields_defs',
-                    nonce: ameliaCptSync.nonce,
-                    definitions: definitions
-                },
-                success: function(response) {
-                    if (response.success) {
-                        $message.text(response.data.message).addClass('success');
-                    } else {
-                        $message.text(response.data.message).addClass('error');
-                    }
-                },
-                error: function() {
-                    $message.text('Error saving custom fields').addClass('error');
-                },
-                complete: function() {
-                    $button.prop('disabled', false);
-                    $spinner.removeClass('is-active');
-                    
-                    setTimeout(function() {
-                        $message.fadeOut(400, function() {
-                            $(this).text('').removeClass('success error').css('display', '');
-                        });
-                    }, 3000);
                 }
             });
         });
