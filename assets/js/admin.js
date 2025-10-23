@@ -94,8 +94,16 @@
         });
         
         // Save settings via AJAX
+        var savePending = false;
+        
         $('#save-settings').on('click', function(e) {
             e.preventDefault();
+            
+            // Prevent double-saves
+            if (savePending) {
+                console.log('[Save] BLOCKED: Save already in progress');
+                return;
+            }
             
             var $button = $(this);
             var $spinner = $('.spinner');
@@ -108,6 +116,10 @@
                 $message.text('Please select a Custom Post Type').addClass('error');
                 return;
             }
+            
+            // Set save pending flag
+            savePending = true;
+            console.log('[Save] Save initiated - blocking additional saves');
             
             // Show loading state
             $button.prop('disabled', true);
@@ -172,6 +184,10 @@
                     $button.prop('disabled', false);
                     $spinner.removeClass('is-active');
                     
+                    // Reset save pending flag
+                    savePending = false;
+                    console.log('[Save] Save completed - allowing new saves');
+                    
                     // Clear message after 5 seconds
                     setTimeout(function() {
                         $message.fadeOut(400, function() {
@@ -186,7 +202,11 @@
         $('#amelia-cpt-sync-form').on('keypress', function(e) {
             if (e.which === 13 && e.target.tagName !== 'TEXTAREA') {
                 e.preventDefault();
-                $('#save-settings').trigger('click');
+                console.log('[Save] Enter key pressed - triggering save');
+                // Only trigger if not already saving
+                if (!savePending) {
+                    $('#save-settings').trigger('click');
+                }
             }
         });
         
