@@ -114,6 +114,15 @@
             $spinner.addClass('is-active');
             $message.text('').removeClass('success error');
             
+            // Debug: Check if fields exist on page BEFORE reading
+            console.log('[Save] Field elements check:');
+            console.log('  debug_enabled exists?', $('#debug_enabled').length, 'value:', $('#debug_enabled').val(), 'checked:', $('#debug_enabled').is(':checked'));
+            console.log('  service_id_field exists?', $('#service_id_field').length, 'value:', $('#service_id_field').val());
+            console.log('  category_id_field exists?', $('#category_id_field').length, 'value:', $('#category_id_field').val());
+            console.log('  primary_photo_field exists?', $('#primary_photo_field').length, 'value:', $('#primary_photo_field').val());
+            console.log('  taxonomy_category_id_field exists?', $('#taxonomy_category_id_field').length, 'value:', $('#taxonomy_category_id_field').val());
+            console.log('  price_field exists?', $('#price_field').length, 'value:', $('#price_field').val());
+            
             // Gather form data - read all fields regardless of tab visibility
             var formData = {
                 action: 'amelia_cpt_sync_save_settings',
@@ -132,11 +141,8 @@
                 extras_field: $('#extras_field').val() || ''
             };
             
-            // Debug: Log field values being sent
-            console.log('[Save] service_id_field:', formData.service_id_field);
-            console.log('[Save] category_id_field:', formData.category_id_field);
-            console.log('[Save] primary_photo_field:', formData.primary_photo_field);
-            console.log('[Save] taxonomy_category_id_field:', formData.taxonomy_category_id_field);
+            // Debug: Log complete formData
+            console.log('[Save] Complete formData object:', formData);
             
             // Save settings via AJAX
             $.ajax({
