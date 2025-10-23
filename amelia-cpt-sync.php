@@ -30,30 +30,50 @@ define('AMELIA_CPT_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
  * The code that runs during plugin activation.
  */
 function activate_amelia_cpt_sync() {
-    // Create default settings.json if it doesn't exist
+    $default_settings = array(
+        'cpt_slug' => '',
+        'taxonomy_slug' => '',
+        'debug_enabled' => false,
+        'taxonomy_meta' => array(
+            'category_id' => ''
+        ),
+        'field_mappings' => array(
+            'service_id' => '',
+            'category_id' => '',
+            'primary_photo' => '',
+            'price' => '',
+            'duration' => '',
+            'duration_format' => 'seconds',
+            'gallery' => '',
+            'extras' => ''
+        )
+    );
+    
+    // Migrate from settings.json to wp_options if JSON file exists
     $settings_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'settings.json';
     
-    if (!file_exists($settings_file)) {
-        $default_settings = array(
-            'cpt_slug' => '',
-            'taxonomy_slug' => '',
-            'debug_enabled' => false,
-            'taxonomy_meta' => array(
-                'category_id' => ''
-            ),
-            'field_mappings' => array(
-                'service_id' => '',
-                'category_id' => '',
-                'primary_photo' => '',
-                'price' => '',
-                'duration' => '',
-                'duration_format' => 'seconds',
-                'gallery' => '',
-                'extras' => ''
-            )
-        );
+    if (file_exists($settings_file)) {
+        $json_content = file_get_contents($settings_file);
+        $json_settings = json_decode($json_content, true);
         
-        file_put_contents($settings_file, json_encode($default_settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        if ($json_settings && json_last_error() === JSON_ERROR_NONE) {
+            // Merge with defaults to ensure all keys exist
+            $migrated_settings = array_replace_recursive($default_settings, $json_settings);
+            
+            // Save to wp_options
+            update_option('amelia_cpt_sync_settings', $migrated_settings);
+            
+            // Rename old file as backup
+            rename($settings_file, $settings_file . '.backup');
+            
+            amelia_cpt_sync_debug_log('Successfully migrated settings.json to wp_options database');
+            amelia_cpt_sync_debug_log('Old file backed up as settings.json.backup');
+        }
+    }
+    
+    // Create default settings in wp_options if they don't exist
+    if (false === get_option('amelia_cpt_sync_settings')) {
+        add_option('amelia_cpt_sync_settings', $default_settings);
     }
     
     // Create custom fields database tables
@@ -80,6 +100,7 @@ register_deactivation_hook(__FILE__, 'deactivate_amelia_cpt_sync');
  * Load plugin classes and functions
  */
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/debug-functions.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-field-detector.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-custom-fields-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-admin-settings.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-cpt-manager.php';

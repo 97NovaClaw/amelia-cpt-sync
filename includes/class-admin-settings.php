@@ -15,16 +15,9 @@ if (!defined('WPINC')) {
 class Amelia_CPT_Sync_Admin_Settings {
     
     /**
-     * The settings file path
+     * The settings option name
      */
-    private $settings_file;
-    
-    /**
-     * Constructor
-     */
-    public function __construct() {
-        $this->settings_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'settings.json';
-    }
+    private $option_name = 'amelia_cpt_sync_settings';
     
     /**
      * Initialize the class
@@ -34,12 +27,12 @@ class Amelia_CPT_Sync_Admin_Settings {
         add_action('admin_init', array($this, 'register_settings'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
         add_action('admin_footer', array($this, 'add_custom_fields_modal_html'));
-        add_action('wp_ajax_amelia_cpt_sync_save_settings', array($this, 'ajax_save_settings'));
+        add_action('wp_ajax_amelia_cpt_sync_save_all', array($this, 'ajax_save_all'));
         add_action('wp_ajax_amelia_cpt_sync_get_taxonomies', array($this, 'ajax_get_taxonomies'));
+        add_action('wp_ajax_amelia_cpt_sync_get_cpt_fields', array($this, 'ajax_get_cpt_fields'));
         add_action('wp_ajax_amelia_cpt_sync_full_sync', array($this, 'ajax_full_sync'));
         add_action('wp_ajax_amelia_cpt_sync_view_log', array($this, 'ajax_view_log'));
         add_action('wp_ajax_amelia_cpt_sync_clear_log', array($this, 'ajax_clear_log'));
-        add_action('wp_ajax_amelia_cpt_sync_save_custom_fields_defs', array($this, 'ajax_save_custom_fields_defs'));
         add_action('wp_ajax_amelia_cpt_sync_get_custom_fields_modal', array($this, 'ajax_get_custom_fields_modal'));
         add_action('wp_ajax_amelia_cpt_sync_save_custom_field_values', array($this, 'ajax_save_custom_field_values'));
         add_action('wp_ajax_amelia_cpt_sync_log_debug', array($this, 'ajax_log_debug'));
@@ -166,7 +159,7 @@ class Amelia_CPT_Sync_Admin_Settings {
     }
     
     /**
-     * Get settings from JSON file with cache busting
+     * Get settings from wp_options
      */
     public function get_settings() {
         // Default settings structure
@@ -189,95 +182,30 @@ class Amelia_CPT_Sync_Admin_Settings {
             )
         );
         
-        // Clear file status cache to prevent stale file info
-        clearstatcache(true, $this->settings_file);
-        
-        // Check if settings file exists
-        if (!file_exists($this->settings_file)) {
-            // Create default settings file
-            $this->save_settings($defaults);
-            return $defaults;
-        }
-        
-        // Clear opcache if available (prevents cached file contents)
-        if (function_exists('opcache_invalidate')) {
-            opcache_invalidate($this->settings_file, true);
-        }
-        
-        // Read settings from JSON file
-        $json_content = file_get_contents($this->settings_file);
-        $saved_settings = json_decode($json_content, true);
-        
-        // If JSON is invalid, return defaults
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            return $defaults;
-        }
+        // Get settings from database
+        $saved_settings = get_option($this->option_name, array());
         
         // Merge with defaults to ensure all keys exist
         return array_replace_recursive($defaults, $saved_settings);
     }
     
     /**
-     * Save settings to JSON file with cache busting
+     * Save settings to wp_options
      *
      * @param array $settings The settings array to save
      * @return bool True on success, false on failure
      */
     private function save_settings($settings) {
-        amelia_cpt_sync_debug_log('>>> Inside save_settings()');
-        amelia_cpt_sync_debug_log('Received settings param: ' . print_r($settings, true));
-        amelia_cpt_sync_debug_log('Settings [debug_enabled] type: ' . gettype($settings['debug_enabled']));
-        amelia_cpt_sync_debug_log('Settings [debug_enabled] value: ' . var_export($settings['debug_enabled'], true));
+        amelia_cpt_sync_debug_log('Saving settings to wp_options');
+        amelia_cpt_sync_debug_log('Settings: ' . print_r($settings, true));
         
-        // Convert to pretty JSON for readability
-        $json_content = json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        amelia_cpt_sync_debug_log('JSON to write:');
-        amelia_cpt_sync_debug_log($json_content);
+        $result = update_option($this->option_name, $settings);
         
-        // Check JSON encoding errors
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            amelia_cpt_sync_debug_log('ERROR: JSON encoding failed: ' . json_last_error_msg());
-            return false;
-        }
-        
-        // Check file permissions before writing
-        $file_exists = file_exists($this->settings_file);
-        $can_write = $file_exists ? is_writable($this->settings_file) : is_writable(dirname($this->settings_file));
-        
-        amelia_cpt_sync_debug_log('File exists: ' . ($file_exists ? 'YES' : 'NO'));
-        amelia_cpt_sync_debug_log('Can write: ' . ($can_write ? 'YES' : 'NO'));
-        
-        if (!$can_write) {
-            amelia_cpt_sync_debug_log('ERROR: File/directory not writable!');
-            return false;
-        }
-        
-        // Write to file with LOCK_EX to prevent concurrent writes
-        $result = file_put_contents($this->settings_file, $json_content, LOCK_EX);
-        amelia_cpt_sync_debug_log('file_put_contents() result: ' . ($result !== false ? $result . ' bytes written' : 'FAILED'));
-        
-        if ($result !== false) {
-            // Clear file status cache after write
-            clearstatcache(true, $this->settings_file);
-            
-            // Clear opcache if available to ensure fresh reads
-            if (function_exists('opcache_invalidate')) {
-                opcache_invalidate($this->settings_file, true);
-            }
-            
-            // Force filesystem sync (if on Linux/Unix)
-            if (function_exists('sync')) {
-                sync();
-            }
-            
-            amelia_cpt_sync_debug_log('SUCCESS: Settings saved to ' . $this->settings_file);
+        if ($result) {
+            amelia_cpt_sync_debug_log('SUCCESS: Settings saved to wp_options');
             return true;
         } else {
-            amelia_cpt_sync_debug_log('ERROR: Failed to write to ' . $this->settings_file);
-            $error = error_get_last();
-            if ($error) {
-                amelia_cpt_sync_debug_log('Last PHP error: ' . print_r($error, true));
-            }
+            amelia_cpt_sync_debug_log('ERROR: Failed to save settings to wp_options');
             return false;
         }
     }
@@ -334,9 +262,10 @@ class Amelia_CPT_Sync_Admin_Settings {
     }
     
     /**
-     * AJAX handler to save settings
+     * AJAX handler to save all settings (unified)
+     * Saves both plugin settings and custom field definitions in one transaction
      */
-    public function ajax_save_settings() {
+    public function ajax_save_all() {
         check_ajax_referer('amelia_cpt_sync_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
@@ -432,16 +361,56 @@ class Amelia_CPT_Sync_Admin_Settings {
             }
         }
         
-        amelia_cpt_sync_debug_log('========== END AJAX SAVE SETTINGS ==========');
+        amelia_cpt_sync_debug_log('---------- Saving Custom Field Definitions ----------');
+        
+        // Save custom field definitions if provided
+        if (isset($_POST['custom_fields']) && is_array($_POST['custom_fields'])) {
+            $custom_fields_defs = $_POST['custom_fields'];
+            amelia_cpt_sync_debug_log('Custom field definitions: ' . print_r($custom_fields_defs, true));
+            
+            $cf_manager = new Amelia_CPT_Sync_Custom_Fields_Manager();
+            $cf_result = $cf_manager->save_field_definitions($custom_fields_defs);
+            
+            amelia_cpt_sync_debug_log('Custom fields save result: ' . ($cf_result ? 'SUCCESS' : 'FAILED'));
+        } else {
+            amelia_cpt_sync_debug_log('No custom field definitions in request');
+        }
+        
+        amelia_cpt_sync_debug_log('========== END AJAX SAVE ALL ==========');
         
         wp_send_json_success(array(
-            'message' => 'Settings saved successfully!',
+            'message' => 'All settings saved successfully!',
             'debug' => array(
                 'saved' => $save_result,
                 'verified' => $verify_success,
-                'file_path' => $this->settings_file,
+                'storage' => 'wp_options',
                 'settings' => $settings
             )
+        ));
+    }
+    
+    /**
+     * AJAX handler to get available CPT fields for dropdowns
+     */
+    public function ajax_get_cpt_fields() {
+        check_ajax_referer('amelia_cpt_sync_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $cpt_slug = isset($_POST['cpt_slug']) ? sanitize_text_field($_POST['cpt_slug']) : '';
+        
+        if (empty($cpt_slug)) {
+            wp_send_json_error(array('message' => 'No CPT slug provided'));
+        }
+        
+        $detector = new Amelia_CPT_Sync_Field_Detector();
+        $fields = $detector->get_cpt_meta_fields($cpt_slug);
+        
+        wp_send_json_success(array(
+            'fields' => $fields,
+            'count' => count($fields)
         ));
     }
     

@@ -13,25 +13,10 @@ if (!defined('WPINC')) {
 }
 
 /**
- * Check if debug is enabled by reading settings JSON with cache busting
+ * Check if debug is enabled by reading from wp_options
  */
 function amelia_cpt_sync_is_debug_enabled() {
-    $settings_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'settings.json';
-    
-    // Clear file status cache
-    clearstatcache(true, $settings_file);
-    
-    if (!file_exists($settings_file)) {
-        return false;
-    }
-    
-    // Clear opcache if available
-    if (function_exists('opcache_invalidate')) {
-        opcache_invalidate($settings_file, true);
-    }
-    
-    $json = file_get_contents($settings_file);
-    $settings = json_decode($json, true);
+    $settings = get_option('amelia_cpt_sync_settings', array('debug_enabled' => false));
     
     return isset($settings['debug_enabled']) && $settings['debug_enabled'] === true;
 }
