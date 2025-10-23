@@ -744,10 +744,46 @@ class Amelia_CPT_Sync_Admin_Settings {
         $result = $manager->save_service_field_values($service_id, $values);
         
         if ($result) {
+            // Trigger a re-sync to update the CPT with custom fields
+            amelia_cpt_sync_debug_log("Custom fields saved, triggering re-sync for service {$service_id}");
+            
+            // Get the full service data from Amelia
+            $service_data = $this->get_amelia_service_by_id($service_id);
+            
+            if ($service_data) {
+                $cpt_manager = new Amelia_CPT_Sync_CPT_Manager();
+                $cpt_result = $cpt_manager->sync_service($service_data);
+                
+                if (!is_wp_error($cpt_result)) {
+                    amelia_cpt_sync_debug_log("Re-sync successful for service {$service_id}, CPT post: {$cpt_result}");
+                }
+            }
+            
             wp_send_json_success(array('message' => 'Custom field values saved successfully!'));
         } else {
             wp_send_json_error(array('message' => 'Failed to save custom field values'));
         }
+    }
+    
+    /**
+     * Get Amelia service data by ID
+     */
+    private function get_amelia_service_by_id($service_id) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'amelia_services';
+        
+        $service = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table_name WHERE id = %d",
+            $service_id
+        ), ARRAY_A);
+        
+        if (!$service) {
+            return false;
+        }
+        
+        // Use the same preparation logic as full sync
+        return $this->prepare_service_data($service);
     }
     
     /**
