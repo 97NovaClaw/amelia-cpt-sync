@@ -36,6 +36,8 @@ class Amelia_CPT_Sync_Admin_Settings {
         add_action('wp_ajax_amelia_cpt_sync_clear_log', array($this, 'ajax_clear_log'));
         add_action('wp_ajax_amelia_cpt_sync_get_custom_fields_modal', array($this, 'ajax_get_custom_fields_modal'));
         add_action('wp_ajax_amelia_cpt_sync_save_custom_field_values', array($this, 'ajax_save_custom_field_values'));
+        add_action('wp_ajax_amelia_cpt_sync_get_taxonomy_custom_fields_modal', array($this, 'ajax_get_taxonomy_custom_fields_modal'));
+        add_action('wp_ajax_amelia_cpt_sync_save_taxonomy_custom_field_values', array($this, 'ajax_save_taxonomy_custom_field_values'));
         add_action('wp_ajax_amelia_cpt_sync_log_debug', array($this, 'ajax_log_debug'));
     }
     
@@ -362,19 +364,34 @@ class Amelia_CPT_Sync_Admin_Settings {
             }
         }
         
-        amelia_cpt_sync_debug_log('---------- Saving Custom Field Definitions ----------');
+        amelia_cpt_sync_debug_log('---------- Saving Service Custom Field Definitions ----------');
         
-        // Save custom field definitions if provided
+        // Save service custom field definitions if provided
         if (isset($_POST['custom_fields']) && is_array($_POST['custom_fields'])) {
             $custom_fields_defs = $_POST['custom_fields'];
-            amelia_cpt_sync_debug_log('Custom field definitions: ' . print_r($custom_fields_defs, true));
+            amelia_cpt_sync_debug_log('Service custom field definitions: ' . print_r($custom_fields_defs, true));
             
             $cf_manager = new Amelia_CPT_Sync_Custom_Fields_Manager();
             $cf_result = $cf_manager->save_field_definitions($custom_fields_defs);
             
-            amelia_cpt_sync_debug_log('Custom fields save result: ' . ($cf_result ? 'SUCCESS' : 'FAILED'));
+            amelia_cpt_sync_debug_log('Service custom fields save result: ' . ($cf_result ? 'SUCCESS' : 'FAILED'));
         } else {
-            amelia_cpt_sync_debug_log('No custom field definitions in request');
+            amelia_cpt_sync_debug_log('No service custom field definitions in request');
+        }
+        
+        amelia_cpt_sync_debug_log('---------- Saving Taxonomy Custom Field Definitions ----------');
+        
+        // Save taxonomy custom field definitions if provided
+        if (isset($_POST['taxonomy_custom_fields']) && is_array($_POST['taxonomy_custom_fields'])) {
+            $taxonomy_custom_fields_defs = $_POST['taxonomy_custom_fields'];
+            amelia_cpt_sync_debug_log('Taxonomy custom field definitions: ' . print_r($taxonomy_custom_fields_defs, true));
+            
+            $tax_cf_manager = new Amelia_CPT_Sync_Taxonomy_Custom_Fields_Manager();
+            $tax_cf_result = $tax_cf_manager->save_field_definitions($taxonomy_custom_fields_defs);
+            
+            amelia_cpt_sync_debug_log('Taxonomy custom fields save result: ' . ($tax_cf_result ? 'SUCCESS' : 'FAILED'));
+        } else {
+            amelia_cpt_sync_debug_log('No taxonomy custom field definitions in request');
         }
         
         amelia_cpt_sync_debug_log('========== END AJAX SAVE ALL ==========');
@@ -782,6 +799,104 @@ class Amelia_CPT_Sync_Admin_Settings {
     }
     
     /**
+     * AJAX handler to get taxonomy custom fields modal HTML
+     */
+    public function ajax_get_taxonomy_custom_fields_modal() {
+        check_ajax_referer('amelia_cpt_sync_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $category_id = isset($_POST['category_id']) ? intval($_POST['category_id']) : 0;
+        $category_name = isset($_POST['category_name']) ? sanitize_text_field($_POST['category_name']) : 'Unknown Category';
+        
+        if (!$category_id) {
+            wp_send_json_error(array('message' => 'No category ID provided'));
+        }
+        
+        $manager = new Amelia_CPT_Sync_Taxonomy_Custom_Fields_Manager();
+        $definitions = $manager->get_field_definitions();
+        $values = $manager->get_category_field_values($category_id);
+        
+        if (empty($definitions)) {
+            wp_send_json_error(array(
+                'message' => 'No custom taxonomy fields defined. Please configure custom taxonomy fields in Amelia to CPT Sync settings first.'
+            ));
+            return;
+        }
+        
+        // Build modal HTML
+        ob_start();
+        ?>
+        <div class="amelia-taxonomy-custom-fields-form">
+            <p><strong>Category:</strong> <?php echo esc_html($category_name); ?> (ID: <?php echo esc_html($category_id); ?>)</p>
+            <p class="description">Fill in the custom details for this category. These will be synced to your taxonomy term meta.</p>
+            
+            <table class="form-table">
+                <?php foreach ($definitions as $def): ?>
+                    <tr>
+                        <th scope="row">
+                            <label for="taxonomy_custom_field_<?php echo esc_attr($def['meta_key']); ?>">
+                                <?php echo esc_html($def['field_title']); ?>
+                            </label>
+                        </th>
+                        <td>
+                            <input type="text" 
+                                   id="taxonomy_custom_field_<?php echo esc_attr($def['meta_key']); ?>" 
+                                   name="taxonomy_custom_fields[<?php echo esc_attr($def['meta_key']); ?>]"
+                                   class="regular-text"
+                                   value="<?php echo esc_attr(isset($values[$def['meta_key']]) ? $values[$def['meta_key']] : ''); ?>"
+                                   placeholder="<?php echo esc_attr($def['description']); ?>">
+                            <?php if (!empty($def['description'])): ?>
+                                <p class="description"><?php echo esc_html($def['description']); ?></p>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </table>
+        </div>
+        <?php
+        $html = ob_get_clean();
+        
+        wp_send_json_success(array(
+            'html' => $html,
+            'category_id' => $category_id,
+            'category_name' => $category_name
+        ));
+    }
+    
+    /**
+     * AJAX handler to save taxonomy custom field values
+     */
+    public function ajax_save_taxonomy_custom_field_values() {
+        check_ajax_referer('amelia_cpt_sync_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $category_id = isset($_POST['category_id']) ? intval($_POST['category_id']) : 0;
+        $values = isset($_POST['taxonomy_custom_fields']) ? $_POST['taxonomy_custom_fields'] : array();
+        
+        if (!$category_id) {
+            wp_send_json_error(array('message' => 'No category ID provided'));
+        }
+        
+        amelia_cpt_sync_debug_log("Saving taxonomy custom field values for category {$category_id}");
+        
+        $manager = new Amelia_CPT_Sync_Taxonomy_Custom_Fields_Manager();
+        $result = $manager->save_category_field_values($category_id, $values);
+        
+        if ($result) {
+            amelia_cpt_sync_debug_log("Taxonomy custom fields saved successfully for category {$category_id}");
+            wp_send_json_success(array('message' => 'Taxonomy custom field values saved successfully!'));
+        } else {
+            wp_send_json_error(array('message' => 'Failed to save taxonomy custom field values'));
+        }
+    }
+    
+    /**
      * Add custom fields modal HTML to admin footer
      */
     public function add_custom_fields_modal_html() {
@@ -799,15 +914,24 @@ class Amelia_CPT_Sync_Admin_Settings {
         
         amelia_cpt_sync_debug_log('Adding modal HTML to footer on page: ' . (isset($_GET['page']) ? $_GET['page'] : 'unknown'));
         ?>
-        <!-- Amelia CPT Sync Custom Fields Modal -->
+        <!-- Amelia CPT Sync Custom Fields Modal (Services) -->
         <div id="amelia-cpt-sync-custom-fields-modal" style="display: none;" title="Additional Service Details">
             <div id="amelia-cpt-sync-modal-content">
                 <p>Loading...</p>
             </div>
         </div>
+        
+        <!-- Amelia CPT Sync Custom Fields Modal (Taxonomy/Categories) -->
+        <div id="amelia-cpt-sync-taxonomy-custom-fields-modal" style="display: none;" title="Additional Category Details">
+            <div id="amelia-cpt-sync-taxonomy-modal-content">
+                <p>Loading...</p>
+            </div>
+        </div>
+        
         <script>
             console.log('[Amelia CPT Sync] Modal HTML added to page');
-            console.log('[Amelia CPT Sync] Modal element exists:', jQuery('#amelia-cpt-sync-custom-fields-modal').length > 0);
+            console.log('[Amelia CPT Sync] Service modal exists:', jQuery('#amelia-cpt-sync-custom-fields-modal').length > 0);
+            console.log('[Amelia CPT Sync] Taxonomy modal exists:', jQuery('#amelia-cpt-sync-taxonomy-custom-fields-modal').length > 0);
         </script>
         <?php
     }

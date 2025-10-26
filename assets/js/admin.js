@@ -273,7 +273,7 @@
                 extras_field: $('#extras_field').val() || ''
             };
             
-            // Gather custom field definitions
+            // Gather service custom field definitions
             var customFields = [];
             $('#custom-fields-tbody tr.custom-field-row').each(function() {
                 var $row = $(this);
@@ -292,6 +292,25 @@
                 }
             });
             
+            // Gather taxonomy custom field definitions
+            var taxonomyCustomFields = [];
+            $('#taxonomy-custom-fields-tbody tr.taxonomy-custom-field-row').each(function() {
+                var $row = $(this);
+                var fieldTitle = $row.find('[name*="[field_title]"]').val();
+                var metaKey = $row.find('[name*="[meta_key]"]').val();
+                var description = $row.find('[name*="[description]"]').val();
+                var adminNote = $row.find('[name*="[admin_note]"]').val();
+                
+                if (fieldTitle && metaKey) {
+                    taxonomyCustomFields.push({
+                        field_title: fieldTitle,
+                        meta_key: metaKey,
+                        description: description,
+                        admin_note: adminNote
+                    });
+                }
+            });
+            
             // Combine everything
             var formData = {
                 action: 'amelia_cpt_sync_save_all',
@@ -301,12 +320,14 @@
             // Merge settings data
             $.extend(formData, settingsData);
             
-            // Add custom fields array
+            // Add custom fields arrays
             formData.custom_fields = customFields;
+            formData.taxonomy_custom_fields = taxonomyCustomFields;
             
             // Debug: Log complete formData
             console.log('[Save] Complete formData object:', formData);
-            console.log('[Save] Custom fields count:', customFields.length);
+            console.log('[Save] Service custom fields count:', customFields.length);
+            console.log('[Save] Taxonomy custom fields count:', taxonomyCustomFields.length);
             
             // Save settings via AJAX
             $.ajax({
@@ -539,6 +560,22 @@
             });
         }
         
+        // Taxonomy Custom Fields: Make table sortable
+        if ($('#taxonomy-custom-fields-tbody').length) {
+            $('#taxonomy-custom-fields-tbody').sortable({
+                handle: '.drag-handle',
+                placeholder: 'ui-state-highlight',
+                helper: function(e, tr) {
+                    var $originals = tr.children();
+                    var $helper = tr.clone();
+                    $helper.children().each(function(index) {
+                        $(this).width($originals.eq(index).width());
+                    });
+                    return $helper;
+                }
+            });
+        }
+        
         // Custom Fields: Add new field row
         $('#add-custom-field').on('click', function() {
             var $tbody = $('#custom-fields-tbody');
@@ -581,6 +618,52 @@
                 // If no rows left, show "no fields" message
                 if ($tbody.find('tr').length === 0) {
                     $tbody.html('<tr class="no-fields-row"><td colspan="6" style="text-align: center; color: #999; padding: 20px;">No custom fields defined. Click "Add Custom Field" to get started.</td></tr>');
+                }
+            });
+        });
+        
+        // Taxonomy Custom Fields: Add new field row
+        $('#add-taxonomy-custom-field').on('click', function() {
+            var $tbody = $('#taxonomy-custom-fields-tbody');
+            var $noFieldsRow = $tbody.find('.no-fields-row');
+            
+            // Remove "no fields" row if it exists
+            if ($noFieldsRow.length) {
+                $noFieldsRow.remove();
+            }
+            
+            var index = $tbody.find('tr').length;
+            var newRow = '<tr class="taxonomy-custom-field-row">' +
+                '<td class="drag-handle" style="text-align: center; cursor: move;"><span class="dashicons dashicons-menu"></span></td>' +
+                '<td><input type="text" name="taxonomy_custom_fields[' + index + '][field_title]" class="regular-text" placeholder="e.g., Color Code"></td>' +
+                '<td><select name="taxonomy_custom_fields[' + index + '][meta_key]" class="regular-text taxonomy-field-selector"><option value="">-- Select Field --</option></select></td>' +
+                '<td><input type="text" name="taxonomy_custom_fields[' + index + '][description]" class="regular-text" placeholder="e.g., Hex color for category"></td>' +
+                '<td><input type="text" name="taxonomy_custom_fields[' + index + '][admin_note]" class="regular-text" placeholder="e.g., JetEngine: Color picker"></td>' +
+                '<td style="text-align: center;"><button type="button" class="button button-small remove-taxonomy-custom-field" title="Remove Field"><span class="dashicons dashicons-trash"></span></button></td>' +
+                '</tr>';
+            
+            $tbody.append(newRow);
+            
+            // Populate the new dropdown if taxonomy is selected
+            if ($('#taxonomy_slug').val()) {
+                populateTaxonomyFieldDropdowns($('#taxonomy_slug').val());
+            }
+            
+            // Refresh sortable
+            $tbody.sortable('refresh');
+        });
+        
+        // Taxonomy Custom Fields: Remove field row
+        $(document).on('click', '.remove-taxonomy-custom-field', function() {
+            var $row = $(this).closest('tr');
+            var $tbody = $('#taxonomy-custom-fields-tbody');
+            
+            $row.fadeOut(300, function() {
+                $(this).remove();
+                
+                // If no rows left, show "no fields" message
+                if ($tbody.find('tr').length === 0) {
+                    $tbody.html('<tr class="no-fields-row"><td colspan="6" style="text-align: center; color: #999; padding: 20px;">No custom taxonomy fields defined. Click "Add Taxonomy Custom Field" to get started.</td></tr>');
                 }
             });
         });

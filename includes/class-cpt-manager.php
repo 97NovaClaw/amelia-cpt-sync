@@ -291,8 +291,36 @@ class Amelia_CPT_Sync_CPT_Manager {
             update_term_meta($term_id, $settings['taxonomy_meta']['category_id'], $category_id);
         }
         
+        // Sync taxonomy custom fields to term meta if category_id exists
+        if ($category_id > 0) {
+            $this->sync_taxonomy_custom_fields($term_id, $category_id);
+        }
+        
         // Assign term to post
         wp_set_post_terms($post_id, array($term_id), $taxonomy_slug, false);
+    }
+    
+    /**
+     * Sync taxonomy custom fields to term meta
+     *
+     * @param int $term_id The WordPress term ID
+     * @param int $amelia_category_id The Amelia category ID
+     */
+    private function sync_taxonomy_custom_fields($term_id, $amelia_category_id) {
+        $manager = new Amelia_CPT_Sync_Taxonomy_Custom_Fields_Manager();
+        $custom_field_values = $manager->get_category_field_values($amelia_category_id);
+        
+        if (empty($custom_field_values)) {
+            amelia_cpt_sync_debug_log("No taxonomy custom field values for category {$amelia_category_id}");
+            return;
+        }
+        
+        amelia_cpt_sync_debug_log("Syncing taxonomy custom fields for category {$amelia_category_id} to term {$term_id}: " . print_r($custom_field_values, true));
+        
+        foreach ($custom_field_values as $meta_key => $meta_value) {
+            update_term_meta($term_id, $meta_key, $meta_value);
+            amelia_cpt_sync_debug_log("  - Set term meta {$meta_key} = {$meta_value}");
+        }
     }
     
     /**

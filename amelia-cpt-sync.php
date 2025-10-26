@@ -80,6 +80,11 @@ function activate_amelia_cpt_sync() {
     require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-custom-fields-manager.php';
     $custom_fields_manager = new Amelia_CPT_Sync_Custom_Fields_Manager();
     $custom_fields_manager->create_tables();
+    
+    // Create taxonomy custom fields database tables
+    require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-taxonomy-custom-fields-manager.php';
+    $taxonomy_custom_fields_manager = new Amelia_CPT_Sync_Taxonomy_Custom_Fields_Manager();
+    $taxonomy_custom_fields_manager->create_tables();
 
     // Flush rewrite rules
     flush_rewrite_rules();
@@ -102,6 +107,7 @@ register_deactivation_hook(__FILE__, 'deactivate_amelia_cpt_sync');
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/debug-functions.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-field-detector.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-custom-fields-manager.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-taxonomy-custom-fields-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-admin-settings.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-cpt-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-sync-handler.php';

@@ -37,9 +37,9 @@
                 console.log('[Amelia CPT Sync] XHR SEND:', this._ameliaMethod, this._ameliaURL);
                 
                 this.addEventListener('load', function() {
+                    // Check for service saves
                     if (xhr._ameliaURL.includes('call=/services')) {
                         console.log('[Amelia CPT Sync] XHR Service call completed');
-                        console.log('[Amelia CPT Sync] Response text:', xhr.responseText);
                         
                         try {
                             var response = JSON.parse(xhr.responseText);
@@ -54,11 +54,39 @@
                                     var serviceName = response.data.service.name;
                                     
                                     console.log('[Amelia CPT Sync] ✅ Service save detected via XHR!');
-                                    console.log('[Amelia CPT Sync] Service ID:', serviceId);
-                                    console.log('[Amelia CPT Sync] Service Name:', serviceName);
+                                    console.log('[Amelia CPT Sync] Service ID:', serviceId, 'Name:', serviceName);
                                     
                                     setTimeout(function() {
                                         showCustomFieldsPrompt(serviceId, serviceName);
+                                    }, 500);
+                                }
+                            }
+                        } catch (e) {
+                            console.log('[Amelia CPT Sync] Error parsing XHR response:', e);
+                        }
+                    }
+                    
+                    // Check for category saves
+                    if (xhr._ameliaURL.includes('call=/categories')) {
+                        console.log('[Amelia CPT Sync] XHR Category call completed');
+                        
+                        try {
+                            var response = JSON.parse(xhr.responseText);
+                            console.log('[Amelia CPT Sync] Parsed category response:', response);
+                            
+                            if (response.message &&
+                                (response.message.includes('Successfully added') ||
+                                 response.message.includes('Successfully updated'))) {
+                                
+                                if (response.data && response.data.category) {
+                                    var categoryId = response.data.category.id;
+                                    var categoryName = response.data.category.name;
+                                    
+                                    console.log('[Amelia CPT Sync] ✅ Category save detected via XHR!');
+                                    console.log('[Amelia CPT Sync] Category ID:', categoryId, 'Name:', categoryName);
+                                    
+                                    setTimeout(function() {
+                                        showTaxonomyCustomFieldsPrompt(categoryId, categoryName);
                                     }, 500);
                                 }
                             }
@@ -309,6 +337,169 @@
                 }
             });
         }
+        /**
+         * Show prompt to add taxonomy custom fields
+         */
+        function showTaxonomyCustomFieldsPrompt(categoryId, categoryName) {
+            pendingCategoryId = categoryId;
+            pendingCategoryName = categoryName;
+            
+            // Load custom fields and show modal
+            loadTaxonomyCustomFieldsModal(categoryId, categoryName);
+        }
+        
+        /**
+         * Load taxonomy custom fields modal content
+         */
+        function loadTaxonomyCustomFieldsModal(categoryId, categoryName) {
+            console.log('[Amelia CPT Sync] Loading taxonomy custom fields modal for category:', categoryId);
+            
+            // Log to server debug.txt as well
+            $.post(ameliaCptSyncModal.ajax_url, {
+                action: 'amelia_cpt_sync_log_debug',
+                nonce: ameliaCptSyncModal.nonce,
+                message: 'Taxonomy Modal: Loading custom fields for category ' + categoryId + ' (' + categoryName + ')'
+            });
+            
+            $.ajax({
+                url: ameliaCptSyncModal.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'amelia_cpt_sync_get_taxonomy_custom_fields_modal',
+                    nonce: ameliaCptSyncModal.nonce,
+                    category_id: categoryId,
+                    category_name: categoryName
+                },
+                success: function(response) {
+                    console.log('[Amelia CPT Sync] Taxonomy modal AJAX response:', response);
+                    
+                    if (response.success) {
+                        console.log('[Amelia CPT Sync] Opening taxonomy modal...');
+                        // Populate modal content
+                        $('#amelia-cpt-sync-taxonomy-modal-content').html(response.data.html);
+                        
+                        // Open modal
+                        openTaxonomyModal(categoryId);
+                    } else {
+                        console.log('[Amelia CPT Sync] No taxonomy custom fields defined or error:', response.data.message);
+                        
+                        // Log to server
+                        $.post(ameliaCptSyncModal.ajax_url, {
+                            action: 'amelia_cpt_sync_log_debug',
+                            nonce: ameliaCptSyncModal.nonce,
+                            message: 'Taxonomy Modal ERROR: ' + response.data.message
+                        });
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('[Amelia CPT Sync] Error loading taxonomy modal:', error);
+                    
+                    // Log to server
+                    $.post(ameliaCptSyncModal.ajax_url, {
+                        action: 'amelia_cpt_sync_log_debug',
+                        nonce: ameliaCptSyncModal.nonce,
+                        message: 'Taxonomy Modal AJAX ERROR: ' + error
+                    });
+                }
+            });
+        }
+        
+        /**
+         * Open the taxonomy custom fields jQuery UI dialog
+         */
+        function openTaxonomyModal(categoryId) {
+            if (taxonomyModalDialog) {
+                taxonomyModalDialog.dialog('destroy');
+            }
+            
+            taxonomyModalDialog = $('#amelia-cpt-sync-taxonomy-custom-fields-modal').dialog({
+                modal: true,
+                width: 600,
+                maxHeight: 600,
+                buttons: [
+                    {
+                        text: 'Save Details',
+                        class: 'button button-primary',
+                        click: function() {
+                            saveTaxonomyCustomFieldValues(categoryId);
+                        }
+                    },
+                    {
+                        text: 'Skip for Now',
+                        class: 'button button-secondary',
+                        click: function() {
+                            $(this).dialog('close');
+                        }
+                    }
+                ],
+                close: function() {
+                    pendingCategoryId = null;
+                    pendingCategoryName = null;
+                }
+            });
+        }
+        
+        /**
+         * Save taxonomy custom field values
+         */
+        function saveTaxonomyCustomFieldValues(categoryId) {
+            var taxonomyCustomFields = {};
+            
+            // Gather all taxonomy custom field values
+            $('.amelia-taxonomy-custom-fields-form input[name^="taxonomy_custom_fields"]').each(function() {
+                var name = $(this).attr('name');
+                var match = name.match(/taxonomy_custom_fields\[([^\]]+)\]/);
+                if (match) {
+                    var key = match[1];
+                    var value = $(this).val();
+                    taxonomyCustomFields[key] = value;
+                }
+            });
+            
+            console.log('[Amelia CPT Sync] Saving taxonomy custom field values:', taxonomyCustomFields);
+            
+            // Disable buttons
+            $('.ui-dialog-buttonpane button').prop('disabled', true);
+            
+            $.ajax({
+                url: ameliaCptSyncModal.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'amelia_cpt_sync_save_taxonomy_custom_field_values',
+                    nonce: ameliaCptSyncModal.nonce,
+                    category_id: categoryId,
+                    taxonomy_custom_fields: taxonomyCustomFields
+                },
+                success: function(response) {
+                    if (response.success) {
+                        console.log('[Amelia CPT Sync] Taxonomy custom fields saved successfully');
+                        taxonomyModalDialog.dialog('close');
+                        
+                        // Show success notice
+                        if ($('.amelia-page-header').length) {
+                            var notice = $('<div class="notice notice-success is-dismissible" style="margin: 10px 0;"><p><strong>Amelia to CPT Sync:</strong> Category custom field details saved successfully!</p></div>');
+                            $('.amelia-page-header').after(notice);
+                            setTimeout(function() {
+                                notice.fadeOut(400, function() { $(this).remove(); });
+                            }, 3000);
+                        }
+                    } else {
+                        alert('Error: ' + response.data.message);
+                    }
+                },
+                error: function() {
+                    alert('Error saving taxonomy custom field values');
+                },
+                complete: function() {
+                    $('.ui-dialog-buttonpane button').prop('disabled', false);
+                }
+            });
+        }
+        
+        // Additional variables for taxonomy modal
+        var taxonomyModalDialog = null;
+        var pendingCategoryId = null;
+        var pendingCategoryName = null;
     });
     
 })(jQuery);

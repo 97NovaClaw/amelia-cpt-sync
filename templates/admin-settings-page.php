@@ -306,6 +306,99 @@ if (!defined('WPINC')) {
             
             <hr style="margin: 40px 0;">
             
+            <h3><?php _e('Custom Taxonomy Fields', 'amelia-cpt-sync'); ?></h3>
+            <p class="description" style="margin-bottom: 15px;">
+                <?php _e('Define custom fields for taxonomy terms (categories). These will appear in a modal when adding/editing categories in Amelia and will be synced to term meta.', 'amelia-cpt-sync'); ?>
+            </p>
+            
+            <table class="wp-list-table widefat fixed striped" id="taxonomy-custom-fields-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;"><?php _e('Order', 'amelia-cpt-sync'); ?></th>
+                        <th style="width: 20%;"><?php _e('Field Title (Shown in Modal)', 'amelia-cpt-sync'); ?></th>
+                        <th style="width: 20%;"><?php _e('Term Meta Field Key', 'amelia-cpt-sync'); ?></th>
+                        <th style="width: 25%;"><?php _e('Description (Placeholder)', 'amelia-cpt-sync'); ?></th>
+                        <th style="width: 25%;"><?php _e('Admin Note', 'amelia-cpt-sync'); ?></th>
+                        <th style="width: 5%;"><?php _e('Actions', 'amelia-cpt-sync'); ?></th>
+                    </tr>
+                </thead>
+                <tbody id="taxonomy-custom-fields-tbody">
+                    <?php 
+                    $tax_manager = new Amelia_CPT_Sync_Taxonomy_Custom_Fields_Manager();
+                    $taxonomy_custom_fields = $tax_manager->get_field_definitions();
+                    
+                    if (empty($taxonomy_custom_fields)): ?>
+                        <tr class="no-fields-row">
+                            <td colspan="6" style="text-align: center; color: #999; padding: 20px;">
+                                <?php _e('No custom taxonomy fields defined. Click "Add Taxonomy Custom Field" to get started.', 'amelia-cpt-sync'); ?>
+                            </td>
+                        </tr>
+                    <?php else:
+                        foreach ($taxonomy_custom_fields as $index => $field): ?>
+                            <tr class="taxonomy-custom-field-row">
+                                <td class="drag-handle" style="text-align: center; cursor: move;">
+                                    <span class="dashicons dashicons-menu"></span>
+                                </td>
+                                <td>
+                                    <input type="text" name="taxonomy_custom_fields[<?php echo $index; ?>][field_title]" 
+                                           class="regular-text" 
+                                           value="<?php echo esc_attr($field['field_title']); ?>"
+                                           placeholder="e.g., Color Code">
+                                </td>
+                                <td>
+                                    <select name="taxonomy_custom_fields[<?php echo $index; ?>][meta_key]" 
+                                            class="regular-text taxonomy-field-selector" 
+                                            data-current-value="<?php echo esc_attr($field['meta_key']); ?>">
+                                        <option value="">-- Select Field --</option>
+                                        <?php if (!empty($field['meta_key'])): ?>
+                                            <option value="<?php echo esc_attr($field['meta_key']); ?>" selected>
+                                                <?php echo esc_html($field['meta_key']); ?>
+                                            </option>
+                                        <?php endif; ?>
+                                    </select>
+                                </td>
+                                <td>
+                                    <input type="text" name="taxonomy_custom_fields[<?php echo $index; ?>][description]" 
+                                           class="regular-text" 
+                                           value="<?php echo esc_attr($field['description']); ?>"
+                                           placeholder="e.g., Hex color code for category">
+                                </td>
+                                <td>
+                                    <input type="text" name="taxonomy_custom_fields[<?php echo $index; ?>][admin_note]" 
+                                           class="regular-text" 
+                                           value="<?php echo esc_attr($field['admin_note']); ?>"
+                                           placeholder="e.g., JetEngine: Color picker">
+                                </td>
+                                <td style="text-align: center;">
+                                    <button type="button" class="button button-small remove-taxonomy-custom-field" title="Remove Field">
+                                        <span class="dashicons dashicons-trash"></span>
+                                    </button>
+                                </td>
+                            </tr>
+                        <?php endforeach;
+                    endif; ?>
+                </tbody>
+            </table>
+            
+            <div style="margin-top: 15px;">
+                <button type="button" id="add-taxonomy-custom-field" class="button button-secondary">
+                    <span class="dashicons dashicons-plus-alt" style="vertical-align: middle; margin-right: 5px;"></span>
+                    <?php _e('Add Taxonomy Custom Field', 'amelia-cpt-sync'); ?>
+                </button>
+            </div>
+            
+            <div class="notice notice-info" style="margin-top: 20px;">
+                <p><strong><?php _e('How it works:', 'amelia-cpt-sync'); ?></strong></p>
+                <ol style="margin-left: 20px;">
+                    <li><?php _e('Define custom fields for your taxonomy terms (e.g., Color Code, Icon, Priority)', 'amelia-cpt-sync'); ?></li>
+                    <li><?php _e('When you add or edit a category in Amelia, a modal will appear asking for these custom details', 'amelia-cpt-sync'); ?></li>
+                    <li><?php _e('Custom field values are stored separately and synced to your taxonomy term meta', 'amelia-cpt-sync'); ?></li>
+                    <li><?php _e('These fields are also synced when services are created/updated (category auto-created with custom meta)', 'amelia-cpt-sync'); ?></li>
+                </ol>
+            </div>
+            
+            <hr style="margin: 40px 0;">
+            
             <h3><?php _e('Custom Service Fields', 'amelia-cpt-sync'); ?></h3>
             <p class="description" style="margin-bottom: 15px;">
                 <?php _e('Define custom fields that will appear in a modal when adding/editing services in Amelia. These fields will be synced to your CPT as meta fields.', 'amelia-cpt-sync'); ?>
