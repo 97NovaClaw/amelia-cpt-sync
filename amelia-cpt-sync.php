@@ -108,6 +108,8 @@ require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/debug-functions.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-field-detector.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-custom-fields-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-taxonomy-custom-fields-manager.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-popup-handler.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-popup-config-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-admin-settings.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-cpt-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-sync-handler.php';
@@ -125,6 +127,10 @@ function run_amelia_cpt_sync() {
     // Initialize sync handler (runs on both frontend and backend)
     $sync_handler = new Amelia_CPT_Sync_Handler();
     $sync_handler->init();
+    
+    // Initialize popup handler (AJAX + frontend scripts)
+    $popup_handler = new Amelia_CPT_Sync_Popup_Handler();
+    $popup_handler->init();
 }
 
 add_action('plugins_loaded', 'run_amelia_cpt_sync');

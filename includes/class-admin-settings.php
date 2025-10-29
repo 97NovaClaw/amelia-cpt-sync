@@ -38,6 +38,7 @@ class Amelia_CPT_Sync_Admin_Settings {
         add_action('wp_ajax_amelia_cpt_sync_save_custom_field_values', array($this, 'ajax_save_custom_field_values'));
         add_action('wp_ajax_amelia_cpt_sync_get_taxonomy_custom_fields_modal', array($this, 'ajax_get_taxonomy_custom_fields_modal'));
         add_action('wp_ajax_amelia_cpt_sync_save_taxonomy_custom_field_values', array($this, 'ajax_save_taxonomy_custom_field_values'));
+        add_action('wp_ajax_amelia_save_popup_configs', array($this, 'ajax_save_popup_configs'));
         add_action('wp_ajax_amelia_cpt_sync_log_debug', array($this, 'ajax_log_debug'));
     }
     
@@ -45,6 +46,7 @@ class Amelia_CPT_Sync_Admin_Settings {
      * Add admin menu page
      */
     public function add_admin_menu() {
+        // Main menu
         add_menu_page(
             __('Amelia to CPT Sync', 'amelia-cpt-sync'),
             __('Amelia to CPT Sync', 'amelia-cpt-sync'),
@@ -54,6 +56,29 @@ class Amelia_CPT_Sync_Admin_Settings {
             'dashicons-update',
             80
         );
+        
+        // Submenu: Popup Triggers
+        add_submenu_page(
+            'amelia-cpt-sync',
+            __('Popup Triggers', 'amelia-cpt-sync'),
+            __('Popup Triggers', 'amelia-cpt-sync'),
+            'manage_options',
+            'amelia-popup-triggers',
+            array($this, 'render_popup_manager_page')
+        );
+    }
+    
+    /**
+     * Render the popup manager page
+     */
+    public function render_popup_manager_page() {
+        // Check user capabilities
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        
+        // Include the template
+        include AMELIA_CPT_SYNC_PLUGIN_DIR . 'templates/popup-manager-page.php';
     }
     
     /**
@@ -934,6 +959,48 @@ class Amelia_CPT_Sync_Admin_Settings {
             console.log('[Amelia CPT Sync] Taxonomy modal exists:', jQuery('#amelia-cpt-sync-taxonomy-custom-fields-modal').length > 0);
         </script>
         <?php
+    }
+    
+    /**
+     * AJAX handler to save popup configurations
+     */
+    public function ajax_save_popup_configs() {
+        check_ajax_referer('amelia_popup_save', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $global = isset($_POST['global']) ? $_POST['global'] : array();
+        $configs = isset($_POST['configs']) ? $_POST['configs'] : array();
+        
+        $data = array(
+            'global' => array(
+                'default_popup_id' => isset($global['default_popup_id']) ? sanitize_text_field($global['default_popup_id']) : '',
+                'debug_enabled' => isset($global['debug_enabled'])
+            ),
+            'configs' => array()
+        );
+        
+        // Sanitize configurations
+        foreach ($configs as $config_id => $config) {
+            $data['configs'][sanitize_key($config_id)] = array(
+                'label' => sanitize_text_field($config['label']),
+                'amelia_type' => sanitize_key($config['amelia_type']),
+                'custom_type' => isset($config['custom_type']) ? sanitize_key($config['custom_type']) : '',
+                'popup_id' => sanitize_text_field($config['popup_id']),
+                'meta_field' => sanitize_key($config['meta_field'])
+            );
+        }
+        
+        $manager = new Amelia_CPT_Sync_Popup_Config_Manager();
+        $result = $manager->save_configurations($data);
+        
+        if ($result) {
+            wp_send_json_success(array('message' => 'Popup configurations saved successfully!'));
+        } else {
+            wp_send_json_error(array('message' => 'Failed to save configurations'));
+        }
     }
     
     /**

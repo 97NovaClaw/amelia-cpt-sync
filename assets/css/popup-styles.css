@@ -1,0 +1,64 @@
+/**
+ * Amelia Popup Styles
+ *
+ * @package AmeliaCPTSync
+ */
+
+/* Container */
+#amelia-form-container {
+    min-height: 400px;
+    position: relative;
+}
+
+/* Loading State */
+.amelia-loading {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.amelia-loading .spinner {
+    float: none;
+    margin: 0 auto 20px;
+    display: block;
+}
+
+.amelia-loading p {
+    color: #666;
+    font-size: 16px;
+    margin: 0;
+}
+
+/* Error State */
+.amelia-error {
+    text-align: center;
+    padding: 40px 20px;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    margin: 20px;
+}
+
+.amelia-error p {
+    margin: 10px 0;
+}
+
+.amelia-error strong {
+    color: #856404;
+}
+
+.amelia-error small {
+    color: #999;
+}
+
+/* Ensure Amelia form displays properly in popup */
+#amelia-form-container .amelia-app-booking {
+    width: 100% !important;
+    max-width: none !important;
+}
+
+/* Spinner animation */
+@keyframes spinner {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
