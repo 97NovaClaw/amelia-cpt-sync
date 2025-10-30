@@ -40,6 +40,14 @@ class Amelia_CPT_Sync_Popup_Config_Manager {
     public function save_configurations($data) {
         amelia_cpt_sync_debug_log('Saving popup configurations: ' . print_r($data, true));
         
+        // Check if data changed
+        $old_data = get_option($this->option_name, array());
+        
+        if ($old_data === $data) {
+            amelia_cpt_sync_debug_log('NOTE: Data unchanged, but treating as success');
+            return true; // Data identical, no need to update but not an error
+        }
+        
         $result = update_option($this->option_name, $data);
         
         if ($result) {

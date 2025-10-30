@@ -132,21 +132,52 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                                 </tr>
                                 
                                 <tr>
-                                    <th><label><?php _e('Generated Elementor Attributes', 'amelia-cpt-sync'); ?></label></th>
+                                    <th><label><?php _e('Elementor Attributes', 'amelia-cpt-sync'); ?></label></th>
                                     <td>
-                                        <textarea class="large-text code generated-attributes" rows="4" readonly><?php 
-                                            echo esc_textarea($manager->generate_elementor_attributes($config)); 
-                                        ?></textarea>
-                                        <p>
+                                        <p><strong><?php _e('Add these attributes to your Elementor button:', 'amelia-cpt-sync'); ?></strong></p>
+                                        <?php 
+                                        $amelia_type = $config['amelia_type'];
+                                        if (!empty($config['custom_type'])) {
+                                            $amelia_type = $config['custom_type'];
+                                        }
+                                        ?>
+                                        
+                                        <table class="widefat" style="max-width: 600px; margin-bottom: 10px;">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 50%;">Attribute Key</th>
+                                                    <th style="width: 50%;">Attribute Value</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td><code>data-amelia-type</code></td>
+                                                    <td><code><?php echo esc_html($amelia_type); ?></code></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><code>data-amelia-id</code></td>
+                                                    <td><code>%<?php echo esc_html($config['meta_field']); ?>%</code> <small>(replace with JetEngine tag)</small></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><code>data-jet-popup</code></td>
+                                                    <td><code><?php echo esc_html($config['popup_id']); ?></code></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                        
+                                        <p><strong><?php _e('CSS Class to Add:', 'amelia-cpt-sync'); ?></strong> <code>amelia-booking-trigger</code></p>
+                                        
+                                        <details style="margin-top: 15px;">
+                                            <summary style="cursor: pointer; color: #2271b1;"><?php _e('📋 Copy/Paste Format (for manual editing)', 'amelia-cpt-sync'); ?></summary>
+                                            <textarea class="large-text code generated-attributes" rows="4" readonly style="margin-top: 10px;"><?php 
+                                                echo esc_textarea($manager->generate_elementor_attributes($config)); 
+                                            ?></textarea>
                                             <button type="button" class="button button-secondary copy-attributes" data-config-id="<?php echo esc_attr($config_id); ?>">
                                                 <span class="dashicons dashicons-clipboard"></span>
                                                 <?php _e('Copy to Clipboard', 'amelia-cpt-sync'); ?>
                                             </button>
                                             <span class="copy-success" style="color: #46b450; margin-left: 10px; display: none;">✓ Copied!</span>
-                                        </p>
-                                        <p class="description">
-                                            <?php _e('Paste these into Elementor Button → Advanced → Custom Attributes. Replace %field_name% with JetEngine dynamic tags.', 'amelia-cpt-sync'); ?>
-                                        </p>
+                                        </details>
                                     </td>
                                 </tr>
                             </table>
@@ -221,16 +252,19 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                         <li><?php _e('Edit your JetEngine Listing Template in Elementor', 'amelia-cpt-sync'); ?></li>
                         <li><?php _e('Add a Button widget', 'amelia-cpt-sync'); ?></li>
                         <li><?php _e('Link: Can leave empty or use #', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('Advanced Tab → Custom Attributes', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('Paste the generated attributes from Step 2', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('Replace placeholders with JetEngine dynamic tags:', 'amelia-cpt-sync'); ?>
+                        <li><?php _e('Advanced Tab → Custom Attributes', 'amelia-cpt-sync'); ?>
+                            <br><strong><?php _e('⚠️ Add each attribute separately:', 'amelia-cpt-sync'); ?></strong>
                             <ul>
-                                <li><?php _e('Click the field with %service_id%', 'amelia-cpt-sync'); ?></li>
-                                <li><?php _e('Click the dynamic tags icon', 'amelia-cpt-sync'); ?></li>
-                                <li><?php _e('Select: JetEngine → service_id (or your meta field)', 'amelia-cpt-sync'); ?></li>
+                                <li><?php _e('Click "Custom Field" (+ icon)', 'amelia-cpt-sync'); ?></li>
+                                <li><?php _e('Before: data-amelia-type | After: service', 'amelia-cpt-sync'); ?></li>
+                                <li><?php _e('Click "Custom Field" again', 'amelia-cpt-sync'); ?></li>
+                                <li><?php _e('Before: data-amelia-id | After: Click dynamic tag icon → JetEngine → service_id', 'amelia-cpt-sync'); ?></li>
+                                <li><?php _e('Click "Custom Field" again', 'amelia-cpt-sync'); ?></li>
+                                <li><?php _e('Before: data-jet-popup | After: book-by-vehicle-popup', 'amelia-cpt-sync'); ?></li>
                             </ul>
                         </li>
                         <li><?php _e('Advanced Tab → CSS Classes → Add: amelia-booking-trigger', 'amelia-cpt-sync'); ?></li>
+                        <li><?php _e('⚠️ IMPORTANT: Add class amelia-booking-trigger to CSS Classes field!', 'amelia-cpt-sync'); ?></li>
                         <li><?php _e('Publish your template', 'amelia-cpt-sync'); ?></li>
                     </ol>
                     

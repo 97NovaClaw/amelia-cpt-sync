@@ -10,16 +10,34 @@
     'use strict';
     
     $(document).ready(function() {
-        console.log('[Amelia Popup] Frontend script loaded');
+        console.log('[Amelia Popup] ========== FRONTEND SCRIPT LOADED ==========');
+        console.log('[Amelia Popup] Config:', ameliaPopupConfig);
+        console.log('[Amelia Popup] jQuery version:', $.fn.jquery);
+        console.log('[Amelia Popup] Looking for buttons with class: amelia-booking-trigger');
+        console.log('[Amelia Popup] Found', $('.amelia-booking-trigger').length, 'trigger buttons');
+        
+        // Debug: Show all trigger buttons on page
+        $('.amelia-booking-trigger').each(function(index) {
+            console.log('[Amelia Popup] Button', index, ':', {
+                ameliaType: $(this).data('amelia-type'),
+                ameliaId: $(this).data('amelia-id'),
+                jetPopup: $(this).data('jet-popup'),
+                element: this
+            });
+        });
         
         /**
          * Listen for popup open events (JetPopup fires these)
          */
         $(document).on('jet-popup/show-event', function(event, popupData) {
-            console.log('[Amelia Popup] JetPopup opened:', popupData);
+            console.log('[Amelia Popup] ========== JETPOPUP OPENED ==========');
+            console.log('[Amelia Popup] Event data:', popupData);
+            console.log('[Amelia Popup] Event:', event);
             
             // Check if there's a pending trigger with Amelia data
-            var $trigger = $('.amelia-booking-trigger').last();
+            var $trigger = $('.amelia-booking-trigger.last-clicked, .amelia-booking-trigger').last();
+            
+            console.log('[Amelia Popup] Found trigger element:', $trigger.length > 0);
             
             if ($trigger.length && $trigger.data('amelia-type')) {
                 var type = $trigger.data('amelia-type');
@@ -29,7 +47,11 @@
                 
                 if (type && id) {
                     loadAmeliaForm(type, id);
+                } else {
+                    console.warn('[Amelia Popup] Missing type or ID');
                 }
+            } else {
+                console.warn('[Amelia Popup] No Amelia trigger found or missing data-amelia-type');
             }
         });
         
@@ -68,12 +90,18 @@
          * Load Amelia booking form via AJAX
          */
         function loadAmeliaForm(type, id) {
-            console.log('[Amelia Popup] Loading form - Type:', type, 'ID:', id);
+            console.log('[Amelia Popup] ========== LOADING FORM ==========');
+            console.log('[Amelia Popup] Type:', type);
+            console.log('[Amelia Popup] ID:', id);
+            console.log('[Amelia Popup] AJAX URL:', ameliaPopupConfig.ajax_url);
             
             var $container = $('#amelia-form-container');
             
+            console.log('[Amelia Popup] Container found:', $container.length > 0);
+            
             if (!$container.length) {
-                console.error('[Amelia Popup] Container #amelia-form-container not found in popup!');
+                console.error('[Amelia Popup] ERROR: Container #amelia-form-container not found in popup!');
+                console.error('[Amelia Popup] Available containers:', $('[id*="amelia"]').map(function() { return this.id; }).get());
                 return;
             }
             
@@ -84,6 +112,8 @@
                 '<p>Loading booking form...</p>' +
                 '</div>'
             );
+            
+            console.log('[Amelia Popup] Sending AJAX request...');
             
             // Make AJAX request
             $.ajax({
