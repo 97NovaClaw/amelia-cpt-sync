@@ -132,21 +132,26 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                                 </tr>
                                 
                                 <tr>
-                                    <th><label><?php _e('Elementor Attributes', 'amelia-cpt-sync'); ?></label></th>
+                                    <th><label><?php _e('Elementor Setup', 'amelia-cpt-sync'); ?></label></th>
                                     <td>
-                                        <p><strong><?php _e('Add these attributes to your Elementor button:', 'amelia-cpt-sync'); ?></strong></p>
+                                        <p><strong><?php _e('Add these 3 custom attributes to your Elementor button:', 'amelia-cpt-sync'); ?></strong></p>
                                         <?php 
                                         $amelia_type = $config['amelia_type'];
                                         if (!empty($config['custom_type'])) {
                                             $amelia_type = $config['custom_type'];
                                         }
+                                        
+                                        // Build JetEngine shortcode
+                                        $source = isset($config['source_type']) && $config['source_type'] === 'term_meta' ? 'term_meta' : 'meta';
+                                        $field_param = $source === 'term_meta' ? 'dynamic_field_term_meta' : 'dynamic_field_post_meta';
+                                        $jetengine_shortcode = "[jet_engine_data dynamic_field_source=\"{$source}\" {$field_param}=\"{$config['meta_field']}\"]";
                                         ?>
                                         
-                                        <table class="widefat" style="max-width: 600px; margin-bottom: 10px;">
+                                        <table class="widefat" style="max-width: 700px; margin-bottom: 10px;">
                                             <thead>
                                                 <tr>
-                                                    <th style="width: 50%;">Attribute Key</th>
-                                                    <th style="width: 50%;">Attribute Value</th>
+                                                    <th style="width: 30%;">Before (Key)</th>
+                                                    <th style="width: 70%;">After (Value)</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -156,7 +161,16 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                                                 </tr>
                                                 <tr>
                                                     <td><code>data-amelia-id</code></td>
-                                                    <td><code>%<?php echo esc_html($config['meta_field']); ?>%</code> <small>(replace with JetEngine tag)</small></td>
+                                                    <td>
+                                                        <input type="text" value="<?php echo esc_attr($jetengine_shortcode); ?>" 
+                                                               class="code jetengine-shortcode-field" 
+                                                               readonly 
+                                                               style="width: 100%; font-family: monospace; font-size: 11px;"
+                                                               onclick="this.select();">
+                                                        <button type="button" class="button button-small copy-jetengine-shortcode" style="margin-top: 5px;">
+                                                            <span class="dashicons dashicons-clipboard"></span> Copy Shortcode
+                                                        </button>
+                                                    </td>
                                                 </tr>
                                                 <tr>
                                                     <td><code>data-jet-popup</code></td>
@@ -165,19 +179,16 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                                             </tbody>
                                         </table>
                                         
-                                        <p><strong><?php _e('CSS Class to Add:', 'amelia-cpt-sync'); ?></strong> <code>amelia-booking-trigger</code></p>
+                                        <p><strong><?php _e('CSS Class:', 'amelia-cpt-sync'); ?></strong> <code>amelia-booking-trigger</code></p>
                                         
-                                        <details style="margin-top: 15px;">
-                                            <summary style="cursor: pointer; color: #2271b1;"><?php _e('📋 Copy/Paste Format (for manual editing)', 'amelia-cpt-sync'); ?></summary>
-                                            <textarea class="large-text code generated-attributes" rows="4" readonly style="margin-top: 10px;"><?php 
-                                                echo esc_textarea($manager->generate_elementor_attributes($config)); 
-                                            ?></textarea>
-                                            <button type="button" class="button button-secondary copy-attributes" data-config-id="<?php echo esc_attr($config_id); ?>">
-                                                <span class="dashicons dashicons-clipboard"></span>
-                                                <?php _e('Copy to Clipboard', 'amelia-cpt-sync'); ?>
-                                            </button>
-                                            <span class="copy-success" style="color: #46b450; margin-left: 10px; display: none;">✓ Copied!</span>
-                                        </details>
+                                        <p class="description">
+                                            <span class="dashicons dashicons-info"></span>
+                                            <?php _e('Can\'t remember the shortcode format? Use', 'amelia-cpt-sync'); ?> 
+                                            <a href="/wp-admin/admin.php?page=jet-engine#shortcode_generator" target="_blank">
+                                                <?php _e('JetEngine Shortcode Generator', 'amelia-cpt-sync'); ?> ↗
+                                            </a>
+                                            <?php _e('to build it (select "Get Post/Term Field" and configure for your meta field)', 'amelia-cpt-sync'); ?>
+                                        </p>
                                     </td>
                                 </tr>
                             </table>
@@ -251,20 +262,25 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                     <ol>
                         <li><?php _e('Edit your JetEngine Listing Template in Elementor', 'amelia-cpt-sync'); ?></li>
                         <li><?php _e('Add a Button widget', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('Link: Can leave empty or use #', 'amelia-cpt-sync'); ?></li>
+                        <li><?php _e('Link: Leave empty or use #', 'amelia-cpt-sync'); ?></li>
                         <li><?php _e('Advanced Tab → Custom Attributes', 'amelia-cpt-sync'); ?>
-                            <br><strong><?php _e('⚠️ Add each attribute separately:', 'amelia-cpt-sync'); ?></strong>
+                            <br><strong><?php _e('Add 3 separate custom fields using the table above:', 'amelia-cpt-sync'); ?></strong>
                             <ul>
-                                <li><?php _e('Click "Custom Field" (+ icon)', 'amelia-cpt-sync'); ?></li>
-                                <li><?php _e('Before: data-amelia-type | After: service', 'amelia-cpt-sync'); ?></li>
-                                <li><?php _e('Click "Custom Field" again', 'amelia-cpt-sync'); ?></li>
-                                <li><?php _e('Before: data-amelia-id | After: Click dynamic tag icon → JetEngine → service_id', 'amelia-cpt-sync'); ?></li>
-                                <li><?php _e('Click "Custom Field" again', 'amelia-cpt-sync'); ?></li>
-                                <li><?php _e('Before: data-jet-popup | After: book-by-vehicle-popup', 'amelia-cpt-sync'); ?></li>
+                                <li><?php _e('Click "+ Custom Field"', 'amelia-cpt-sync'); ?></li>
+                                <li><?php _e('Before: data-amelia-type | After: service (or your type)', 'amelia-cpt-sync'); ?></li>
+                                <br>
+                                <li><?php _e('Click "+ Custom Field" again', 'amelia-cpt-sync'); ?></li>
+                                <li><?php _e('Before: data-amelia-id | After: Paste the JetEngine shortcode (click Copy Shortcode button)', 'amelia-cpt-sync'); ?></li>
+                                <li><?php _e('OR use JetEngine Shortcode Generator: ', 'amelia-cpt-sync'); ?>
+                                    <a href="/wp-admin/admin.php?page=jet-engine#shortcode_generator" target="_blank">Open Generator ↗</a>
+                                </li>
+                                <br>
+                                <li><?php _e('Click "+ Custom Field" again', 'amelia-cpt-sync'); ?></li>
+                                <li><?php _e('Before: data-jet-popup | After: book-by-vehicle-popup (your popup ID)', 'amelia-cpt-sync'); ?></li>
                             </ul>
                         </li>
                         <li><?php _e('Advanced Tab → CSS Classes → Add: amelia-booking-trigger', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('⚠️ IMPORTANT: Add class amelia-booking-trigger to CSS Classes field!', 'amelia-cpt-sync'); ?></li>
+                        <li><strong><?php _e('⚠️ CRITICAL: Must add CSS class "amelia-booking-trigger" or button won\'t work!', 'amelia-cpt-sync'); ?></strong></li>
                         <li><?php _e('Publish your template', 'amelia-cpt-sync'); ?></li>
                     </ol>
                     
@@ -457,16 +473,20 @@ jQuery(document).ready(function($) {
         }
     });
     
-    // Copy attributes to clipboard
-    $('.copy-attributes').on('click', function() {
+    // Copy JetEngine shortcode to clipboard
+    $(document).on('click', '.copy-jetengine-shortcode', function() {
         var $button = $(this);
-        var $textarea = $button.closest('td').find('.generated-attributes');
-        var $success = $button.siblings('.copy-success');
+        var $input = $button.siblings('.jetengine-shortcode-field');
         
-        $textarea.select();
+        $input.select();
         document.execCommand('copy');
         
-        $success.fadeIn().delay(2000).fadeOut();
+        var originalText = $button.html();
+        $button.html('<span class="dashicons dashicons-yes"></span> Copied!');
+        
+        setTimeout(function() {
+            $button.html(originalText);
+        }, 2000);
     });
     
     // Copy HTML snippet
