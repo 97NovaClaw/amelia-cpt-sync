@@ -105,13 +105,29 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                                 </tr>
                                 
                                 <tr>
-                                    <th><label><?php _e('Meta Field', 'amelia-cpt-sync'); ?></label></th>
+                                    <th><label><?php _e('Source', 'amelia-cpt-sync'); ?></label></th>
+                                    <td>
+                                        <label>
+                                            <input type="radio" name="configs[<?php echo esc_attr($config_id); ?>][source_type]" value="cpt_meta" <?php checked(isset($config['source_type']) ? $config['source_type'] : 'cpt_meta', 'cpt_meta'); ?>>
+                                            <?php _e('CPT Post Meta', 'amelia-cpt-sync'); ?>
+                                        </label>
+                                        &nbsp;&nbsp;
+                                        <label>
+                                            <input type="radio" name="configs[<?php echo esc_attr($config_id); ?>][source_type]" value="term_meta" <?php checked(isset($config['source_type']) ? $config['source_type'] : 'cpt_meta', 'term_meta'); ?>>
+                                            <?php _e('Taxonomy Term Meta', 'amelia-cpt-sync'); ?>
+                                        </label>
+                                        <p class="description"><?php _e('Where the Amelia ID is stored (usually CPT Post Meta for services, Term Meta for categories).', 'amelia-cpt-sync'); ?></p>
+                                    </td>
+                                </tr>
+                                
+                                <tr>
+                                    <th><label><?php _e('Meta Field Name', 'amelia-cpt-sync'); ?></label></th>
                                     <td>
                                         <input type="text" name="configs[<?php echo esc_attr($config_id); ?>][meta_field]" 
-                                               class="regular-text" 
+                                               class="regular-text config-meta-field" 
                                                value="<?php echo esc_attr($config['meta_field']); ?>"
                                                placeholder="e.g., service_id">
-                                        <p class="description"><?php _e('The CPT meta field or term meta field that contains the Amelia ID.', 'amelia-cpt-sync'); ?></p>
+                                        <p class="description"><?php _e('The meta field name that contains the Amelia ID (must exist on your CPT or taxonomy).', 'amelia-cpt-sync'); ?></p>
                                     </td>
                                 </tr>
                                 
@@ -353,10 +369,46 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
 
 <script>
 jQuery(document).ready(function($) {
+    console.log('[Popup Manager] Page loaded');
+    
     // Toggle instructions
     $('.instructions-toggle').on('click', function() {
         $('.instructions-content').slideToggle();
         $(this).find('.dashicons-arrow-down-alt2, .dashicons-arrow-up-alt2').toggleClass('dashicons-arrow-down-alt2 dashicons-arrow-up-alt2');
+    });
+    
+    // Live update generated attributes
+    function updateGeneratedAttributes($configItem) {
+        var ameliaType = $configItem.find('.amelia-type-selector').val();
+        var customType = $configItem.find('[name*="[custom_type]"]').val();
+        var popupId = $configItem.find('[name*="[popup_id]"]').val();
+        var metaField = $configItem.find('[name*="[meta_field]"]').val();
+        
+        // Use custom type if selected
+        var finalType = ameliaType === 'custom' && customType ? customType : ameliaType;
+        
+        // Build attributes
+        var attributes = [];
+        if (finalType) {
+            attributes.push('data-amelia-type|' + finalType);
+        }
+        if (metaField) {
+            attributes.push('data-amelia-id|%' + metaField + '%');
+        }
+        if (popupId) {
+            attributes.push('data-jet-popup|' + popupId);
+        }
+        
+        // Update textarea
+        $configItem.find('.generated-attributes').val(attributes.join('\n'));
+        
+        console.log('[Popup Manager] Updated attributes for config');
+    }
+    
+    // Update attributes on field change
+    $(document).on('change keyup', '.amelia-type-selector, [name*="[custom_type]"], [name*="[popup_id]"], .config-meta-field', function() {
+        var $configItem = $(this).closest('.popup-config-item');
+        updateGeneratedAttributes($configItem);
     });
     
     // Show/hide custom type field
@@ -446,10 +498,41 @@ jQuery(document).ready(function($) {
                     </tr>
                     
                     <tr>
-                        <th><label>Meta Field</label></th>
+                        <th><label>Source</label></th>
                         <td>
-                            <input type="text" name="configs[${configId}][meta_field]" class="regular-text" placeholder="e.g., service_id">
-                            <p class="description">The CPT meta field that contains the Amelia ID.</p>
+                            <label>
+                                <input type="radio" name="configs[${configId}][source_type]" value="cpt_meta" checked>
+                                CPT Post Meta
+                            </label>
+                            &nbsp;&nbsp;
+                            <label>
+                                <input type="radio" name="configs[${configId}][source_type]" value="term_meta">
+                                Taxonomy Term Meta
+                            </label>
+                            <p class="description">Where the Amelia ID is stored.</p>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <th><label>Meta Field Name</label></th>
+                        <td>
+                            <input type="text" name="configs[${configId}][meta_field]" class="regular-text config-meta-field" placeholder="e.g., service_id">
+                            <p class="description">The meta field name that contains the Amelia ID.</p>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <th><label>Generated Elementor Attributes</label></th>
+                        <td>
+                            <textarea class="large-text code generated-attributes" rows="4" readonly></textarea>
+                            <p>
+                                <button type="button" class="button button-secondary copy-attributes">
+                                    <span class="dashicons dashicons-clipboard"></span>
+                                    Copy to Clipboard
+                                </button>
+                                <span class="copy-success" style="color: #46b450; margin-left: 10px; display: none;">✓ Copied!</span>
+                            </p>
+                            <p class="description">Paste these into Elementor Button → Advanced → Custom Attributes. Replace %field_name% with JetEngine dynamic tags.</p>
                         </td>
                     </tr>
                 </table>
@@ -483,6 +566,8 @@ jQuery(document).ready(function($) {
     
     // Save configurations
     $('#save-popup-configs').on('click', function() {
+        console.log('[Popup Manager] Save button clicked');
+        
         var $button = $(this);
         var $spinner = $('.spinner');
         var $message = $('#save-popup-message');
@@ -496,19 +581,29 @@ jQuery(document).ready(function($) {
         formData += '&action=amelia_save_popup_configs';
         formData += '&nonce=' + '<?php echo wp_create_nonce("amelia_popup_save"); ?>';
         
+        console.log('[Popup Manager] Sending AJAX request');
+        console.log('[Popup Manager] Form data length:', formData.length);
+        
         $.post(ajaxurl, formData, function(response) {
+            console.log('[Popup Manager] AJAX response:', response);
+            
             if (response.success) {
                 $message.text(response.data.message).addClass('success');
+                
+                console.log('[Popup Manager] Save successful, reloading page...');
                 
                 // Reload page to refresh generated attributes
                 setTimeout(function() {
                     location.reload();
                 }, 1500);
             } else {
+                console.error('[Popup Manager] Save failed:', response.data.message);
                 $message.text(response.data.message).addClass('error');
             }
-        }).fail(function() {
-            $message.text('Error saving configurations').addClass('error');
+        }).fail(function(xhr, status, error) {
+            console.error('[Popup Manager] AJAX error:', status, error);
+            console.error('[Popup Manager] Response:', xhr.responseText);
+            $message.text('Error saving configurations: ' + error).addClass('error');
         }).always(function() {
             $button.prop('disabled', false);
             $spinner.removeClass('is-active');

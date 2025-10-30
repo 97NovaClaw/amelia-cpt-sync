@@ -55,6 +55,8 @@ class Amelia_CPT_Sync_Popup_Config_Manager {
      * Generate Elementor attribute string for a configuration
      */
     public function generate_elementor_attributes($config) {
+        amelia_cpt_sync_debug_log('Generating Elementor attributes for config: ' . print_r($config, true));
+        
         $attributes = array();
         
         // Amelia type attribute
@@ -68,15 +70,20 @@ class Amelia_CPT_Sync_Popup_Config_Manager {
         $attributes[] = 'data-amelia-type|' . $amelia_type;
         
         // Dynamic ID attribute (with placeholder for JetEngine)
-        $meta_field = $config['meta_field'];
-        $attributes[] = 'data-amelia-id|%' . $meta_field . '%';
+        $meta_field = isset($config['meta_field']) ? $config['meta_field'] : '';
+        if ($meta_field) {
+            $attributes[] = 'data-amelia-id|%' . $meta_field . '%';
+        }
         
         // JetPopup trigger attribute
         if (!empty($config['popup_id'])) {
             $attributes[] = 'data-jet-popup|' . $config['popup_id'];
         }
         
-        return implode("\n", $attributes);
+        $result = implode("\n", $attributes);
+        amelia_cpt_sync_debug_log('Generated attributes: ' . $result);
+        
+        return $result;
     }
     
     /**

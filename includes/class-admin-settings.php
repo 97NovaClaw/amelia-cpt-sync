@@ -965,14 +965,21 @@ class Amelia_CPT_Sync_Admin_Settings {
      * AJAX handler to save popup configurations
      */
     public function ajax_save_popup_configs() {
+        amelia_cpt_sync_debug_log('========== SAVE POPUP CONFIGS REQUEST ==========');
+        amelia_cpt_sync_debug_log('Raw $_POST: ' . print_r($_POST, true));
+        
         check_ajax_referer('amelia_popup_save', 'nonce');
         
         if (!current_user_can('manage_options')) {
+            amelia_cpt_sync_debug_log('ERROR: Unauthorized user');
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
         
         $global = isset($_POST['global']) ? $_POST['global'] : array();
         $configs = isset($_POST['configs']) ? $_POST['configs'] : array();
+        
+        amelia_cpt_sync_debug_log('Parsed global: ' . print_r($global, true));
+        amelia_cpt_sync_debug_log('Parsed configs: ' . print_r($configs, true));
         
         $data = array(
             'global' => array(
@@ -989,16 +996,21 @@ class Amelia_CPT_Sync_Admin_Settings {
                 'amelia_type' => sanitize_key($config['amelia_type']),
                 'custom_type' => isset($config['custom_type']) ? sanitize_key($config['custom_type']) : '',
                 'popup_id' => sanitize_text_field($config['popup_id']),
-                'meta_field' => sanitize_key($config['meta_field'])
+                'meta_field' => sanitize_key($config['meta_field']),
+                'source_type' => isset($config['source_type']) ? sanitize_key($config['source_type']) : 'cpt_meta'
             );
         }
+        
+        amelia_cpt_sync_debug_log('Sanitized data to save: ' . print_r($data, true));
         
         $manager = new Amelia_CPT_Sync_Popup_Config_Manager();
         $result = $manager->save_configurations($data);
         
         if ($result) {
+            amelia_cpt_sync_debug_log('SUCCESS: Popup configurations saved');
             wp_send_json_success(array('message' => 'Popup configurations saved successfully!'));
         } else {
+            amelia_cpt_sync_debug_log('ERROR: Failed to save popup configurations');
             wp_send_json_error(array('message' => 'Failed to save configurations'));
         }
     }
