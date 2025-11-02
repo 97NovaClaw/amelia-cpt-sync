@@ -287,6 +287,37 @@
             tracked: trackedPopups
         });
 
+        document.addEventListener('click', function(event) {
+            if (!event.target) {
+                return;
+            }
+
+            var triggerElement = event.target.closest ? event.target.closest('.amelia-booking-trigger') : null;
+
+            if (!triggerElement) {
+                return;
+            }
+
+            var $button = $(triggerElement);
+            var popupIdCapture = $button.attr('data-jet-popup') || '';
+            var shortcodeCapture = $button.attr('data-amelia-shortcode') || '';
+
+            lastTrigger = {
+                $el: $button,
+                popupId: popupIdCapture,
+                shortcode: shortcodeCapture.trim()
+            };
+
+            $('.amelia-booking-trigger').removeClass('last-clicked');
+            $button.addClass('last-clicked');
+
+            reportDebug('Trigger captured (capture phase)', {
+                popup: popupIdCapture,
+                hasShortcode: !!shortcodeCapture.trim(),
+                classes: triggerElement.className
+            });
+        }, true);
+
         $(document).on('click', '.amelia-booking-trigger', function() {
             var $button = $(this);
             var popupId = $button.attr('data-jet-popup') || '';
