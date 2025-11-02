@@ -350,6 +350,93 @@
             tracked: trackedPopups
         });
 
+        // ========== COMPREHENSIVE EVENT LOGGING ==========
+        console.log('[Amelia Popup] ========== INSTALLING COMPREHENSIVE EVENT MONITORS ==========');
+
+        // Log ALL events that mention 'popup' or 'jet'
+        const logAllEvents = function(e) {
+            const type = e.type || '';
+            if (type.toLowerCase().indexOf('popup') !== -1 || type.toLowerCase().indexOf('jet') !== -1) {
+                console.log('[EVENT MONITOR] ' + type, e);
+            }
+        };
+
+        // Capture phase for all events
+        document.addEventListener('click', logAllEvents, true);
+        document.addEventListener('mousedown', logAllEvents, true);
+        document.addEventListener('change', logAllEvents, true);
+
+        // Override dispatchEvent to catch custom events
+        const originalDispatch = EventTarget.prototype.dispatchEvent;
+        EventTarget.prototype.dispatchEvent = function(event) {
+            if (event.type && (event.type.indexOf('popup') !== -1 || event.type.indexOf('jet') !== -1 || event.type.indexOf('Jet') !== -1)) {
+                console.log('[CUSTOM EVENT DISPATCH] ' + event.type, event);
+            }
+            return originalDispatch.apply(this, arguments);
+        };
+
+        // Monitor jQuery trigger
+        const originalTrigger = $.fn.trigger;
+        $.fn.trigger = function(type) {
+            if (typeof type === 'string' && (type.indexOf('popup') !== -1 || type.indexOf('jet') !== -1)) {
+                console.log('[JQUERY TRIGGER] ' + type, this, arguments);
+            }
+            return originalTrigger.apply(this, arguments);
+        };
+
+        // Watch for popup DOM elements
+        const domObserver = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                mutation.addedNodes.forEach(function(node) {
+                    if (node.nodeType === 1 && node.classList) {
+                        const classes = node.className || '';
+                        if (classes.indexOf('jet-popup') !== -1 || classes.indexOf('popup') !== -1) {
+                            console.log('[DOM MONITOR] Popup-related element added:', {
+                                tag: node.tagName,
+                                id: node.id,
+                                classes: classes,
+                                node: node
+                            });
+                        }
+                    }
+                });
+            });
+        });
+
+        if (document.body) {
+            domObserver.observe(document.body, { childList: true, subtree: true });
+        }
+
+        // Check for JetPopup globals
+        if (window.JetPopupSettings) {
+            console.log('[JetPopup] window.JetPopupSettings found:', window.JetPopupSettings);
+        } else {
+            console.log('[JetPopup] window.JetPopupSettings NOT found');
+        }
+
+        if (window.JetPopupEvents) {
+            console.log('[JetPopup] window.JetPopupEvents found:', window.JetPopupEvents);
+        } else {
+            console.log('[JetPopup] window.JetPopupEvents NOT found');
+        }
+
+        // Listen to common popup event names
+        ['jet-popup-init', 'jet-popup-open', 'jet-popup-close', 'jet-popup-before-open', 'jet-popup-after-open',
+         'jetpopup-init', 'jetpopup-open', 'jetpopup-close',
+         'popup-open', 'popup-close', 'popup-show', 'popup-hide'].forEach(function(eventName) {
+            window.addEventListener(eventName, function(e) {
+                console.log('[WINDOW EVENT] ' + eventName, e);
+            });
+            document.addEventListener(eventName, function(e) {
+                console.log('[DOCUMENT EVENT] ' + eventName, e);
+            });
+        });
+
+        console.log('[Amelia Popup] ========== EVENT MONITORS INSTALLED ==========');
+        console.log('[Amelia Popup] Waiting for popup to open...');
+
+        // ========== END COMPREHENSIVE LOGGING ==========
+
         document.addEventListener('click', function(event) {
             if (!event.target) {
                 return;
