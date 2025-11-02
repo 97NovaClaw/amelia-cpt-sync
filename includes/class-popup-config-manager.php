@@ -121,15 +121,38 @@ class Amelia_CPT_Sync_Popup_Config_Manager {
         $configs = $this->get_configurations();
         $tracked = array();
 
+        if (!empty($configs['global']['default_popup_id'])) {
+            $global_slug = sanitize_title($configs['global']['default_popup_id']);
+            if ($global_slug) {
+                $tracked[] = $global_slug;
+            }
+        }
+
         if (!empty($configs['configs']) && is_array($configs['configs'])) {
-            foreach ($configs['configs'] as $config_id => $config) {
-                if (!empty($config['popup_id'])) {
-                    $tracked[$config_id] = sanitize_text_field($config['popup_id']);
+            foreach ($configs['configs'] as $config) {
+                if (!empty($config['popup_slug'])) {
+                    $tracked[] = sanitize_title($config['popup_slug']);
+                }
+
+                // Back-compat field
+                if (empty($config['popup_slug']) && !empty($config['popup_id'])) {
+                    $tracked[] = sanitize_title($config['popup_id']);
+                }
+
+                if (!empty($config['popup_numeric_id'])) {
+                    $numeric = absint($config['popup_numeric_id']);
+
+                    if ($numeric) {
+                        $tracked[] = (string) $numeric;
+                        $tracked[] = 'jet-popup-' . $numeric;
+                    }
                 }
             }
         }
 
-        return $tracked;
+        $tracked = array_unique(array_filter($tracked));
+
+        return array_values($tracked);
     }
 }
 

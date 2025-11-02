@@ -95,6 +95,14 @@
         return textarea.value;
     }
 
+    function stripScripts(input) {
+        if (!input) {
+            return input;
+        }
+
+        return input.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+    }
+
     function normalizePayload(value) {
         if (!value) {
             return '';
@@ -105,6 +113,8 @@
         if (!decoded) {
             return '';
         }
+
+        decoded = stripScripts(decoded);
 
         // Support [[shortcode]] syntax to escape server-side processing.
         if (decoded.indexOf('[[') !== -1 || decoded.indexOf(']]') !== -1) {
@@ -195,20 +205,9 @@
         $container.empty().append($wrapper.contents());
 
         // Execute inline scripts if present (Amelia uses inline setup).
-        $container.find('script').each(function() {
-            var $script = $(this);
-            var scriptText = $script.text() || $script.html();
-
-            if ($script.attr('src')) {
-                $.getScript($script.attr('src'));
-            } else if (scriptText) {
-                $.globalEval(scriptText);
-            }
-
-            $script.remove();
-        });
-
-        reinitializeAmeliaScripts();
+        setTimeout(function() {
+            reinitializeAmeliaScripts();
+        }, 50);
     }
 
     function loadAmeliaForm(shortcode, popupId) {
@@ -266,7 +265,7 @@
             return;
         }
 
-        if (trimmed.charAt(0) === '<' || trimmed.indexOf('<script') !== -1 || trimmed.indexOf('<div') !== -1) {
+        if (trimmed.charAt(0) === '<' || trimmed.indexOf('<div') !== -1) {
             injectRenderedMarkup(trimmed, popupId);
             return;
         }
@@ -280,6 +279,70 @@
         }
 
         loadAmeliaForm(trimmed, popupId);
+    }
+
+    function handlePopupOpen(event, popupData) {
+        var detail = popupData || (event && event.detail ? event.detail : {});
+
+        // JetPopup AJAX response shape
+        if (detail && detail.data && detail.data.popupId) {
+            detail.popupId = detail.data.popupId;
+        }
+
+        reportDebug('JetPopup open event fired', {
+            event: event.type,
+            detail: detail
+        });
+
+        var popupId = resolvePopupId(detail);
+
+        if (!isTrackedPopup(popupId)) {
+            reportDebug('Popup not tracked, skipping', { popup: popupId, tracked: trackedPopups });
+            return;
+        }
+
+        var $trigger = resolveTriggerElement(detail);
+
+        if (!$trigger) {
+            reportDebug('No trigger element could be resolved');
+            return;
+        }
+
+        var shortcode = resolveShortcode($trigger);
+
+        if (!shortcode) {
+            reportDebug('Trigger missing data-amelia-shortcode attribute');
+            showError('No shortcode configured for this popup trigger.');
+            return;
+        }
+
+        handlePopupPayload(shortcode, popupId);
+    }
+
+    function bindJetPopupEvents() {
+        var events = ['jet-popup/show-popup', 'jet-popup/show-event', 'jet-popup/after-open'];
+
+        events.forEach(function(evt) {
+            document.addEventListener(evt, function(event) {
+                handlePopupOpen(event, event.detail);
+            });
+
+            window.addEventListener(evt, function(event) {
+                handlePopupOpen(event, event.detail);
+            });
+
+            $(document).on(evt, function(event, data) {
+                handlePopupOpen(event, data);
+            });
+        });
+
+        if (window.JetPopupEvents && typeof window.JetPopupEvents.subscribe === 'function') {
+            events.forEach(function(evt) {
+                window.JetPopupEvents.subscribe(evt, function(data) {
+                    handlePopupOpen({ type: evt }, data);
+                });
+            });
+        }
     }
 
     $(function() {
@@ -339,35 +402,7 @@
             });
         });
 
-        $(document).on('jet-popup/show-popup jet-popup/show-event', function(event, popupData) {
-            reportDebug('JetPopup open event fired', {
-                event: event.type
-            });
-
-            var popupId = resolvePopupId(popupData);
-
-            if (!isTrackedPopup(popupId)) {
-                reportDebug('Popup not tracked, skipping', { popup: popupId, tracked: trackedPopups });
-                return;
-            }
-
-            var $trigger = resolveTriggerElement(popupData);
-
-            if (!$trigger) {
-                reportDebug('No trigger element could be resolved');
-                return;
-            }
-
-            var shortcode = resolveShortcode($trigger);
-
-            if (!shortcode) {
-                reportDebug('Trigger missing data-amelia-shortcode attribute');
-                showError('No shortcode configured for this popup trigger.');
-                return;
-            }
-
-            handlePopupPayload(shortcode, popupId);
-        });
+        bindJetPopupEvents();
     });
 })(jQuery);
 

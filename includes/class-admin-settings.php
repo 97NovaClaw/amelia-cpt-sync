@@ -39,6 +39,7 @@ class Amelia_CPT_Sync_Admin_Settings {
         add_action('wp_ajax_amelia_cpt_sync_get_taxonomy_custom_fields_modal', array($this, 'ajax_get_taxonomy_custom_fields_modal'));
         add_action('wp_ajax_amelia_cpt_sync_save_taxonomy_custom_field_values', array($this, 'ajax_save_taxonomy_custom_field_values'));
         add_action('wp_ajax_amelia_save_popup_configs', array($this, 'ajax_save_popup_configs'));
+        add_action('wp_ajax_amelia_resolve_popup_slug', array($this, 'ajax_resolve_popup_slug'));
         add_action('wp_ajax_amelia_cpt_sync_log_debug', array($this, 'ajax_log_debug'));
     }
     
@@ -994,20 +995,36 @@ class Amelia_CPT_Sync_Admin_Settings {
             $key = sanitize_key($config_id);
 
             $label = isset($config['label']) ? sanitize_text_field($config['label']) : '';
-            $popup_id = isset($config['popup_id']) ? sanitize_title($config['popup_id']) : '';
+            $popup_slug = isset($config['popup_slug']) ? sanitize_title($config['popup_slug']) : '';
+            $popup_numeric_id = isset($config['popup_numeric_id']) ? absint($config['popup_numeric_id']) : 0;
             $notes = isset($config['notes']) ? sanitize_textarea_field($config['notes']) : '';
 
-            if (!$label && !$popup_id) {
+            if (!$label && !$popup_slug && !$popup_numeric_id) {
                 continue;
+            }
+
+            // Attempt to resolve numeric ID if missing but slug provided
+            if ($popup_slug && !$popup_numeric_id) {
+                $resolved = $this->resolve_popup_identifier($popup_slug);
+
+                if ($resolved && !empty($resolved['numeric_id'])) {
+                    $popup_numeric_id = (int) $resolved['numeric_id'];
+                }
             }
 
             $data['configs'][$key] = array(
                 'label' => $label,
-                'popup_id' => $popup_id,
+                'popup_slug' => $popup_slug,
+                'popup_numeric_id' => $popup_numeric_id,
             );
 
             if ($notes) {
                 $data['configs'][$key]['notes'] = $notes;
+            }
+
+            // Back-compat field for existing code paths
+            if ($popup_slug) {
+                $data['configs'][$key]['popup_id'] = $popup_slug;
             }
         }
         
@@ -1046,6 +1063,73 @@ class Amelia_CPT_Sync_Admin_Settings {
     public function sanitize_settings($input) {
         // This is handled by AJAX, but keep for compatibility
         return $input;
+    }
+
+    /**
+     * AJAX handler to resolve JetPopup slug to numeric ID
+     */
+    public function ajax_resolve_popup_slug() {
+        check_ajax_referer('amelia_popup_resolve', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Unauthorized', 'amelia-cpt-sync')));
+        }
+
+        $slug = isset($_POST['slug']) ? sanitize_text_field(wp_unslash($_POST['slug'])) : '';
+
+        if (empty($slug)) {
+            wp_send_json_error(array('message' => __('No slug provided.', 'amelia-cpt-sync')));
+        }
+
+        $result = $this->resolve_popup_identifier($slug);
+
+        if (!$result) {
+            wp_send_json_error(array('message' => __('Popup not found.', 'amelia-cpt-sync')));
+        }
+
+        wp_send_json_success($result);
+    }
+
+    /**
+     * Resolve slug or identifier to popup data
+     */
+    private function resolve_popup_identifier($identifier) {
+        $identifier = trim($identifier);
+
+        if (empty($identifier)) {
+            return false;
+        }
+
+        $post = null;
+
+        // If prefixed (jet-popup-123), strip prefix
+        if (stripos($identifier, 'jet-popup-') === 0) {
+            $potential_id = intval(substr($identifier, strlen('jet-popup-')));
+            if ($potential_id) {
+                $post = get_post($potential_id);
+            }
+        }
+
+        // Numeric identifier
+        if (!$post && is_numeric($identifier)) {
+            $post = get_post(absint($identifier));
+        }
+
+        // Slug lookup
+        if (!$post) {
+            $post = get_page_by_path($identifier, OBJECT, 'jet-popup');
+        }
+
+        if (!$post || 'jet-popup' !== $post->post_type) {
+            return false;
+        }
+
+        return array(
+            'numeric_id' => (int) $post->ID,
+            'prefixed_id' => 'jet-popup-' . $post->ID,
+            'slug' => $post->post_name,
+            'title' => get_the_title($post)
+        );
     }
 }
 

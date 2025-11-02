@@ -69,14 +69,29 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                 <?php else: ?>
                     <?php foreach ($configurations['configs'] as $config_id => $config):
                         $label = isset($config['label']) ? $config['label'] : '';
-                        $popup_id = isset($config['popup_id']) ? $config['popup_id'] : '';
+                        $popup_slug = isset($config['popup_slug']) ? $config['popup_slug'] : (isset($config['popup_id']) ? $config['popup_id'] : '');
+                        $popup_numeric_id = isset($config['popup_numeric_id']) ? intval($config['popup_numeric_id']) : 0;
                         $notes = isset($config['notes']) ? $config['notes'] : '';
+                        $prefixed_id = $popup_numeric_id ? 'jet-popup-' . $popup_numeric_id : '';
+                        $subtitle_parts = array();
+
+                        if ($popup_slug) {
+                            $subtitle_parts[] = sprintf(__('Slug: %s', 'amelia-cpt-sync'), esc_html($popup_slug));
+                        }
+
+                        if ($popup_numeric_id) {
+                            $subtitle_parts[] = sprintf(__('ID: %d', 'amelia-cpt-sync'), $popup_numeric_id);
+                        }
+
+                        $subtitle_text = !empty($subtitle_parts)
+                            ? implode(' • ', $subtitle_parts)
+                            : __('Popup not resolved yet', 'amelia-cpt-sync');
                     ?>
                         <div class="popup-config-item" data-config-id="<?php echo esc_attr($config_id); ?>">
                             <div class="popup-config-header">
                                 <h3 class="config-title"><?php echo esc_html($label ? $label : __('Untitled Popup', 'amelia-cpt-sync')); ?></h3>
-                                <span class="config-subtitle">
-                                    <?php echo $popup_id ? sprintf(__('Popup ID: %s', 'amelia-cpt-sync'), esc_html($popup_id)) : __('Popup ID not set yet', 'amelia-cpt-sync'); ?>
+                                <span class="config-subtitle" data-popup-slug="<?php echo esc_attr($popup_slug); ?>" data-popup-numeric="<?php echo esc_attr($popup_numeric_id); ?>">
+                                    <?php echo wp_kses_post($subtitle_text); ?>
                                 </span>
                             </div>
 
@@ -93,13 +108,31 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                                 </tr>
 
                                 <tr>
-                                    <th><label><?php _e('JetPopup Template ID', 'amelia-cpt-sync'); ?></label></th>
+                                    <th><label><?php _e('JetPopup Slug', 'amelia-cpt-sync'); ?></label></th>
                                     <td>
-                                        <input type="text" name="configs[<?php echo esc_attr($config_id); ?>][popup_id]"
-                                               class="regular-text config-popup-id-input"
-                                               value="<?php echo esc_attr($popup_id); ?>"
-                                               placeholder="e.g., book-by-vehicle-popup">
-                                        <p class="description"><?php _e('Find the slug/ID in JetPopup → All Popups. This must match the value you set under Elementor → JetPopup action.', 'amelia-cpt-sync'); ?></p>
+                                        <input type="text" name="configs[<?php echo esc_attr($config_id); ?>][popup_slug]"
+                                               class="regular-text config-popup-slug-input"
+                                               value="<?php echo esc_attr($popup_slug); ?>"
+                                               placeholder="e.g., v2-book-by-vehicle-popup">
+                                        <p class="description"><?php _e('Enter the JetPopup slug (found under JetPopup → All Popups). The system will resolve the numeric ID automatically.', 'amelia-cpt-sync'); ?></p>
+
+                                        <div class="popup-resolve-feedback <?php echo $popup_numeric_id ? 'resolved' : 'pending'; ?>">
+                                            <span class="status-dot"></span>
+                                            <span class="status-text">
+                                                <?php if ($popup_numeric_id): ?>
+                                                    <?php echo sprintf(__('Resolved as ID %1$d (%2$s)', 'amelia-cpt-sync'), $popup_numeric_id, esc_html($prefixed_id)); ?>
+                                                <?php else: ?>
+                                                    <?php _e('Slug not resolved yet. Enter a valid slug and click outside the field to look it up.', 'amelia-cpt-sync'); ?>
+                                                <?php endif; ?>
+                                            </span>
+                                        </div>
+
+                                        <div class="popup-resolved-wrapper">
+                                            <label><?php _e('Resolved Popup ID', 'amelia-cpt-sync'); ?></label>
+                                            <input type="text" class="regular-text config-popup-prefixed-input" value="<?php echo esc_attr($prefixed_id); ?>" readonly>
+                                        </div>
+
+                                        <input type="hidden" name="configs[<?php echo esc_attr($config_id); ?>][popup_numeric_id]" value="<?php echo esc_attr($popup_numeric_id); ?>" class="popup-numeric-id-input">
                                     </td>
                                 </tr>
 
@@ -248,6 +281,74 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
     color: #666;
 }
 
+.popup-resolve-feedback {
+    margin-top: 8px;
+    padding: 6px 10px;
+    border-radius: 3px;
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.popup-resolve-feedback .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    background: #d63638;
+}
+
+.popup-resolve-feedback .status-text {
+    line-height: 1.4;
+}
+
+.popup-resolve-feedback.resolved {
+    border-color: #46b450;
+    background: #f2fbf4;
+}
+
+.popup-resolve-feedback.resolved .status-dot {
+    background: #46b450;
+}
+
+.popup-resolve-feedback.loading {
+    border-color: #f0ad4e;
+    background: #fff6e5;
+}
+
+.popup-resolve-feedback.loading .status-dot {
+    background: #f0ad4e;
+}
+
+.popup-resolve-feedback.error {
+    border-color: #d63638;
+    background: #fef1f2;
+    color: #8a1f1f;
+}
+
+.popup-resolve-feedback.error .status-dot {
+    background: #d63638;
+}
+
+.popup-resolved-wrapper {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.popup-resolved-wrapper label {
+    font-weight: 600;
+    min-width: 150px;
+}
+
+.popup-resolved-wrapper input {
+    max-width: 260px;
+}
+
 .elementor-instructions-box {
     background: #fff;
     border: 1px solid #dcdcdc;
@@ -344,194 +445,227 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
 <script>
 jQuery(function($) {
     const untitledLabel = '<?php echo esc_js(__('Untitled Popup', 'amelia-cpt-sync')); ?>';
-    const popupNotSet = '<?php echo esc_js(__('Popup ID not set yet', 'amelia-cpt-sync')); ?>';
+    const popupNotSet = '<?php echo esc_js(__('Popup not resolved yet', 'amelia-cpt-sync')); ?>';
+    const popupResolveNonce = '<?php echo wp_create_nonce('amelia_popup_resolve'); ?>';
+    const subtitleSlugLabel = '<?php echo esc_js(__('Slug', 'amelia-cpt-sync')); ?>';
+    const subtitleIdLabel = '<?php echo esc_js(__('ID', 'amelia-cpt-sync')); ?>';
 
     console.log('[Popup Manager] Page loaded');
 
-    function updateConfigSummary($config) {
-        const label = $.trim($config.find('.config-label-input').val());
-        const popupId = $.trim($config.find('.config-popup-id-input').val());
+    function updateConfigSummary($configItem) {
+        const label = $.trim($configItem.find('.config-label-input').val());
+        const popupSlug = $.trim($configItem.find('.config-popup-slug-input').val());
+        const popupNumeric = $.trim($configItem.find('.popup-numeric-id-input').val());
 
-        $config.find('.config-title').text(label || untitledLabel);
-        $config.find('.config-subtitle').text(popupId ? '<?php echo esc_js(__('Popup ID: ', 'amelia-cpt-sync')); ?>' + popupId : popupNotSet);
+        $configItem.find('.config-title').text(label || untitledLabel);
+
+        const parts = [];
+        if (popupSlug) parts.push(subtitleSlugLabel + ': ' + popupSlug);
+        if (popupNumeric) parts.push(subtitleIdLabel + ': ' + popupNumeric);
+
+        $configItem.find('.config-subtitle').text(parts.length ? parts.join(' • ') : popupNotSet);
     }
 
-    function bindNewConfig($config) {
-        updateConfigSummary($config);
+    function setResolveState($configItem, state, payload) {
+        const $feedback = $configItem.find('.popup-resolve-feedback');
+        const $statusText = $feedback.find('.status-text');
+        const $numericInput = $configItem.find('.popup-numeric-id-input');
+        const $prefixedInput = $configItem.find('.config-popup-prefixed-input');
+
+        $feedback.removeClass('resolved error loading');
+
+        if (state === 'loading') {
+            $feedback.addClass('loading');
+            $statusText.text('<?php echo esc_js(__('Resolving slug…', 'amelia-cpt-sync')); ?>');
+        } else if (state === 'resolved' && payload && payload.numeric_id) {
+            const numeric = parseInt(payload.numeric_id, 10);
+            const prefixed = payload.prefixed_id || ('jet-popup-' + numeric);
+            $feedback.addClass('resolved');
+            $statusText.text('<?php echo esc_js(__('Resolved as ID ', 'amelia-cpt-sync')); ?>' + numeric + ' (' + prefixed + ')');
+            $numericInput.val(numeric);
+            $prefixedInput.val(prefixed);
+        } else if (state === 'error') {
+            $feedback.addClass('error');
+            $statusText.text('<?php echo esc_js(__('Popup not found. Double-check the slug.', 'amelia-cpt-sync')); ?>');
+            $numericInput.val('');
+            $prefixedInput.val('');
+        } else {
+            $statusText.text('<?php echo esc_js(__('Enter a valid slug and click outside the field.', 'amelia-cpt-sync')); ?>');
+        }
+
+        updateConfigSummary($configItem);
     }
 
-    // Toggle instructions panel
+    function resolvePopupSlug($configItem) {
+        const slug = $.trim($configItem.find('.config-popup-slug-input').val());
+        if (!slug) {
+            setResolveState($configItem, 'pending');
+            return;
+        }
+
+        setResolveState($configItem, 'loading');
+
+        $.post(ajaxurl, {
+            action: 'amelia_resolve_popup_slug',
+            nonce: popupResolveNonce,
+            slug: slug
+        }).done(function(response) {
+            setResolveState($configItem, response.success && response.data ? 'resolved' : 'error', response.data);
+        }).fail(function() {
+            setResolveState($configItem, 'error');
+        });
+    }
+
+    function bindNewConfig($configItem) {
+        updateConfigSummary($configItem);
+        const numeric = $.trim($configItem.find('.popup-numeric-id-input').val());
+        const slug = $.trim($configItem.find('.config-popup-slug-input').val());
+
+        if (numeric) {
+            setResolveState($configItem, 'resolved', { numeric_id: numeric, prefixed_id: 'jet-popup-' + numeric });
+        } else if (slug) {
+            resolvePopupSlug($configItem);
+        } else {
+            setResolveState($configItem, 'pending');
+        }
+    }
+
     $('.instructions-toggle').on('click', function() {
         $('.instructions-content').slideToggle();
         $(this).find('.dashicons-arrow-down-alt2, .dashicons-arrow-up-alt2').toggleClass('dashicons-arrow-down-alt2 dashicons-arrow-up-alt2');
     });
 
-    // Update headers when inputs change
-    $(document).on('input', '.config-label-input, .config-popup-id-input', function() {
-        const $config = $(this).closest('.popup-config-item');
-        updateConfigSummary($config);
+    $(document).on('input', '.config-label-input', function() {
+        updateConfigSummary($(this).closest('.popup-config-item'));
     });
 
-    // Copy attribute template helper
+    $(document).on('input', '.config-popup-slug-input', function() {
+        setResolveState($(this).closest('.popup-config-item'), 'pending');
+    });
+
+    $(document).on('blur', '.config-popup-slug-input', function() {
+        resolvePopupSlug($(this).closest('.popup-config-item'));
+    });
+
     $(document).on('click', '.copy-attribute-template', function() {
         const $button = $(this);
         const $input = $button.closest('.attribute-template__field').find('.attribute-template-input');
-
         $input.trigger('select');
-
         try {
             document.execCommand('copy');
             $button.html('<span class="dashicons dashicons-yes"></span> <?php echo esc_js(__('Copied', 'amelia-cpt-sync')); ?>');
-        } catch (error) {
-            console.warn('[Popup Manager] Copy failed', error);
-        }
-
+        } catch (e) {}
         setTimeout(function() {
             $button.html('<span class="dashicons dashicons-clipboard"></span> <?php echo esc_js(__('Copy', 'amelia-cpt-sync')); ?>');
         }, 1500);
     });
 
-    // Copy HTML snippet from instructions
     $('.copy-html-snippet').on('click', function() {
         const $code = $(this).prev('.code-snippet').find('code');
-        const text = $code.text();
         const $temp = $('<textarea>');
-
         $('body').append($temp);
-        $temp.val(text).select();
+        $temp.val($code.text()).select();
         document.execCommand('copy');
         $temp.remove();
-
         $(this).text('✓ <?php echo esc_js(__('Copied!', 'amelia-cpt-sync')); ?>');
-        setTimeout(function() {
-            $('.copy-html-snippet').text('<?php echo esc_js(__('Copy HTML', 'amelia-cpt-sync')); ?>');
-        }, 2000);
+        setTimeout(() => $('.copy-html-snippet').text('<?php echo esc_js(__('Copy HTML', 'amelia-cpt-sync')); ?>'), 2000);
     });
 
-    // Add configuration block
     $('#add-new-config').on('click', function() {
-        const timestamp = Date.now();
-        const configId = 'new_config_' + timestamp;
-
+        const configId = 'new_config_' + Date.now();
         const template = `
             <div class="popup-config-item" data-config-id="${configId}">
                 <div class="popup-config-header">
                     <h3 class="config-title">${untitledLabel}</h3>
                     <span class="config-subtitle">${popupNotSet}</span>
                 </div>
-
                 <table class="form-table">
                     <tr>
                         <th><label><?php echo esc_js(__('Label/Name', 'amelia-cpt-sync')); ?></label></th>
                         <td>
                             <input type="text" name="configs[${configId}][label]" class="regular-text config-label-input" placeholder="<?php echo esc_js(__('e.g., Vehicle Booking Popup', 'amelia-cpt-sync')); ?>">
-                            <p class="description"><?php echo esc_js(__('Internal reference for your team.', 'amelia-cpt-sync')); ?></p>
+                            <p class="description"><?php echo esc_js(__('Internal reference.', 'amelia-cpt-sync')); ?></p>
                         </td>
                     </tr>
                     <tr>
-                        <th><label><?php echo esc_js(__('JetPopup Template ID', 'amelia-cpt-sync')); ?></label></th>
+                        <th><label><?php echo esc_js(__('JetPopup Slug', 'amelia-cpt-sync')); ?></label></th>
                         <td>
-                            <input type="text" name="configs[${configId}][popup_id]" class="regular-text config-popup-id-input" placeholder="<?php echo esc_js(__('e.g., book-by-vehicle-popup', 'amelia-cpt-sync')); ?>">
-                            <p class="description"><?php echo esc_js(__('Must match the JetPopup slug used in Elementor.', 'amelia-cpt-sync')); ?></p>
+                            <input type="text" name="configs[${configId}][popup_slug]" class="regular-text config-popup-slug-input" placeholder="<?php echo esc_js(__('e.g., v2-book-by-vehicle-popup', 'amelia-cpt-sync')); ?>">
+                            <p class="description"><?php echo esc_js(__('Enter JetPopup slug. Numeric ID resolves automatically.', 'amelia-cpt-sync')); ?></p>
+                            <div class="popup-resolve-feedback pending">
+                                <span class="status-dot"></span>
+                                <span class="status-text"><?php echo esc_js(__('Enter slug and click outside.', 'amelia-cpt-sync')); ?></span>
+                            </div>
+                            <div class="popup-resolved-wrapper">
+                                <label><?php echo esc_js(__('Resolved ID', 'amelia-cpt-sync')); ?></label>
+                                <input type="text" class="regular-text config-popup-prefixed-input" readonly>
+                            </div>
+                            <input type="hidden" name="configs[${configId}][popup_numeric_id]" class="popup-numeric-id-input">
                         </td>
                     </tr>
                     <tr>
-                        <th><label><?php echo esc_js(__('Team Notes (Optional)', 'amelia-cpt-sync')); ?></label></th>
-                        <td>
-                            <textarea name="configs[${configId}][notes]" rows="3" class="large-text" placeholder="<?php echo esc_js(__('Store the Amelia shortcode or setup reminders.', 'amelia-cpt-sync')); ?>"></textarea>
-                        </td>
+                        <th><label><?php echo esc_js(__('Team Notes', 'amelia-cpt-sync')); ?></label></th>
+                        <td><textarea name="configs[${configId}][notes]" rows="3" class="large-text"></textarea></td>
                     </tr>
                 </table>
-
                 <div class="elementor-instructions-box">
-                    <h4><?php echo esc_js(__('Elementor Setup Checklist', 'amelia-cpt-sync')); ?></h4>
+                    <h4><?php echo esc_js(__('Elementor Setup', 'amelia-cpt-sync')); ?></h4>
                     <ol>
-                        <li><?php echo esc_js(__('Set JetPopup action to this popup ID.', 'amelia-cpt-sync')); ?></li>
-                        <li><?php echo esc_js(__('Add CSS class', 'amelia-cpt-sync')); ?> <code>amelia-booking-trigger</code>.</li>
-                        <li><?php echo esc_js(__('Add custom attribute', 'amelia-cpt-sync')); ?> <code>data-amelia-shortcode</code> <?php echo esc_js(__('with your Amelia shortcode.', 'amelia-cpt-sync')); ?></li>
+                        <li><?php echo esc_js(__('Set JetPopup action to this ID.', 'amelia-cpt-sync')); ?></li>
+                        <li><?php echo esc_js(__('Add class', 'amelia-cpt-sync')); ?> <code>amelia-booking-trigger</code>.</li>
+                        <li><?php echo esc_js(__('Add attribute', 'amelia-cpt-sync')); ?> <code>data-amelia-shortcode</code>.</li>
                     </ol>
                     <div class="attribute-template">
-                        <label><?php echo esc_js(__('Copy-ready Attribute Template', 'amelia-cpt-sync')); ?></label>
+                        <label><?php echo esc_js(__('Template', 'amelia-cpt-sync')); ?></label>
                         <div class="attribute-template__field">
-                            <input type="text" class="regular-text code attribute-template-input" value="data-amelia-shortcode|[paste your Amelia shortcode here]" readonly>
+                            <input type="text" class="regular-text code attribute-template-input" value="data-amelia-shortcode|[paste shortcode]" readonly>
                             <button type="button" class="button button-secondary copy-attribute-template">
                                 <span class="dashicons dashicons-clipboard"></span> <?php echo esc_js(__('Copy', 'amelia-cpt-sync')); ?>
                             </button>
                         </div>
-                        <p class="description"><?php echo esc_js(__('Replace the placeholder with the exact shortcode Elementor outputs.', 'amelia-cpt-sync')); ?></p>
                     </div>
                 </div>
-
-                <p>
-                    <button type="button" class="button button-link-delete delete-config" data-config-id="${configId}">
-                        <?php echo esc_js(__('Delete This Configuration', 'amelia-cpt-sync')); ?>
-                    </button>
-                </p>
+                <p><button type="button" class="button button-link-delete delete-config"><?php echo esc_js(__('Delete', 'amelia-cpt-sync')); ?></button></p>
             </div>
         `;
-
         $('.no-configs-message').remove();
         const $config = $(template);
         $('#configurations-container').append($config);
         bindNewConfig($config);
     });
 
-    // Delete configuration block
     $(document).on('click', '.delete-config', function() {
-        if (!confirm('<?php echo esc_js(__('Are you sure you want to delete this configuration?', 'amelia-cpt-sync')); ?>')) {
-            return;
-        }
-
+        if (!confirm('<?php echo esc_js(__('Delete this configuration?', 'amelia-cpt-sync')); ?>')) return;
         $(this).closest('.popup-config-item').fadeOut(200, function() {
             $(this).remove();
-
-            if ($('.popup-config-item').length === 0) {
-                $('#configurations-container').html('<p class="no-configs-message"><?php echo esc_js(__('No configurations yet. Click "Add New Configuration" to get started.', 'amelia-cpt-sync')); ?></p>');
+            if (!$('.popup-config-item').length) {
+                $('#configurations-container').html('<p class="no-configs-message"><?php echo esc_js(__('No configurations. Click "Add New".', 'amelia-cpt-sync')); ?></p>');
             }
         });
     });
 
-    // Save configurations
     $('#save-popup-configs').on('click', function() {
-        console.log('[Popup Manager] Save button clicked');
-
-        const $button = $(this);
-        const $spinner = $('.spinner');
-        const $message = $('#save-popup-message');
-
+        const $button = $(this), $spinner = $('.spinner'), $message = $('#save-popup-message');
         $button.prop('disabled', true);
         $spinner.addClass('is-active');
         $message.text('').removeClass('success error');
 
-        const formData = $('#popup-config-form').serialize() + '&action=amelia_save_popup_configs&nonce=' + '<?php echo wp_create_nonce('amelia_popup_save'); ?>';
-
-        $.post(ajaxurl, formData, function(response) {
-            console.log('[Popup Manager] AJAX response:', response);
-
+        $.post(ajaxurl, $('#popup-config-form').serialize() + '&action=amelia_save_popup_configs&nonce=<?php echo wp_create_nonce('amelia_popup_save'); ?>', function(response) {
             if (response.success) {
                 $message.text(response.data.message).addClass('success');
-
-                setTimeout(function() {
-                    location.reload();
-                }, 800);
+                setTimeout(() => location.reload(), 800);
             } else {
-                const errorMsg = response.data && response.data.message ? response.data.message : '<?php echo esc_js(__('Failed to save configurations.', 'amelia-cpt-sync')); ?>';
-                console.error('[Popup Manager] Save failed:', errorMsg);
-                $message.text(errorMsg).addClass('error');
+                $message.text(response.data?.message || '<?php echo esc_js(__('Save failed.', 'amelia-cpt-sync')); ?>').addClass('error');
             }
-        }).fail(function(xhr, status, error) {
-            console.error('[Popup Manager] AJAX error:', status, error);
-            $message.text('<?php echo esc_js(__('Error saving configurations:', 'amelia-cpt-sync')); ?> ' + error).addClass('error');
-        }).always(function() {
+        }).fail((xhr, status, error) => {
+            $message.text('<?php echo esc_js(__('Error:', 'amelia-cpt-sync')); ?> ' + error).addClass('error');
+        }).always(() => {
             $button.prop('disabled', false);
             $spinner.removeClass('is-active');
         });
     });
 
-    // Initialize summaries for existing configs
-    $('.popup-config-item').each(function() {
-        bindNewConfig($(this));
-    });
+    $('.popup-config-item').each(function() { bindNewConfig($(this)); });
 });
 </script>
 
