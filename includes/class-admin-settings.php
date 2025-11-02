@@ -983,22 +983,32 @@ class Amelia_CPT_Sync_Admin_Settings {
         
         $data = array(
             'global' => array(
-                'default_popup_id' => isset($global['default_popup_id']) ? sanitize_text_field($global['default_popup_id']) : '',
-                'debug_enabled' => isset($global['debug_enabled'])
+                'default_popup_id' => isset($global['default_popup_id']) ? sanitize_title($global['default_popup_id']) : '',
+                'debug_enabled' => !empty($global['debug_enabled'])
             ),
             'configs' => array()
         );
         
         // Sanitize configurations
         foreach ($configs as $config_id => $config) {
-            $data['configs'][sanitize_key($config_id)] = array(
-                'label' => sanitize_text_field($config['label']),
-                'amelia_type' => sanitize_key($config['amelia_type']),
-                'custom_type' => isset($config['custom_type']) ? sanitize_key($config['custom_type']) : '',
-                'popup_id' => sanitize_text_field($config['popup_id']),
-                'meta_field' => sanitize_key($config['meta_field']),
-                'source_type' => isset($config['source_type']) ? sanitize_key($config['source_type']) : 'cpt_meta'
+            $key = sanitize_key($config_id);
+
+            $label = isset($config['label']) ? sanitize_text_field($config['label']) : '';
+            $popup_id = isset($config['popup_id']) ? sanitize_title($config['popup_id']) : '';
+            $notes = isset($config['notes']) ? sanitize_textarea_field($config['notes']) : '';
+
+            if (!$label && !$popup_id) {
+                continue;
+            }
+
+            $data['configs'][$key] = array(
+                'label' => $label,
+                'popup_id' => $popup_id,
             );
+
+            if ($notes) {
+                $data['configs'][$key]['notes'] = $notes;
+            }
         }
         
         amelia_cpt_sync_debug_log('Sanitized data to save: ' . print_r($data, true));

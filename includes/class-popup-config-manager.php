@@ -60,41 +60,6 @@ class Amelia_CPT_Sync_Popup_Config_Manager {
     }
     
     /**
-     * Generate Elementor attribute string for a configuration
-     */
-    public function generate_elementor_attributes($config) {
-        amelia_cpt_sync_debug_log('Generating Elementor attributes for config: ' . print_r($config, true));
-        
-        $attributes = array();
-        
-        // Amelia type attribute
-        $amelia_type = $config['amelia_type'];
-        
-        // Handle custom types
-        if (isset($config['custom_type']) && !empty($config['custom_type'])) {
-            $amelia_type = $config['custom_type'];
-        }
-        
-        $attributes[] = 'data-amelia-type|' . $amelia_type;
-        
-        // Dynamic ID attribute (with placeholder for JetEngine)
-        $meta_field = isset($config['meta_field']) ? $config['meta_field'] : '';
-        if ($meta_field) {
-            $attributes[] = 'data-amelia-id|%' . $meta_field . '%';
-        }
-        
-        // JetPopup trigger attribute
-        if (!empty($config['popup_id'])) {
-            $attributes[] = 'data-jet-popup|' . $config['popup_id'];
-        }
-        
-        $result = implode("\n", $attributes);
-        amelia_cpt_sync_debug_log('Generated attributes: ' . $result);
-        
-        return $result;
-    }
-    
-    /**
      * Get configuration by ID
      */
     public function get_configuration($config_id) {
@@ -147,6 +112,24 @@ class Amelia_CPT_Sync_Popup_Config_Manager {
         }
         
         return false;
+    }
+
+    /**
+     * Get an array of popup IDs keyed by configuration ID
+     */
+    public function get_tracked_popups() {
+        $configs = $this->get_configurations();
+        $tracked = array();
+
+        if (!empty($configs['configs']) && is_array($configs['configs'])) {
+            foreach ($configs['configs'] as $config_id => $config) {
+                if (!empty($config['popup_id'])) {
+                    $tracked[$config_id] = sanitize_text_field($config['popup_id']);
+                }
+            }
+        }
+
+        return $tracked;
     }
 }
 

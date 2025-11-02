@@ -28,171 +28,110 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
         <!-- Global Settings -->
         <div class="config-section">
             <h2><?php _e('Global Settings', 'amelia-cpt-sync'); ?></h2>
-            
+
             <table class="form-table">
                 <tr>
                     <th scope="row">
                         <label for="default_popup_id"><?php _e('Default Popup Template ID', 'amelia-cpt-sync'); ?></label>
                     </th>
                     <td>
-                        <input type="text" name="global[default_popup_id]" id="default_popup_id" 
-                               class="regular-text" 
-                               value="<?php echo esc_attr($configurations['global']['default_popup_id']); ?>"
+                        <input type="text" name="global[default_popup_id]" id="default_popup_id"
+                               class="regular-text"
+                               value="<?php echo esc_attr(isset($configurations['global']['default_popup_id']) ? $configurations['global']['default_popup_id'] : ''); ?>"
                                placeholder="e.g., amelia-booking-popup">
-                        <p class="description"><?php _e('Default JetPopup template ID to use for all configurations (can be overridden per config).', 'amelia-cpt-sync'); ?></p>
+                        <p class="description"><?php _e('Optional fallback JetPopup ID if a trigger button does not specify one.', 'amelia-cpt-sync'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="popup_debug_enabled"><?php _e('Enable Popup Debug Logging', 'amelia-cpt-sync'); ?></label>
+                    </th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="global[debug_enabled]" id="popup_debug_enabled" value="1" <?php checked(!empty($configurations['global']['debug_enabled'])); ?>>
+                            <?php _e('When enabled, frontend popup events are written to the plugin debug log.', 'amelia-cpt-sync'); ?>
+                        </label>
                     </td>
                 </tr>
             </table>
         </div>
-        
+
         <hr>
-        
+
         <!-- Popup Configurations -->
         <div class="config-section">
             <h2><?php _e('Popup Trigger Configurations', 'amelia-cpt-sync'); ?></h2>
-            
+            <p class="section-intro"><?php _e('Create one entry for each JetPopup template that should load an Amelia booking form dynamically. Elementor and JetEngine handle the dynamic shortcode—this plugin just renders it when the popup opens.', 'amelia-cpt-sync'); ?></p>
+
             <div id="configurations-container">
                 <?php if (empty($configurations['configs'])): ?>
                     <p class="no-configs-message"><?php _e('No configurations yet. Click "Add New Configuration" to get started.', 'amelia-cpt-sync'); ?></p>
                 <?php else: ?>
-                    <?php foreach ($configurations['configs'] as $config_id => $config): ?>
+                    <?php foreach ($configurations['configs'] as $config_id => $config):
+                        $label = isset($config['label']) ? $config['label'] : '';
+                        $popup_id = isset($config['popup_id']) ? $config['popup_id'] : '';
+                        $notes = isset($config['notes']) ? $config['notes'] : '';
+                    ?>
                         <div class="popup-config-item" data-config-id="<?php echo esc_attr($config_id); ?>">
-                            <h3><?php echo esc_html($config['label']); ?></h3>
-                            
+                            <div class="popup-config-header">
+                                <h3 class="config-title"><?php echo esc_html($label ? $label : __('Untitled Popup', 'amelia-cpt-sync')); ?></h3>
+                                <span class="config-subtitle">
+                                    <?php echo $popup_id ? sprintf(__('Popup ID: %s', 'amelia-cpt-sync'), esc_html($popup_id)) : __('Popup ID not set yet', 'amelia-cpt-sync'); ?>
+                                </span>
+                            </div>
+
                             <table class="form-table">
                                 <tr>
                                     <th><label><?php _e('Label/Name', 'amelia-cpt-sync'); ?></label></th>
                                     <td>
-                                        <input type="text" name="configs[<?php echo esc_attr($config_id); ?>][label]" 
-                                               class="regular-text" 
-                                               value="<?php echo esc_attr($config['label']); ?>"
-                                               placeholder="e.g., Service Booking Form">
+                                        <input type="text" name="configs[<?php echo esc_attr($config_id); ?>][label]"
+                                               class="regular-text config-label-input"
+                                               value="<?php echo esc_attr($label); ?>"
+                                               placeholder="e.g., Vehicle Booking Popup">
+                                        <p class="description"><?php _e('Internal name so your team knows which popup this entry covers.', 'amelia-cpt-sync'); ?></p>
                                     </td>
                                 </tr>
-                                
-                                <tr>
-                                    <th><label><?php _e('Amelia Type', 'amelia-cpt-sync'); ?></label></th>
-                                    <td>
-                                        <select name="configs[<?php echo esc_attr($config_id); ?>][amelia_type]" class="regular-text amelia-type-selector">
-                                            <option value="service" <?php selected($config['amelia_type'], 'service'); ?>>Service</option>
-                                            <option value="category" <?php selected($config['amelia_type'], 'category'); ?>>Category</option>
-                                            <option value="employee" <?php selected($config['amelia_type'], 'employee'); ?>>Employee</option>
-                                            <option value="event" <?php selected($config['amelia_type'], 'event'); ?>>Event</option>
-                                            <option value="package" <?php selected($config['amelia_type'], 'package'); ?>>Package</option>
-                                            <option value="location" <?php selected($config['amelia_type'], 'location'); ?>>Location</option>
-                                            <option value="custom" <?php selected($config['amelia_type'], 'custom'); ?>>→ Custom Type (specify below)</option>
-                                        </select>
-                                        
-                                        <div class="custom-type-field" style="margin-top: 10px; <?php echo ($config['amelia_type'] !== 'custom' ? 'display:none;' : ''); ?>">
-                                            <input type="text" name="configs[<?php echo esc_attr($config_id); ?>][custom_type]" 
-                                                   class="regular-text" 
-                                                   value="<?php echo esc_attr(isset($config['custom_type']) ? $config['custom_type'] : ''); ?>"
-                                                   placeholder="e.g., resource, appointment">
-                                            <p class="description"><?php _e('Enter the custom parameter name for Amelia shortcode.', 'amelia-cpt-sync'); ?></p>
-                                        </div>
-                                    </td>
-                                </tr>
-                                
+
                                 <tr>
                                     <th><label><?php _e('JetPopup Template ID', 'amelia-cpt-sync'); ?></label></th>
                                     <td>
-                                        <input type="text" name="configs[<?php echo esc_attr($config_id); ?>][popup_id]" 
-                                               class="regular-text" 
-                                               value="<?php echo esc_attr($config['popup_id']); ?>"
-                                               placeholder="e.g., amelia-booking-popup">
-                                        <p class="description"><?php _e('The ID/slug of your JetPopup template (find this in JetPopup settings).', 'amelia-cpt-sync'); ?></p>
+                                        <input type="text" name="configs[<?php echo esc_attr($config_id); ?>][popup_id]"
+                                               class="regular-text config-popup-id-input"
+                                               value="<?php echo esc_attr($popup_id); ?>"
+                                               placeholder="e.g., book-by-vehicle-popup">
+                                        <p class="description"><?php _e('Find the slug/ID in JetPopup → All Popups. This must match the value you set under Elementor → JetPopup action.', 'amelia-cpt-sync'); ?></p>
                                     </td>
                                 </tr>
-                                
+
                                 <tr>
-                                    <th><label><?php _e('Source', 'amelia-cpt-sync'); ?></label></th>
+                                    <th><label><?php _e('Team Notes (Optional)', 'amelia-cpt-sync'); ?></label></th>
                                     <td>
-                                        <label>
-                                            <input type="radio" name="configs[<?php echo esc_attr($config_id); ?>][source_type]" value="cpt_meta" <?php checked(isset($config['source_type']) ? $config['source_type'] : 'cpt_meta', 'cpt_meta'); ?>>
-                                            <?php _e('CPT Post Meta', 'amelia-cpt-sync'); ?>
-                                        </label>
-                                        &nbsp;&nbsp;
-                                        <label>
-                                            <input type="radio" name="configs[<?php echo esc_attr($config_id); ?>][source_type]" value="term_meta" <?php checked(isset($config['source_type']) ? $config['source_type'] : 'cpt_meta', 'term_meta'); ?>>
-                                            <?php _e('Taxonomy Term Meta', 'amelia-cpt-sync'); ?>
-                                        </label>
-                                        <p class="description"><?php _e('Where the Amelia ID is stored (usually CPT Post Meta for services, Term Meta for categories).', 'amelia-cpt-sync'); ?></p>
-                                    </td>
-                                </tr>
-                                
-                                <tr>
-                                    <th><label><?php _e('Meta Field Name', 'amelia-cpt-sync'); ?></label></th>
-                                    <td>
-                                        <input type="text" name="configs[<?php echo esc_attr($config_id); ?>][meta_field]" 
-                                               class="regular-text config-meta-field" 
-                                               value="<?php echo esc_attr($config['meta_field']); ?>"
-                                               placeholder="e.g., service_id">
-                                        <p class="description"><?php _e('The meta field name that contains the Amelia ID (must exist on your CPT or taxonomy).', 'amelia-cpt-sync'); ?></p>
-                                    </td>
-                                </tr>
-                                
-                                <tr>
-                                    <th><label><?php _e('Elementor Setup', 'amelia-cpt-sync'); ?></label></th>
-                                    <td>
-                                        <p><strong><?php _e('Add these 3 custom attributes to your Elementor button:', 'amelia-cpt-sync'); ?></strong></p>
-                                        <?php 
-                                        $amelia_type = $config['amelia_type'];
-                                        if (!empty($config['custom_type'])) {
-                                            $amelia_type = $config['custom_type'];
-                                        }
-                                        
-                                        // Build JetEngine shortcode
-                                        $source = isset($config['source_type']) && $config['source_type'] === 'term_meta' ? 'term_meta' : 'meta';
-                                        $field_param = $source === 'term_meta' ? 'dynamic_field_term_meta' : 'dynamic_field_post_meta';
-                                        $jetengine_shortcode = "[jet_engine_data dynamic_field_source=\"{$source}\" {$field_param}=\"{$config['meta_field']}\"]";
-                                        ?>
-                                        
-                                        <table class="widefat" style="max-width: 700px; margin-bottom: 10px;">
-                                            <thead>
-                                                <tr>
-                                                    <th style="width: 30%;">Before (Key)</th>
-                                                    <th style="width: 70%;">After (Value)</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr>
-                                                    <td><code>data-amelia-type</code></td>
-                                                    <td><code><?php echo esc_html($amelia_type); ?></code></td>
-                                                </tr>
-                                                <tr>
-                                                    <td><code>data-amelia-id</code></td>
-                                                    <td>
-                                                        <input type="text" value="<?php echo esc_attr($jetengine_shortcode); ?>" 
-                                                               class="code jetengine-shortcode-field" 
-                                                               readonly 
-                                                               style="width: 100%; font-family: monospace; font-size: 11px;"
-                                                               onclick="this.select();">
-                                                        <button type="button" class="button button-small copy-jetengine-shortcode" style="margin-top: 5px;">
-                                                            <span class="dashicons dashicons-clipboard"></span> Copy Shortcode
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td><code>data-jet-popup</code></td>
-                                                    <td><code><?php echo esc_html($config['popup_id']); ?></code></td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                        
-                                        <p><strong><?php _e('CSS Class:', 'amelia-cpt-sync'); ?></strong> <code>amelia-booking-trigger</code></p>
-                                        
-                                        <p class="description">
-                                            <span class="dashicons dashicons-info"></span>
-                                            <?php _e('Can\'t remember the shortcode format? Use', 'amelia-cpt-sync'); ?> 
-                                            <a href="/wp-admin/admin.php?page=jet-engine#shortcode_generator" target="_blank">
-                                                <?php _e('JetEngine Shortcode Generator', 'amelia-cpt-sync'); ?> ↗
-                                            </a>
-                                            <?php _e('to build it (select "Get Post/Term Field" and configure for your meta field)', 'amelia-cpt-sync'); ?>
-                                        </p>
+                                        <textarea name="configs[<?php echo esc_attr($config_id); ?>][notes]" rows="3" class="large-text" placeholder="<?php esc_attr_e('Store the Amelia shortcode your team uses, special instructions, etc.', 'amelia-cpt-sync'); ?>"><?php echo esc_textarea($notes); ?></textarea>
                                     </td>
                                 </tr>
                             </table>
-                            
+
+                            <div class="elementor-instructions-box">
+                                <h4><?php _e('Elementor Setup Checklist', 'amelia-cpt-sync'); ?></h4>
+                                <ol>
+                                    <li><?php _e('Edit the JetEngine listing item that contains your trigger button.', 'amelia-cpt-sync'); ?></li>
+                                    <li><?php _e('Under Advanced → JetPopup, choose this popup ID so JetPopup handles the opening.', 'amelia-cpt-sync'); ?></li>
+                                    <li><?php _e('Add CSS class', 'amelia-cpt-sync'); ?> <code>amelia-booking-trigger</code>.</li>
+                                    <li><?php _e('Add a Custom Attribute with key', 'amelia-cpt-sync'); ?> <code>data-amelia-shortcode</code> <?php _e('and set the value to your fully built Amelia shortcode (JetEngine dynamic tags welcome).', 'amelia-cpt-sync'); ?></li>
+                                </ol>
+
+                                <div class="attribute-template">
+                                    <label><?php _e('Copy-ready Attribute Template', 'amelia-cpt-sync'); ?></label>
+                                    <div class="attribute-template__field">
+                                        <input type="text" class="regular-text code attribute-template-input" value="data-amelia-shortcode|[paste your Amelia shortcode here]" readonly>
+                                        <button type="button" class="button button-secondary copy-attribute-template">
+                                            <span class="dashicons dashicons-clipboard"></span> <?php _e('Copy', 'amelia-cpt-sync'); ?>
+                                        </button>
+                                    </div>
+                                    <p class="description"><?php _e('Replace the placeholder with the exact Amelia shortcode from your listing. JetEngine can output the dynamic ID inside this value.', 'amelia-cpt-sync'); ?></p>
+                                </div>
+                            </div>
+
                             <p>
                                 <button type="button" class="button button-link-delete delete-config" data-config-id="<?php echo esc_attr($config_id); ?>">
                                     <?php _e('Delete This Configuration', 'amelia-cpt-sync'); ?>
@@ -202,7 +141,7 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
-            
+
             <p>
                 <button type="button" id="add-new-config" class="button button-secondary">
                     <span class="dashicons dashicons-plus-alt"></span>
@@ -220,16 +159,15 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                 <?php _e('Setup Instructions', 'amelia-cpt-sync'); ?>
                 <span class="dashicons dashicons-arrow-down-alt2"></span>
             </h2>
-            
+
             <div class="instructions-content" style="display: none;">
                 <div class="notice notice-info inline">
-                    <h3><?php _e('📖 How to Use with Elementor & JetPopup', 'amelia-cpt-sync'); ?></h3>
-                    
-                    <h4><?php _e('Step 1: Create JetPopup Template', 'amelia-cpt-sync'); ?></h4>
+                    <h3><?php _e('📖 How the Dynamic Popup Loader Works', 'amelia-cpt-sync'); ?></h3>
+
+                    <h4><?php _e('Step 1: Build the JetPopup Template', 'amelia-cpt-sync'); ?></h4>
                     <ol>
-                        <li><?php _e('Go to: JetPopup → Add New', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('Name your popup (e.g., "Amelia Booking Form")', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('Add an HTML widget with this code:', 'amelia-cpt-sync'); ?>
+                        <li><?php _e('Go to JetPopup → Add New and design your popup layout.', 'amelia-cpt-sync'); ?></li>
+                        <li><?php _e('Insert an HTML widget that contains the loader container:', 'amelia-cpt-sync'); ?>
                             <pre class="code-snippet"><code>&lt;div id="amelia-form-container" class="amelia-dynamic-popup"&gt;
   &lt;div class="amelia-loading"&gt;
     &lt;span class="spinner is-active"&gt;&lt;/span&gt;
@@ -238,67 +176,22 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
 &lt;/div&gt;</code></pre>
                             <button type="button" class="button button-small copy-html-snippet"><?php _e('Copy HTML', 'amelia-cpt-sync'); ?></button>
                         </li>
-                        <li><?php _e('Publish the popup', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('Note the Popup ID from JetPopup settings (e.g., "amelia-booking-popup")', 'amelia-cpt-sync'); ?></li>
+                        <li><?php _e('Publish the popup and make note of its slug/ID.', 'amelia-cpt-sync'); ?></li>
                     </ol>
-                    
-                    <h4><?php _e('Step 2: Configure Popup Trigger', 'amelia-cpt-sync'); ?></h4>
+
+                    <h4><?php _e('Step 2: Configure Elementor / JetEngine Button', 'amelia-cpt-sync'); ?></h4>
                     <ol>
-                        <li><?php _e('Click "Add New Configuration" above', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('Fill in:', 'amelia-cpt-sync'); ?>
-                            <ul>
-                                <li><?php _e('Label: Descriptive name for your reference', 'amelia-cpt-sync'); ?></li>
-                                <li><?php _e('Amelia Type: Service, Category, Employee, etc.', 'amelia-cpt-sync'); ?></li>
-                                <li><?php _e('JetPopup Template ID: The ID you noted in Step 1', 'amelia-cpt-sync'); ?></li>
-                                <li><?php _e('Meta Field: The field containing Amelia ID (e.g., service_id)', 'amelia-cpt-sync'); ?></li>
-                            </ul>
-                        </li>
-                        <li><?php _e('Generated attributes will appear automatically', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('Click "Copy to Clipboard"', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('Click "Save Configurations"', 'amelia-cpt-sync'); ?></li>
+                        <li><?php _e('Set the JetPopup action on your button to the popup ID from Step 1 so JetPopup opens it.', 'amelia-cpt-sync'); ?></li>
+                        <li><?php _e('Add CSS class', 'amelia-cpt-sync'); ?> <code>amelia-booking-trigger</code>.</li>
+                        <li><?php _e('Add custom attribute', 'amelia-cpt-sync'); ?> <code>data-amelia-shortcode</code> <?php _e('and paste your full Amelia shortcode. JetEngine dynamic tags can populate IDs inside that string.', 'amelia-cpt-sync'); ?></li>
+                        <li><?php _e('Repeat for each listing card or trigger button that should open the popup.', 'amelia-cpt-sync'); ?></li>
                     </ol>
-                    
-                    <h4><?php _e('Step 3: Setup Elementor Button', 'amelia-cpt-sync'); ?></h4>
-                    <ol>
-                        <li><?php _e('Edit your JetEngine Listing Template in Elementor', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('Add a Button widget', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('Link: Leave empty or use #', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('Advanced Tab → Custom Attributes', 'amelia-cpt-sync'); ?>
-                            <br><strong><?php _e('Add 3 separate custom fields using the table above:', 'amelia-cpt-sync'); ?></strong>
-                            <ul>
-                                <li><?php _e('Click "+ Custom Field"', 'amelia-cpt-sync'); ?></li>
-                                <li><?php _e('Before: data-amelia-type | After: service (or your type)', 'amelia-cpt-sync'); ?></li>
-                                <br>
-                                <li><?php _e('Click "+ Custom Field" again', 'amelia-cpt-sync'); ?></li>
-                                <li><?php _e('Before: data-amelia-id | After: Paste the JetEngine shortcode (click Copy Shortcode button)', 'amelia-cpt-sync'); ?></li>
-                                <li><?php _e('OR use JetEngine Shortcode Generator: ', 'amelia-cpt-sync'); ?>
-                                    <a href="/wp-admin/admin.php?page=jet-engine#shortcode_generator" target="_blank">Open Generator ↗</a>
-                                </li>
-                                <br>
-                                <li><?php _e('Click "+ Custom Field" again', 'amelia-cpt-sync'); ?></li>
-                                <li><?php _e('Before: data-jet-popup | After: book-by-vehicle-popup (your popup ID)', 'amelia-cpt-sync'); ?></li>
-                            </ul>
-                        </li>
-                        <li><?php _e('Advanced Tab → CSS Classes → Add: amelia-booking-trigger', 'amelia-cpt-sync'); ?></li>
-                        <li><strong><?php _e('⚠️ CRITICAL: Must add CSS class "amelia-booking-trigger" or button won\'t work!', 'amelia-cpt-sync'); ?></strong></li>
-                        <li><?php _e('Publish your template', 'amelia-cpt-sync'); ?></li>
-                    </ol>
-                    
-                    <h4><?php _e('Step 4: Test', 'amelia-cpt-sync'); ?></h4>
-                    <ol>
-                        <li><?php _e('Visit your listing grid on the frontend', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('Click the button', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('✅ JetPopup should open', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('✅ Loading spinner should appear', 'amelia-cpt-sync'); ?></li>
-                        <li><?php _e('✅ Amelia booking form should load (filtered correctly)', 'amelia-cpt-sync'); ?></li>
-                    </ol>
-                    
-                    <h4><?php _e('🔧 Troubleshooting', 'amelia-cpt-sync'); ?></h4>
+
+                    <h4><?php _e('Step 3: Test & Troubleshoot', 'amelia-cpt-sync'); ?></h4>
                     <ul>
-                        <li><strong><?php _e('Popup shows literal shortcode text:', 'amelia-cpt-sync'); ?></strong> <?php _e('Check browser console for errors. Enable debug logging.', 'amelia-cpt-sync'); ?></li>
-                        <li><strong><?php _e('Popup doesn\'t open:', 'amelia-cpt-sync'); ?></strong> <?php _e('Verify JetPopup ID matches configuration. Check button has amelia-booking-trigger class.', 'amelia-cpt-sync'); ?></li>
-                        <li><strong><?php _e('Form loads but calendar/features don\'t work:', 'amelia-cpt-sync'); ?></strong> <?php _e('Amelia JS may need re-initialization. Check debug log and contact support.', 'amelia-cpt-sync'); ?></li>
-                        <li><strong><?php _e('Wrong service/category shows:', 'amelia-cpt-sync'); ?></strong> <?php _e('Check dynamic tag is reading correct meta field. Verify value exists in CPT post.', 'amelia-cpt-sync'); ?></li>
+                        <li><strong><?php _e('Popup shows raw shortcode:', 'amelia-cpt-sync'); ?></strong> <?php _e('Check that the custom attribute value is the full Amelia shortcode. Enable popup debug logging above to capture details.', 'amelia-cpt-sync'); ?></li>
+                        <li><strong><?php _e('Popup doesn\'t open:', 'amelia-cpt-sync'); ?></strong> <?php _e('Confirm JetPopup action is assigned and the button uses the correct popup ID.', 'amelia-cpt-sync'); ?></li>
+                        <li><strong><?php _e('Wrong booking data:', 'amelia-cpt-sync'); ?></strong> <?php _e('Review the shortcode value Elementor outputs. JetEngine must supply the correct ID before the popup opens.', 'amelia-cpt-sync'); ?></li>
                     </ul>
                 </div>
             </div>
@@ -323,6 +216,12 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
     border: 1px solid #ccd0d4;
 }
 
+.section-intro {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #555;
+}
+
 .popup-config-item {
     background: #f9f9f9;
     padding: 20px;
@@ -331,23 +230,52 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
     border-left: 4px solid #2271b1;
 }
 
-.popup-config-item h3 {
+.popup-config-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.popup-config-header .config-title {
+    margin: 0;
+    font-size: 1.2em;
+}
+
+.popup-config-header .config-subtitle {
+    font-size: 0.9em;
+    color: #666;
+}
+
+.elementor-instructions-box {
+    background: #fff;
+    border: 1px solid #dcdcdc;
+    padding: 15px 20px;
+    margin: 20px 0 10px;
+}
+
+.elementor-instructions-box h4 {
     margin-top: 0;
 }
 
-.generated-attributes {
+.elementor-instructions-box ol {
+    margin-left: 20px;
+}
+
+.attribute-template {
+    margin-top: 15px;
+}
+
+.attribute-template__field {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 5px;
+}
+
+.attribute-template-input {
+    flex: 1 1 auto;
     font-family: Consolas, Monaco, monospace;
-    background: #f5f5f5;
-    border: 1px solid #ddd;
-}
-
-.copy-success {
-    animation: fadeIn 0.3s;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
 }
 
 .instructions-toggle {
@@ -404,10 +332,6 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
     font-size: 16px;
 }
 
-.custom-type-field {
-    margin-top: 10px;
-}
-
 .delete-config {
     color: #dc3232;
 }
@@ -418,250 +342,195 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
 </style>
 
 <script>
-jQuery(document).ready(function($) {
+jQuery(function($) {
+    const untitledLabel = '<?php echo esc_js(__('Untitled Popup', 'amelia-cpt-sync')); ?>';
+    const popupNotSet = '<?php echo esc_js(__('Popup ID not set yet', 'amelia-cpt-sync')); ?>';
+
     console.log('[Popup Manager] Page loaded');
-    
-    // Toggle instructions
+
+    function updateConfigSummary($config) {
+        const label = $.trim($config.find('.config-label-input').val());
+        const popupId = $.trim($config.find('.config-popup-id-input').val());
+
+        $config.find('.config-title').text(label || untitledLabel);
+        $config.find('.config-subtitle').text(popupId ? '<?php echo esc_js(__('Popup ID: ', 'amelia-cpt-sync')); ?>' + popupId : popupNotSet);
+    }
+
+    function bindNewConfig($config) {
+        updateConfigSummary($config);
+    }
+
+    // Toggle instructions panel
     $('.instructions-toggle').on('click', function() {
         $('.instructions-content').slideToggle();
         $(this).find('.dashicons-arrow-down-alt2, .dashicons-arrow-up-alt2').toggleClass('dashicons-arrow-down-alt2 dashicons-arrow-up-alt2');
     });
-    
-    // Live update generated attributes
-    function updateGeneratedAttributes($configItem) {
-        var ameliaType = $configItem.find('.amelia-type-selector').val();
-        var customType = $configItem.find('[name*="[custom_type]"]').val();
-        var popupId = $configItem.find('[name*="[popup_id]"]').val();
-        var metaField = $configItem.find('[name*="[meta_field]"]').val();
-        
-        // Use custom type if selected
-        var finalType = ameliaType === 'custom' && customType ? customType : ameliaType;
-        
-        // Build attributes
-        var attributes = [];
-        if (finalType) {
-            attributes.push('data-amelia-type|' + finalType);
-        }
-        if (metaField) {
-            attributes.push('data-amelia-id|%' + metaField + '%');
-        }
-        if (popupId) {
-            attributes.push('data-jet-popup|' + popupId);
-        }
-        
-        // Update textarea
-        $configItem.find('.generated-attributes').val(attributes.join('\n'));
-        
-        console.log('[Popup Manager] Updated attributes for config');
-    }
-    
-    // Update attributes on field change
-    $(document).on('change keyup', '.amelia-type-selector, [name*="[custom_type]"], [name*="[popup_id]"], .config-meta-field', function() {
-        var $configItem = $(this).closest('.popup-config-item');
-        updateGeneratedAttributes($configItem);
+
+    // Update headers when inputs change
+    $(document).on('input', '.config-label-input, .config-popup-id-input', function() {
+        const $config = $(this).closest('.popup-config-item');
+        updateConfigSummary($config);
     });
-    
-    // Show/hide custom type field
-    $(document).on('change', '.amelia-type-selector', function() {
-        var $select = $(this);
-        var $customField = $select.closest('td').find('.custom-type-field');
-        
-        if ($select.val() === 'custom') {
-            $customField.show();
-        } else {
-            $customField.hide();
+
+    // Copy attribute template helper
+    $(document).on('click', '.copy-attribute-template', function() {
+        const $button = $(this);
+        const $input = $button.closest('.attribute-template__field').find('.attribute-template-input');
+
+        $input.trigger('select');
+
+        try {
+            document.execCommand('copy');
+            $button.html('<span class="dashicons dashicons-yes"></span> <?php echo esc_js(__('Copied', 'amelia-cpt-sync')); ?>');
+        } catch (error) {
+            console.warn('[Popup Manager] Copy failed', error);
         }
-    });
-    
-    // Copy JetEngine shortcode to clipboard
-    $(document).on('click', '.copy-jetengine-shortcode', function() {
-        var $button = $(this);
-        var $input = $button.siblings('.jetengine-shortcode-field');
-        
-        $input.select();
-        document.execCommand('copy');
-        
-        var originalText = $button.html();
-        $button.html('<span class="dashicons dashicons-yes"></span> Copied!');
-        
+
         setTimeout(function() {
-            $button.html(originalText);
-        }, 2000);
+            $button.html('<span class="dashicons dashicons-clipboard"></span> <?php echo esc_js(__('Copy', 'amelia-cpt-sync')); ?>');
+        }, 1500);
     });
-    
-    // Copy HTML snippet
+
+    // Copy HTML snippet from instructions
     $('.copy-html-snippet').on('click', function() {
-        var $code = $(this).prev('.code-snippet').find('code');
-        var text = $code.text();
-        
-        var $temp = $('<textarea>');
+        const $code = $(this).prev('.code-snippet').find('code');
+        const text = $code.text();
+        const $temp = $('<textarea>');
+
         $('body').append($temp);
         $temp.val(text).select();
         document.execCommand('copy');
         $temp.remove();
-        
-        $(this).text('✓ Copied!');
+
+        $(this).text('✓ <?php echo esc_js(__('Copied!', 'amelia-cpt-sync')); ?>');
         setTimeout(function() {
-            $('.copy-html-snippet').text('Copy HTML');
+            $('.copy-html-snippet').text('<?php echo esc_js(__('Copy HTML', 'amelia-cpt-sync')); ?>');
         }, 2000);
     });
-    
-    // Add new configuration
+
+    // Add configuration block
     $('#add-new-config').on('click', function() {
-        var timestamp = Date.now();
-        var configId = 'new_config_' + timestamp;
-        
-        var newConfig = `
+        const timestamp = Date.now();
+        const configId = 'new_config_' + timestamp;
+
+        const template = `
             <div class="popup-config-item" data-config-id="${configId}">
-                <h3>New Configuration</h3>
-                
+                <div class="popup-config-header">
+                    <h3 class="config-title">${untitledLabel}</h3>
+                    <span class="config-subtitle">${popupNotSet}</span>
+                </div>
+
                 <table class="form-table">
                     <tr>
-                        <th><label>Label/Name</label></th>
+                        <th><label><?php echo esc_js(__('Label/Name', 'amelia-cpt-sync')); ?></label></th>
                         <td>
-                            <input type="text" name="configs[${configId}][label]" class="regular-text" placeholder="e.g., Service Booking Form">
+                            <input type="text" name="configs[${configId}][label]" class="regular-text config-label-input" placeholder="<?php echo esc_js(__('e.g., Vehicle Booking Popup', 'amelia-cpt-sync')); ?>">
+                            <p class="description"><?php echo esc_js(__('Internal reference for your team.', 'amelia-cpt-sync')); ?></p>
                         </td>
                     </tr>
-                    
                     <tr>
-                        <th><label>Amelia Type</label></th>
+                        <th><label><?php echo esc_js(__('JetPopup Template ID', 'amelia-cpt-sync')); ?></label></th>
                         <td>
-                            <select name="configs[${configId}][amelia_type]" class="regular-text amelia-type-selector">
-                                <option value="service">Service</option>
-                                <option value="category">Category</option>
-                                <option value="employee">Employee</option>
-                                <option value="event">Event</option>
-                                <option value="package">Package</option>
-                                <option value="location">Location</option>
-                                <option value="custom">→ Custom Type (specify below)</option>
-                            </select>
-                            
-                            <div class="custom-type-field" style="margin-top: 10px; display: none;">
-                                <input type="text" name="configs[${configId}][custom_type]" class="regular-text" placeholder="e.g., resource, appointment">
-                                <p class="description">Enter the custom parameter name for Amelia shortcode.</p>
-                            </div>
+                            <input type="text" name="configs[${configId}][popup_id]" class="regular-text config-popup-id-input" placeholder="<?php echo esc_js(__('e.g., book-by-vehicle-popup', 'amelia-cpt-sync')); ?>">
+                            <p class="description"><?php echo esc_js(__('Must match the JetPopup slug used in Elementor.', 'amelia-cpt-sync')); ?></p>
                         </td>
                     </tr>
-                    
                     <tr>
-                        <th><label>JetPopup Template ID</label></th>
+                        <th><label><?php echo esc_js(__('Team Notes (Optional)', 'amelia-cpt-sync')); ?></label></th>
                         <td>
-                            <input type="text" name="configs[${configId}][popup_id]" class="regular-text" placeholder="e.g., amelia-booking-popup">
-                            <p class="description">The ID/slug of your JetPopup template.</p>
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <th><label>Source</label></th>
-                        <td>
-                            <label>
-                                <input type="radio" name="configs[${configId}][source_type]" value="cpt_meta" checked>
-                                CPT Post Meta
-                            </label>
-                            &nbsp;&nbsp;
-                            <label>
-                                <input type="radio" name="configs[${configId}][source_type]" value="term_meta">
-                                Taxonomy Term Meta
-                            </label>
-                            <p class="description">Where the Amelia ID is stored.</p>
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <th><label>Meta Field Name</label></th>
-                        <td>
-                            <input type="text" name="configs[${configId}][meta_field]" class="regular-text config-meta-field" placeholder="e.g., service_id">
-                            <p class="description">The meta field name that contains the Amelia ID.</p>
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <th><label>Generated Elementor Attributes</label></th>
-                        <td>
-                            <textarea class="large-text code generated-attributes" rows="4" readonly></textarea>
-                            <p>
-                                <button type="button" class="button button-secondary copy-attributes">
-                                    <span class="dashicons dashicons-clipboard"></span>
-                                    Copy to Clipboard
-                                </button>
-                                <span class="copy-success" style="color: #46b450; margin-left: 10px; display: none;">✓ Copied!</span>
-                            </p>
-                            <p class="description">Paste these into Elementor Button → Advanced → Custom Attributes. Replace %field_name% with JetEngine dynamic tags.</p>
+                            <textarea name="configs[${configId}][notes]" rows="3" class="large-text" placeholder="<?php echo esc_js(__('Store the Amelia shortcode or setup reminders.', 'amelia-cpt-sync')); ?>"></textarea>
                         </td>
                     </tr>
                 </table>
-                
+
+                <div class="elementor-instructions-box">
+                    <h4><?php echo esc_js(__('Elementor Setup Checklist', 'amelia-cpt-sync')); ?></h4>
+                    <ol>
+                        <li><?php echo esc_js(__('Set JetPopup action to this popup ID.', 'amelia-cpt-sync')); ?></li>
+                        <li><?php echo esc_js(__('Add CSS class', 'amelia-cpt-sync')); ?> <code>amelia-booking-trigger</code>.</li>
+                        <li><?php echo esc_js(__('Add custom attribute', 'amelia-cpt-sync')); ?> <code>data-amelia-shortcode</code> <?php echo esc_js(__('with your Amelia shortcode.', 'amelia-cpt-sync')); ?></li>
+                    </ol>
+                    <div class="attribute-template">
+                        <label><?php echo esc_js(__('Copy-ready Attribute Template', 'amelia-cpt-sync')); ?></label>
+                        <div class="attribute-template__field">
+                            <input type="text" class="regular-text code attribute-template-input" value="data-amelia-shortcode|[paste your Amelia shortcode here]" readonly>
+                            <button type="button" class="button button-secondary copy-attribute-template">
+                                <span class="dashicons dashicons-clipboard"></span> <?php echo esc_js(__('Copy', 'amelia-cpt-sync')); ?>
+                            </button>
+                        </div>
+                        <p class="description"><?php echo esc_js(__('Replace the placeholder with the exact shortcode Elementor outputs.', 'amelia-cpt-sync')); ?></p>
+                    </div>
+                </div>
+
                 <p>
                     <button type="button" class="button button-link-delete delete-config" data-config-id="${configId}">
-                        Delete This Configuration
+                        <?php echo esc_js(__('Delete This Configuration', 'amelia-cpt-sync')); ?>
                     </button>
                 </p>
             </div>
         `;
-        
+
         $('.no-configs-message').remove();
-        $('#configurations-container').append(newConfig);
+        const $config = $(template);
+        $('#configurations-container').append($config);
+        bindNewConfig($config);
     });
-    
-    // Delete configuration
+
+    // Delete configuration block
     $(document).on('click', '.delete-config', function() {
-        if (!confirm('Are you sure you want to delete this configuration?')) {
+        if (!confirm('<?php echo esc_js(__('Are you sure you want to delete this configuration?', 'amelia-cpt-sync')); ?>')) {
             return;
         }
-        
-        $(this).closest('.popup-config-item').fadeOut(300, function() {
+
+        $(this).closest('.popup-config-item').fadeOut(200, function() {
             $(this).remove();
-            
+
             if ($('.popup-config-item').length === 0) {
-                $('#configurations-container').html('<p class="no-configs-message">No configurations yet. Click "Add New Configuration" to get started.</p>');
+                $('#configurations-container').html('<p class="no-configs-message"><?php echo esc_js(__('No configurations yet. Click "Add New Configuration" to get started.', 'amelia-cpt-sync')); ?></p>');
             }
         });
     });
-    
+
     // Save configurations
     $('#save-popup-configs').on('click', function() {
         console.log('[Popup Manager] Save button clicked');
-        
-        var $button = $(this);
-        var $spinner = $('.spinner');
-        var $message = $('#save-popup-message');
-        
+
+        const $button = $(this);
+        const $spinner = $('.spinner');
+        const $message = $('#save-popup-message');
+
         $button.prop('disabled', true);
         $spinner.addClass('is-active');
         $message.text('').removeClass('success error');
-        
-        // Serialize form data
-        var formData = $('#popup-config-form').serialize();
-        formData += '&action=amelia_save_popup_configs';
-        formData += '&nonce=' + '<?php echo wp_create_nonce("amelia_popup_save"); ?>';
-        
-        console.log('[Popup Manager] Sending AJAX request');
-        console.log('[Popup Manager] Form data length:', formData.length);
-        
+
+        const formData = $('#popup-config-form').serialize() + '&action=amelia_save_popup_configs&nonce=' + '<?php echo wp_create_nonce('amelia_popup_save'); ?>';
+
         $.post(ajaxurl, formData, function(response) {
             console.log('[Popup Manager] AJAX response:', response);
-            
+
             if (response.success) {
                 $message.text(response.data.message).addClass('success');
-                
-                console.log('[Popup Manager] Save successful, reloading page...');
-                
-                // Reload page to refresh generated attributes
+
                 setTimeout(function() {
                     location.reload();
-                }, 1500);
+                }, 800);
             } else {
-                console.error('[Popup Manager] Save failed:', response.data.message);
-                $message.text(response.data.message).addClass('error');
+                const errorMsg = response.data && response.data.message ? response.data.message : '<?php echo esc_js(__('Failed to save configurations.', 'amelia-cpt-sync')); ?>';
+                console.error('[Popup Manager] Save failed:', errorMsg);
+                $message.text(errorMsg).addClass('error');
             }
         }).fail(function(xhr, status, error) {
             console.error('[Popup Manager] AJAX error:', status, error);
-            console.error('[Popup Manager] Response:', xhr.responseText);
-            $message.text('Error saving configurations: ' + error).addClass('error');
+            $message.text('<?php echo esc_js(__('Error saving configurations:', 'amelia-cpt-sync')); ?> ' + error).addClass('error');
         }).always(function() {
             $button.prop('disabled', false);
             $spinner.removeClass('is-active');
         });
+    });
+
+    // Initialize summaries for existing configs
+    $('.popup-config-item').each(function() {
+        bindNewConfig($(this));
     });
 });
 </script>

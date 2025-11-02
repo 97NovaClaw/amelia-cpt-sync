@@ -30,6 +30,10 @@ class Amelia_CPT_Sync_Popup_Handler {
      * Enqueue frontend scripts
      */
     public function enqueue_frontend_scripts() {
+        $config_manager = new Amelia_CPT_Sync_Popup_Config_Manager();
+        $configurations = $config_manager->get_configurations();
+        $tracked_popups = array_values($config_manager->get_tracked_popups());
+
         wp_enqueue_script(
             'amelia-popup-frontend',
             AMELIA_CPT_SYNC_PLUGIN_URL . 'assets/js/popup-frontend.js',
@@ -47,7 +51,11 @@ class Amelia_CPT_Sync_Popup_Handler {
         
         wp_localize_script('amelia-popup-frontend', 'ameliaPopupConfig', array(
             'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('amelia_popup_nonce')
+            'nonce' => wp_create_nonce('amelia_popup_nonce'),
+            'trackedPopups' => $tracked_popups,
+            'debug_enabled' => !empty($configurations['global']['debug_enabled']),
+            'log_nonce' => wp_create_nonce('amelia_cpt_sync_nonce'),
+            'default_popup' => isset($configurations['global']['default_popup_id']) ? $configurations['global']['default_popup_id'] : ''
         ));
     }
     
@@ -57,38 +65,35 @@ class Amelia_CPT_Sync_Popup_Handler {
     public function ajax_render_booking_form() {
         check_ajax_referer('amelia_popup_nonce', 'nonce');
         
-        $type = isset($_POST['type']) ? sanitize_key($_POST['type']) : '';
-        $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+        $raw_shortcode = isset($_POST['shortcode']) ? wp_unslash($_POST['shortcode']) : '';
+        $popup_id = isset($_POST['popup_id']) ? sanitize_text_field(wp_unslash($_POST['popup_id'])) : '';
         
         amelia_cpt_sync_debug_log('========== AJAX RENDER BOOKING FORM ==========');
-        amelia_cpt_sync_debug_log("Received: type={$type}, id={$id}");
-        
-        // Validate type
-        $allowed_types = array('service', 'category', 'employee', 'event', 'package', 'location');
-        
-        // Check if it's a custom type
-        $custom_types = $this->get_custom_amelia_types();
-        $allowed_types = array_merge($allowed_types, $custom_types);
-        
-        if (empty($type)) {
-            amelia_cpt_sync_debug_log('ERROR: No type provided');
-            wp_send_json_error(array('message' => 'No booking type specified'));
+        amelia_cpt_sync_debug_log('Popup ID: ' . ($popup_id ? $popup_id : 'n/a'));
+
+        $shortcode = trim($raw_shortcode);
+
+        if (empty($shortcode)) {
+            amelia_cpt_sync_debug_log('ERROR: Empty shortcode provided');
+            wp_send_json_error(array('message' => __('No shortcode provided.', 'amelia-cpt-sync')));
         }
-        
-        if (!in_array($type, $allowed_types)) {
-            amelia_cpt_sync_debug_log("ERROR: Invalid type: {$type}");
-            wp_send_json_error(array('message' => 'Invalid booking type'));
+
+        if (strlen($shortcode) > 2000) {
+            amelia_cpt_sync_debug_log('ERROR: Shortcode too long (' . strlen($shortcode) . ' chars)');
+            wp_send_json_error(array('message' => __('Shortcode is too long.', 'amelia-cpt-sync')));
         }
-        
-        // Validate ID
-        if ($id < 1) {
-            amelia_cpt_sync_debug_log("ERROR: Invalid ID: {$id}");
-            wp_send_json_error(array('message' => 'Invalid ID provided'));
+
+        $normalized = ltrim($shortcode);
+
+        if (stripos($normalized, '[amelia') !== 0) {
+            amelia_cpt_sync_debug_log('ERROR: Shortcode does not start with [amelia');
+            wp_send_json_error(array('message' => __('Invalid shortcode.', 'amelia-cpt-sync')));
         }
-        
-        // Build Amelia shortcode
-        $shortcode = "[ameliabooking {$type}='{$id}']";
-        amelia_cpt_sync_debug_log("Building shortcode: {$shortcode}");
+
+        // Basic sanitation – strip control characters
+        $shortcode = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $shortcode);
+
+        amelia_cpt_sync_debug_log('Processing shortcode: ' . $shortcode);
         
         // Render the shortcode
         $rendered_html = do_shortcode($shortcode);
@@ -106,29 +111,8 @@ class Amelia_CPT_Sync_Popup_Handler {
         wp_send_json_success(array(
             'html' => $rendered_html,
             'shortcode' => $shortcode,
-            'type' => $type,
-            'id' => $id
+            'popup_id' => $popup_id
         ));
-    }
-    
-    /**
-     * Get custom Amelia types from configurations
-     */
-    private function get_custom_amelia_types() {
-        $configs = get_option('amelia_popup_configurations', array());
-        $custom_types = array();
-        
-        if (isset($configs['configs']) && is_array($configs['configs'])) {
-            foreach ($configs['configs'] as $config) {
-                if (isset($config['amelia_type']) && 
-                    strpos($config['amelia_type'], 'custom:') === 0) {
-                    $custom_type = str_replace('custom:', '', $config['amelia_type']);
-                    $custom_types[] = $custom_type;
-                }
-            }
-        }
-        
-        return array_unique($custom_types);
     }
 }
 
