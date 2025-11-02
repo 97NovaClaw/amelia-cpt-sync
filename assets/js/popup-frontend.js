@@ -85,6 +85,35 @@
         return null;
     }
 
+    function decodeHtmlEntities(value) {
+        if (!value || (value.indexOf('&') === -1 && value.indexOf('<') === -1)) {
+            return value;
+        }
+
+        var textarea = document.createElement('textarea');
+        textarea.innerHTML = value;
+        return textarea.value;
+    }
+
+    function normalizePayload(value) {
+        if (!value) {
+            return '';
+        }
+
+        var decoded = decodeHtmlEntities(value).trim();
+
+        if (!decoded) {
+            return '';
+        }
+
+        // Support [[shortcode]] syntax to escape server-side processing.
+        if (decoded.indexOf('[[') !== -1 || decoded.indexOf(']]') !== -1) {
+            decoded = decoded.replace(/\[\[/g, '[').replace(/\]\]/g, ']');
+        }
+
+        return decoded;
+    }
+
     function resolveShortcode($trigger) {
         if (!$trigger) {
             return '';
@@ -93,11 +122,11 @@
         var shortcode = $trigger.attr('data-amelia-shortcode');
 
         if (shortcode) {
-            return shortcode.trim();
+            return normalizePayload(shortcode);
         }
 
         if (lastTrigger && lastTrigger.shortcode) {
-            return lastTrigger.shortcode;
+            return normalizePayload(lastTrigger.shortcode);
         }
 
         return '';
@@ -144,6 +173,44 @@
         }
     }
 
+    function injectRenderedMarkup(html, popupId) {
+        var $container = $('#amelia-form-container');
+
+        if (!$container.length) {
+            reportDebug('Container #amelia-form-container not found', {
+                available: $('[id*="amelia"]').map(function() { return this.id; }).get()
+            });
+            return;
+        }
+
+        setLoadingState($container);
+
+        reportDebug('Injecting pre-rendered markup', {
+            popup: popupId,
+            length: html.length
+        });
+
+        var $wrapper = $('<div />').html(html);
+
+        $container.empty().append($wrapper.contents());
+
+        // Execute inline scripts if present (Amelia uses inline setup).
+        $container.find('script').each(function() {
+            var $script = $(this);
+            var scriptText = $script.text() || $script.html();
+
+            if ($script.attr('src')) {
+                $.getScript($script.attr('src'));
+            } else if (scriptText) {
+                $.globalEval(scriptText);
+            }
+
+            $script.remove();
+        });
+
+        reinitializeAmeliaScripts();
+    }
+
     function loadAmeliaForm(shortcode, popupId) {
         var $container = $('#amelia-form-container');
 
@@ -188,6 +255,31 @@
             });
             showError('Connection error. Please try again.');
         });
+    }
+
+    function handlePopupPayload(payload, popupId) {
+        var trimmed = (payload || '').trim();
+
+        if (!trimmed) {
+            reportDebug('Empty shortcode payload after normalization');
+            showError('No shortcode configured for this popup trigger.');
+            return;
+        }
+
+        if (trimmed.charAt(0) === '<' || trimmed.indexOf('<script') !== -1 || trimmed.indexOf('<div') !== -1) {
+            injectRenderedMarkup(trimmed, popupId);
+            return;
+        }
+
+        if (trimmed.indexOf('[amelia') !== 0) {
+            reportDebug('Payload not recognized as Amelia shortcode', {
+                payload: trimmed.substring(0, 80)
+            });
+            showError('Invalid Amelia shortcode payload.');
+            return;
+        }
+
+        loadAmeliaForm(trimmed, popupId);
     }
 
     $(function() {
@@ -243,7 +335,7 @@
                 return;
             }
 
-            loadAmeliaForm(shortcode, popupId);
+            handlePopupPayload(shortcode, popupId);
         });
     });
 })(jQuery);
