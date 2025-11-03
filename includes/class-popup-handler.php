@@ -55,7 +55,8 @@ class Amelia_CPT_Sync_Popup_Handler {
             'trackedPopups' => $tracked_popups,
             'debug_enabled' => !empty($configurations['global']['debug_enabled']),
             'log_nonce' => wp_create_nonce('amelia_cpt_sync_nonce'),
-            'default_popup' => isset($configurations['global']['default_popup_id']) ? $configurations['global']['default_popup_id'] : ''
+            'default_popup' => isset($configurations['global']['default_popup_id']) ? $configurations['global']['default_popup_id'] : '',
+            'configs' => isset($configurations['configs']) ? $configurations['configs'] : array()
         ));
     }
     

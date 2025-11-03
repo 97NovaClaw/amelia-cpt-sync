@@ -13,6 +13,7 @@
     var defaultPopup = ameliaPopupConfig.default_popup || '';
     var debugEnabled = !!ameliaPopupConfig.debug_enabled;
     var logNonce = ameliaPopupConfig.log_nonce || '';
+    var popupConfigs = ameliaPopupConfig.configs || {};
     var lastTrigger = null;
 
     function reportDebug(message, context) {
@@ -86,6 +87,55 @@
         }
 
         return defaultPopup || '';
+    }
+
+    function getPopupConfig(popupId) {
+        if (!popupId || !popupConfigs) {
+            return null;
+        }
+
+        // Try exact match first
+        for (var configId in popupConfigs) {
+            if (!popupConfigs.hasOwnProperty(configId)) continue;
+            
+            var config = popupConfigs[configId];
+            
+            // Match by slug
+            if (config.popup_slug && config.popup_slug === popupId) {
+                return config;
+            }
+            
+            // Match by numeric ID
+            if (config.popup_numeric_id && 
+                (config.popup_numeric_id == popupId || 
+                 ('jet-popup-' + config.popup_numeric_id) === popupId)) {
+                return config;
+            }
+        }
+
+        return null;
+    }
+
+    function buildCustomizationParams(config) {
+        if (!config) {
+            return '';
+        }
+
+        var params = [];
+        
+        if (config.hide_employees) {
+            params.push('hide_employees=1');
+        }
+        
+        if (config.hide_pricing) {
+            params.push('hide_pricing=1');
+        }
+        
+        if (config.hide_extras) {
+            params.push('hide_extras=1');
+        }
+
+        return params.length ? '&' + params.join('&') : '';
     }
 
     function resolveTriggerElement(popupData) {
@@ -242,8 +292,17 @@
             shortcode: shortcode
         });
 
-        // Build iframe URL
-        var iframeUrl = window.location.origin + '/amelia-render/?sc=' + encodeURIComponent(shortcode) + '&iframe_id=amelia-form-container';
+        // Get popup configuration for customizations
+        var config = getPopupConfig(popupId);
+        var customizationParams = buildCustomizationParams(config);
+
+        reportDebug('Popup customizations', {
+            config: config,
+            params: customizationParams
+        });
+
+        // Build iframe URL with customization parameters
+        var iframeUrl = window.location.origin + '/amelia-render/?sc=' + encodeURIComponent(shortcode) + '&iframe_id=amelia-form-container' + customizationParams;
 
         // Create iframe
         var $iframe = $('<iframe>')

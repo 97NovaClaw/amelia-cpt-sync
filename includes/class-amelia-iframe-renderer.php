@@ -62,6 +62,13 @@ class Amelia_CPT_Sync_Iframe_Renderer {
      * Render minimal template for iframe
      */
     private function render_iframe_template($shortcode) {
+        // Get customization parameters
+        $hide_employees = isset($_GET['hide_employees']) && $_GET['hide_employees'] === '1';
+        $hide_pricing = isset($_GET['hide_pricing']) && $_GET['hide_pricing'] === '1';
+        $hide_extras = isset($_GET['hide_extras']) && $_GET['hide_extras'] === '1';
+        
+        amelia_cpt_sync_debug_log('[Iframe Renderer] Customizations: hide_employees=' . ($hide_employees ? 'yes' : 'no') . ', hide_pricing=' . ($hide_pricing ? 'yes' : 'no') . ', hide_extras=' . ($hide_extras ? 'yes' : 'no'));
+        
         ?><!DOCTYPE html>
 <html <?php language_attributes(); ?>>
 <head>
@@ -90,6 +97,60 @@ class Amelia_CPT_Sync_Iframe_Renderer {
         aside {
             display: none !important;
         }
+        
+        <?php if ($hide_employees): ?>
+        /* Hide Employee Selection */
+        .am-select-employee,
+        .am-select-employee-option,
+        .am-employee-select,
+        .am-employee-option,
+        .amelia-employee-selection,
+        .el-form-item__label:has-text("Employee"),
+        [class*="employee"] .am-select,
+        .am-bringing-anyone-employee,
+        div[class*="employee"],
+        .am-employee,
+        .am-step-employee,
+        [data-step="employee"],
+        .am-bringing-anyone-with-employee {
+            display: none !important;
+        }
+        <?php endif; ?>
+        
+        <?php if ($hide_pricing): ?>
+        /* Hide Pricing Information */
+        .am-price,
+        .am-service-price,
+        .am-total-price,
+        .am-payment-total,
+        .am-addon-price,
+        .am-package-price,
+        .am-event-price,
+        [class*="price"],
+        .am-service-info-price,
+        .am-confirmation-booking-price,
+        .am-price-per-person,
+        .am-total-amount,
+        .am-payment-amount {
+            display: none !important;
+        }
+        <?php endif; ?>
+        
+        <?php if ($hide_extras): ?>
+        /* Hide Extras/Add-ons */
+        .am-extras,
+        .am-extra,
+        .am-addon,
+        .am-addons,
+        .am-service-extras,
+        .am-extras-container,
+        [data-step="extras"],
+        .am-step-extras,
+        div[class*="extras"],
+        div[class*="addon"] {
+            display: none !important;
+        }
+        <?php endif; ?>
     </style>
     <?php wp_head(); ?>
     <script>
@@ -149,6 +210,89 @@ class Amelia_CPT_Sync_Iframe_Renderer {
             console.log('[Amelia Iframe] Purchased hook fired', data);
             if (success) success();
         };
+        
+        <?php if ($hide_employees || $hide_pricing || $hide_extras): ?>
+        // Apply customizations to dynamically loaded elements
+        function applyCustomizations() {
+            <?php if ($hide_employees): ?>
+            // Hide employee-related elements
+            var employeeSelectors = [
+                '.am-select-employee',
+                '.am-employee-select',
+                '.am-employee-option',
+                '.am-step-employee',
+                '[data-step="employee"]',
+                '.am-employee',
+                '.am-bringing-anyone-employee'
+            ];
+            employeeSelectors.forEach(function(selector) {
+                var elements = document.querySelectorAll(selector);
+                elements.forEach(function(el) {
+                    el.style.display = 'none';
+                });
+            });
+            <?php endif; ?>
+            
+            <?php if ($hide_pricing): ?>
+            // Hide pricing elements
+            var priceSelectors = [
+                '.am-price',
+                '.am-service-price',
+                '.am-total-price',
+                '.am-payment-total',
+                '[class*="price"]'
+            ];
+            priceSelectors.forEach(function(selector) {
+                var elements = document.querySelectorAll(selector);
+                elements.forEach(function(el) {
+                    el.style.display = 'none';
+                });
+            });
+            <?php endif; ?>
+            
+            <?php if ($hide_extras): ?>
+            // Hide extras/addon elements
+            var extraSelectors = [
+                '.am-extras',
+                '.am-extra',
+                '.am-addon',
+                '.am-addons',
+                '[data-step="extras"]',
+                '.am-step-extras'
+            ];
+            extraSelectors.forEach(function(selector) {
+                var elements = document.querySelectorAll(selector);
+                elements.forEach(function(el) {
+                    el.style.display = 'none';
+                });
+            });
+            <?php endif; ?>
+            
+            console.log('[Amelia Iframe] Customizations applied');
+        }
+        
+        // Apply on load and periodically for dynamically added content
+        window.addEventListener('load', function() {
+            applyCustomizations();
+            setTimeout(applyCustomizations, 500);
+            setTimeout(applyCustomizations, 1000);
+            setTimeout(applyCustomizations, 2000);
+        });
+        
+        // Watch for DOM changes and reapply
+        if (window.MutationObserver) {
+            var customizationObserver = new MutationObserver(function() {
+                applyCustomizations();
+            });
+            
+            document.addEventListener('DOMContentLoaded', function() {
+                customizationObserver.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+            });
+        }
+        <?php endif; ?>
         
         // Intercept Finish button click to close popup
         document.addEventListener('DOMContentLoaded', function() {

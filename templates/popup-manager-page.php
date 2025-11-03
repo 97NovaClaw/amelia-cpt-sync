@@ -194,6 +194,39 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                                 </tr>
                             </table>
 
+                            <div class="config-customizations-box">
+                                <h4><?php _e('Form Customizations', 'amelia-cpt-sync'); ?></h4>
+                                <p class="description"><?php _e('Customize which elements are visible in the Amelia booking form for this popup.', 'amelia-cpt-sync'); ?></p>
+                                
+                                <table class="form-table">
+                                    <tr>
+                                        <th><label><?php _e('Hide Elements', 'amelia-cpt-sync'); ?></label></th>
+                                        <td>
+                                            <?php
+                                            $hide_employees = isset($config['hide_employees']) && $config['hide_employees'];
+                                            $hide_pricing = isset($config['hide_pricing']) && $config['hide_pricing'];
+                                            $hide_extras = isset($config['hide_extras']) && $config['hide_extras'];
+                                            ?>
+                                            <fieldset>
+                                                <label style="display: block; margin-bottom: 8px;">
+                                                    <input type="checkbox" name="configs[<?php echo esc_attr($config_id); ?>][hide_employees]" value="1" <?php checked($hide_employees); ?>>
+                                                    <?php _e('Hide Employee Selection', 'amelia-cpt-sync'); ?>
+                                                </label>
+                                                <label style="display: block; margin-bottom: 8px;">
+                                                    <input type="checkbox" name="configs[<?php echo esc_attr($config_id); ?>][hide_pricing]" value="1" <?php checked($hide_pricing); ?>>
+                                                    <?php _e('Hide Pricing Information', 'amelia-cpt-sync'); ?>
+                                                </label>
+                                                <label style="display: block; margin-bottom: 8px;">
+                                                    <input type="checkbox" name="configs[<?php echo esc_attr($config_id); ?>][hide_extras]" value="1" <?php checked($hide_extras); ?>>
+                                                    <?php _e('Hide Extras/Add-ons', 'amelia-cpt-sync'); ?>
+                                                </label>
+                                            </fieldset>
+                                            <p class="description"><?php _e('These options will dynamically hide elements in the booking form when the popup opens.', 'amelia-cpt-sync'); ?></p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+
                             <div class="elementor-instructions-box">
                                 <h4><?php _e('Elementor Setup Checklist', 'amelia-cpt-sync'); ?></h4>
                                 <ol>
@@ -397,6 +430,29 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
 
 .popup-resolved-wrapper input {
     max-width: 260px;
+}
+
+.config-customizations-box {
+    background: #f0f8ff;
+    border: 1px solid #b8daf7;
+    border-left: 4px solid #0073aa;
+    padding: 15px 20px;
+    margin: 20px 0 10px;
+}
+
+.config-customizations-box h4 {
+    margin-top: 0;
+    color: #0073aa;
+}
+
+.config-customizations-box .form-table {
+    margin: 0;
+}
+
+.config-customizations-box fieldset {
+    border: none;
+    padding: 0;
+    margin: 0;
 }
 
 .elementor-instructions-box {
@@ -741,6 +797,31 @@ jQuery(function($) {
                         <td><textarea name="configs[${configId}][notes]" rows="3" class="large-text"></textarea></td>
                     </tr>
                 </table>
+                <div class="config-customizations-box">
+                    <h4><?php echo esc_js(__('Form Customizations', 'amelia-cpt-sync')); ?></h4>
+                    <p class="description"><?php echo esc_js(__('Customize which elements are visible in the Amelia booking form for this popup.', 'amelia-cpt-sync')); ?></p>
+                    <table class="form-table">
+                        <tr>
+                            <th><label><?php echo esc_js(__('Hide Elements', 'amelia-cpt-sync')); ?></label></th>
+                            <td>
+                                <fieldset>
+                                    <label style="display: block; margin-bottom: 8px;">
+                                        <input type="checkbox" name="configs[${configId}][hide_employees]" value="1">
+                                        <?php echo esc_js(__('Hide Employee Selection', 'amelia-cpt-sync')); ?>
+                                    </label>
+                                    <label style="display: block; margin-bottom: 8px;">
+                                        <input type="checkbox" name="configs[${configId}][hide_pricing]" value="1">
+                                        <?php echo esc_js(__('Hide Pricing Information', 'amelia-cpt-sync')); ?>
+                                    </label>
+                                    <label style="display: block; margin-bottom: 8px;">
+                                        <input type="checkbox" name="configs[${configId}][hide_extras]" value="1">
+                                        <?php echo esc_js(__('Hide Extras/Add-ons', 'amelia-cpt-sync')); ?>
+                                    </label>
+                                </fieldset>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
                 <div class="elementor-instructions-box">
                     <h4><?php echo esc_js(__('Elementor Setup', 'amelia-cpt-sync')); ?></h4>
                     <ol>
