@@ -155,13 +155,7 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                                             <table class="widefat" style="max-width: 600px; background: #fff;">
                                                 <tbody>
                                                     <tr>
-                                                        <td style="width: 30%; font-weight: 600;"><?php _e('Attribute Key', 'amelia-cpt-sync'); ?></td>
-                                                        <td>
-                                                            <input type="text" class="code shortcode-attr-key" value="data-amelia-shortcode" readonly style="width: 100%;" onclick="this.select();">
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td style="font-weight: 600;"><?php _e('Before', 'amelia-cpt-sync'); ?></td>
+                                                        <td style="width: 30%; font-weight: 600;"><?php _e('Before', 'amelia-cpt-sync'); ?></td>
                                                         <td>
                                                             <input type="text" class="code shortcode-before" value="" readonly style="width: 100%;" onclick="this.select();">
                                                             <button type="button" class="button button-small copy-before-btn" style="margin-top: 5px;">
@@ -181,10 +175,12 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                                                 </tbody>
                                             </table>
                                             <p class="description" style="margin-top: 10px;">
-                                                <strong><?php _e('Instructions:', 'amelia-cpt-sync'); ?></strong><br>
-                                                <?php _e('1. Copy "Before" text → paste in Elementor "Before" field', 'amelia-cpt-sync'); ?><br>
-                                                <?php _e('2. Click dynamic tag icon → select JetEngine meta field for the ID', 'amelia-cpt-sync'); ?><br>
-                                                <?php _e('3. Copy "After" text → paste in Elementor "After" field', 'amelia-cpt-sync'); ?>
+                                                <strong><?php _e('Elementor Setup:', 'amelia-cpt-sync'); ?></strong><br>
+                                                <?php _e('1. In Custom Attributes, leave "Before" empty (we provide the full string below)', 'amelia-cpt-sync'); ?><br>
+                                                <?php _e('2. Copy the "Before" value above and paste it into Elementor\'s "Before" field', 'amelia-cpt-sync'); ?><br>
+                                                <?php _e('3. Click the dynamic tag icon (next to Before) → JetEngine → Meta field for the ID', 'amelia-cpt-sync'); ?><br>
+                                                <?php _e('4. Copy "After" value → paste in Elementor "After" field', 'amelia-cpt-sync'); ?><br>
+                                                <em><?php _e('The double brackets [[...]] prevent Elementor from executing the shortcode—our loader will clean them and send to the backend.', 'amelia-cpt-sync'); ?></em>
                                             </p>
                                         </div>
                                     </td>
@@ -608,9 +604,18 @@ jQuery(function($) {
             return { before: '', after: '' };
         }
 
-        const parts = template.split('*');
+        // Strip outer brackets if present
+        let cleaned = template.trim();
+        if (cleaned.charAt(0) === '[') {
+            cleaned = cleaned.substring(1);
+        }
+        if (cleaned.charAt(cleaned.length - 1) === ']') {
+            cleaned = cleaned.substring(0, cleaned.length - 1);
+        }
+
+        const parts = cleaned.split('*');
         return {
-            before: '[[' + parts[0],
+            before: 'data-amelia-shortcode|[[' + parts[0],
             after: parts.slice(1).join('*') + ']]'
         };
     }
@@ -709,11 +714,7 @@ jQuery(function($) {
                                 <table class="widefat" style="max-width: 600px; background: #fff;">
                                     <tbody>
                                         <tr>
-                                            <td style="width: 30%; font-weight: 600;"><?php echo esc_js(__('Key', 'amelia-cpt-sync')); ?></td>
-                                            <td><input type="text" class="code shortcode-attr-key" value="data-amelia-shortcode" readonly style="width: 100%;" onclick="this.select();"></td>
-                                        </tr>
-                                        <tr>
-                                            <td style="font-weight: 600;"><?php echo esc_js(__('Before', 'amelia-cpt-sync')); ?></td>
+                                            <td style="width: 30%; font-weight: 600;"><?php echo esc_js(__('Before', 'amelia-cpt-sync')); ?></td>
                                             <td>
                                                 <input type="text" class="code shortcode-before" readonly style="width: 100%;" onclick="this.select();">
                                                 <button type="button" class="button button-small copy-before-btn" style="margin-top: 5px;">
