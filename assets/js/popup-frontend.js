@@ -171,19 +171,30 @@
     function reinitializeAmeliaScripts() {
         reportDebug('Re-initializing Amelia scripts');
 
+        // Amelia v3 module loader
+        if (typeof window.amelia !== 'undefined' && typeof window.amelia.load === 'function') {
+            reportDebug('Calling window.amelia.load()');
+            window.amelia.load();
+        }
+
+        // Legacy Amelia init
         if (typeof ameliaBooking !== 'undefined' && typeof ameliaBooking.init === 'function') {
+            reportDebug('Calling ameliaBooking.init()');
             ameliaBooking.init();
         }
 
+        // Trigger Amelia events
         $(document).trigger('amelia:loaded');
         $(document).trigger('amelia-booking-loaded');
         window.dispatchEvent(new Event('ameliaFormLoaded'));
 
+        // Vue force update
         if (typeof Vue !== 'undefined') {
             setTimeout(function() {
                 $('[id^="amelia"]').each(function() {
                     var element = this;
                     if (element.__vue__) {
+                        reportDebug('Forcing Vue update on element: ' + element.id);
                         element.__vue__.$forceUpdate();
                     }
                 });
