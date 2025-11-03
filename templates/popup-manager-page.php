@@ -137,9 +137,63 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                                 </tr>
 
                                 <tr>
+                                    <th><label><?php _e('Amelia Shortcode Template', 'amelia-cpt-sync'); ?></label></th>
+                                    <td>
+                                        <?php
+                                        $shortcode_template = isset($config['shortcode_template']) ? $config['shortcode_template'] : '';
+                                        ?>
+                                        <input type="text" name="configs[<?php echo esc_attr($config_id); ?>][shortcode_template]"
+                                               class="large-text code config-shortcode-template"
+                                               value="<?php echo esc_attr($shortcode_template); ?>"
+                                               placeholder="e.g., [ameliastepbooking service=*]">
+                                        <p class="description"><?php _e('Enter your Amelia shortcode with <code>*</code> as the placeholder for the dynamic ID.', 'amelia-cpt-sync'); ?></p>
+                                        
+                                        <div class="shortcode-split-output" style="margin-top: 15px; padding: 15px; background: #f9f9f9; border: 1px solid #ddd;">
+                                            <h4 style="margin-top: 0;"><?php _e('Elementor Custom Attribute Setup', 'amelia-cpt-sync'); ?></h4>
+                                            <p><?php _e('Use these 3 fields in Elementor → Advanced → Custom Attributes:', 'amelia-cpt-sync'); ?></p>
+                                            
+                                            <table class="widefat" style="max-width: 600px; background: #fff;">
+                                                <tbody>
+                                                    <tr>
+                                                        <td style="width: 30%; font-weight: 600;"><?php _e('Attribute Key', 'amelia-cpt-sync'); ?></td>
+                                                        <td>
+                                                            <input type="text" class="code shortcode-attr-key" value="data-amelia-shortcode" readonly style="width: 100%;" onclick="this.select();">
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style="font-weight: 600;"><?php _e('Before', 'amelia-cpt-sync'); ?></td>
+                                                        <td>
+                                                            <input type="text" class="code shortcode-before" value="" readonly style="width: 100%;" onclick="this.select();">
+                                                            <button type="button" class="button button-small copy-before-btn" style="margin-top: 5px;">
+                                                                <span class="dashicons dashicons-clipboard"></span> <?php _e('Copy', 'amelia-cpt-sync'); ?>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style="font-weight: 600;"><?php _e('After', 'amelia-cpt-sync'); ?></td>
+                                                        <td>
+                                                            <input type="text" class="code shortcode-after" value="" readonly style="width: 100%;" onclick="this.select();">
+                                                            <button type="button" class="button button-small copy-after-btn" style="margin-top: 5px;">
+                                                                <span class="dashicons dashicons-clipboard"></span> <?php _e('Copy', 'amelia-cpt-sync'); ?>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                            <p class="description" style="margin-top: 10px;">
+                                                <strong><?php _e('Instructions:', 'amelia-cpt-sync'); ?></strong><br>
+                                                <?php _e('1. Copy "Before" text → paste in Elementor "Before" field', 'amelia-cpt-sync'); ?><br>
+                                                <?php _e('2. Click dynamic tag icon → select JetEngine meta field for the ID', 'amelia-cpt-sync'); ?><br>
+                                                <?php _e('3. Copy "After" text → paste in Elementor "After" field', 'amelia-cpt-sync'); ?>
+                                            </p>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                <tr>
                                     <th><label><?php _e('Team Notes (Optional)', 'amelia-cpt-sync'); ?></label></th>
                                     <td>
-                                        <textarea name="configs[<?php echo esc_attr($config_id); ?>][notes]" rows="3" class="large-text" placeholder="<?php esc_attr_e('Store the Amelia shortcode your team uses, special instructions, etc.', 'amelia-cpt-sync'); ?>"><?php echo esc_textarea($notes); ?></textarea>
+                                        <textarea name="configs[<?php echo esc_attr($config_id); ?>][notes]" rows="3" class="large-text" placeholder="<?php esc_attr_e('Store additional setup reminders.', 'amelia-cpt-sync'); ?>"><?php echo esc_textarea($notes); ?></textarea>
                                     </td>
                                 </tr>
                             </table>
@@ -518,6 +572,8 @@ jQuery(function($) {
 
     function bindNewConfig($configItem) {
         updateConfigSummary($configItem);
+        updateShortcodeSplit($configItem);
+        
         const numeric = $.trim($configItem.find('.popup-numeric-id-input').val());
         const slug = $.trim($configItem.find('.config-popup-slug-input').val());
 
@@ -545,6 +601,46 @@ jQuery(function($) {
 
     $(document).on('blur', '.config-popup-slug-input', function() {
         resolvePopupSlug($(this).closest('.popup-config-item'));
+    });
+
+    function splitShortcodeTemplate(template) {
+        if (!template || template.indexOf('*') === -1) {
+            return { before: '', after: '' };
+        }
+
+        const parts = template.split('*');
+        return {
+            before: '[[' + parts[0],
+            after: parts.slice(1).join('*') + ']]'
+        };
+    }
+
+    function updateShortcodeSplit($configItem) {
+        const template = $.trim($configItem.find('.config-shortcode-template').val());
+        const split = splitShortcodeTemplate(template);
+
+        $configItem.find('.shortcode-before').val(split.before);
+        $configItem.find('.shortcode-after').val(split.after);
+    }
+
+    $(document).on('input', '.config-shortcode-template', function() {
+        updateShortcodeSplit($(this).closest('.popup-config-item'));
+    });
+
+    $(document).on('click', '.copy-before-btn, .copy-after-btn', function() {
+        const $button = $(this);
+        const $input = $button.hasClass('copy-before-btn') 
+            ? $button.closest('td').find('.shortcode-before')
+            : $button.closest('td').find('.shortcode-after');
+
+        $input.trigger('select');
+        try {
+            document.execCommand('copy');
+            $button.html('<span class="dashicons dashicons-yes"></span> <?php echo esc_js(__('Copied!', 'amelia-cpt-sync')); ?>');
+        } catch (e) {}
+        setTimeout(function() {
+            $button.html('<span class="dashicons dashicons-clipboard"></span> <?php echo esc_js(__('Copy', 'amelia-cpt-sync')); ?>');
+        }, 1500);
     });
 
     $(document).on('click', '.copy-attribute-template', function() {
@@ -604,6 +700,42 @@ jQuery(function($) {
                         </td>
                     </tr>
                     <tr>
+                        <th><label><?php echo esc_js(__('Shortcode Template', 'amelia-cpt-sync')); ?></label></th>
+                        <td>
+                            <input type="text" name="configs[${configId}][shortcode_template]" class="large-text code config-shortcode-template" placeholder="<?php echo esc_js(__('[ameliastepbooking service=*]', 'amelia-cpt-sync')); ?>">
+                            <p class="description"><?php echo esc_js(__('Use * as placeholder for dynamic ID.', 'amelia-cpt-sync')); ?></p>
+                            <div class="shortcode-split-output" style="margin-top: 15px; padding: 15px; background: #f9f9f9; border: 1px solid #ddd;">
+                                <h4 style="margin-top: 0;"><?php echo esc_js(__('Generated Fields', 'amelia-cpt-sync')); ?></h4>
+                                <table class="widefat" style="max-width: 600px; background: #fff;">
+                                    <tbody>
+                                        <tr>
+                                            <td style="width: 30%; font-weight: 600;"><?php echo esc_js(__('Key', 'amelia-cpt-sync')); ?></td>
+                                            <td><input type="text" class="code shortcode-attr-key" value="data-amelia-shortcode" readonly style="width: 100%;" onclick="this.select();"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: 600;"><?php echo esc_js(__('Before', 'amelia-cpt-sync')); ?></td>
+                                            <td>
+                                                <input type="text" class="code shortcode-before" readonly style="width: 100%;" onclick="this.select();">
+                                                <button type="button" class="button button-small copy-before-btn" style="margin-top: 5px;">
+                                                    <span class="dashicons dashicons-clipboard"></span> <?php echo esc_js(__('Copy', 'amelia-cpt-sync')); ?>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: 600;"><?php echo esc_js(__('After', 'amelia-cpt-sync')); ?></td>
+                                            <td>
+                                                <input type="text" class="code shortcode-after" readonly style="width: 100%;" onclick="this.select();">
+                                                <button type="button" class="button button-small copy-after-btn" style="margin-top: 5px;">
+                                                    <span class="dashicons dashicons-clipboard"></span> <?php echo esc_js(__('Copy', 'amelia-cpt-sync')); ?>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
                         <th><label><?php echo esc_js(__('Team Notes', 'amelia-cpt-sync')); ?></label></th>
                         <td><textarea name="configs[${configId}][notes]" rows="3" class="large-text"></textarea></td>
                     </tr>
@@ -611,19 +743,10 @@ jQuery(function($) {
                 <div class="elementor-instructions-box">
                     <h4><?php echo esc_js(__('Elementor Setup', 'amelia-cpt-sync')); ?></h4>
                     <ol>
-                        <li><?php echo esc_js(__('Set JetPopup action to this ID.', 'amelia-cpt-sync')); ?></li>
-                        <li><?php echo esc_js(__('Add class', 'amelia-cpt-sync')); ?> <code>amelia-booking-trigger</code>.</li>
-                        <li><?php echo esc_js(__('Add attribute', 'amelia-cpt-sync')); ?> <code>data-amelia-shortcode</code>.</li>
+                        <li><?php echo esc_js(__('Set JetPopup action', 'amelia-cpt-sync')); ?></li>
+                        <li><?php echo esc_js(__('Add class', 'amelia-cpt-sync')); ?> <code>amelia-booking-trigger</code></li>
+                        <li><?php echo esc_js(__('Add custom attribute with Key, Before (+ dynamic tag), After from above', 'amelia-cpt-sync')); ?></li>
                     </ol>
-                    <div class="attribute-template">
-                        <label><?php echo esc_js(__('Template', 'amelia-cpt-sync')); ?></label>
-                        <div class="attribute-template__field">
-                            <input type="text" class="regular-text code attribute-template-input" value="data-amelia-shortcode|[paste shortcode]" readonly>
-                            <button type="button" class="button button-secondary copy-attribute-template">
-                                <span class="dashicons dashicons-clipboard"></span> <?php echo esc_js(__('Copy', 'amelia-cpt-sync')); ?>
-                            </button>
-                        </div>
-                    </div>
                 </div>
                 <p><button type="button" class="button button-link-delete delete-config"><?php echo esc_js(__('Delete', 'amelia-cpt-sync')); ?></button></p>
             </div>

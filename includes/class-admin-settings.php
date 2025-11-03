@@ -997,6 +997,7 @@ class Amelia_CPT_Sync_Admin_Settings {
             $label = isset($config['label']) ? sanitize_text_field($config['label']) : '';
             $popup_slug = isset($config['popup_slug']) ? sanitize_title($config['popup_slug']) : '';
             $popup_numeric_id = isset($config['popup_numeric_id']) ? absint($config['popup_numeric_id']) : 0;
+            $shortcode_template = isset($config['shortcode_template']) ? sanitize_text_field($config['shortcode_template']) : '';
             $notes = isset($config['notes']) ? sanitize_textarea_field($config['notes']) : '';
 
             if (!$label && !$popup_slug && !$popup_numeric_id) {
@@ -1017,6 +1018,10 @@ class Amelia_CPT_Sync_Admin_Settings {
                 'popup_slug' => $popup_slug,
                 'popup_numeric_id' => $popup_numeric_id,
             );
+
+            if ($shortcode_template) {
+                $data['configs'][$key]['shortcode_template'] = $shortcode_template;
+            }
 
             if ($notes) {
                 $data['configs'][$key]['notes'] = $notes;
