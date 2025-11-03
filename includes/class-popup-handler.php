@@ -95,58 +95,8 @@ class Amelia_CPT_Sync_Popup_Handler {
 
         amelia_cpt_sync_debug_log('Processing shortcode: ' . $shortcode);
         
-        // Parse shortcode to extract type and parameters
-        preg_match('/\[([a-zA-Z0-9]+)\s+([^\]]+)\]/', $shortcode, $matches);
-        
-        if (empty($matches)) {
-            amelia_cpt_sync_debug_log('ERROR: Could not parse shortcode format');
-            wp_send_json_error(array('message' => __('Invalid shortcode format.', 'amelia-cpt-sync')));
-        }
-        
-        $shortcode_tag = $matches[1]; // e.g., "ameliastepbooking"
-        $shortcode_attrs_string = $matches[2]; // e.g., "service=7"
-        
-        // Parse attributes
-        $attributes = shortcode_parse_atts($shortcode_attrs_string);
-        amelia_cpt_sync_debug_log('Parsed shortcode: tag=' . $shortcode_tag . ', attrs=' . print_r($attributes, true));
-        
-        // Call Amelia's shortcode handler directly
-        $rendered_html = '';
-        
-        try {
-            // Map shortcode tags to their handler classes
-            $shortcode_handlers = array(
-                'ameliastepbooking' => 'AmeliaBooking\Infrastructure\WP\ShortcodeService\StepBookingShortcodeService',
-                'ameliabooking' => 'AmeliaBooking\Infrastructure\WP\ShortcodeService\BookingShortcodeService',
-                'ameliacatalogbooking' => 'AmeliaBooking\Infrastructure\WP\ShortcodeService\CatalogBookingShortcodeService',
-                'ameliacatalog' => 'AmeliaBooking\Infrastructure\WP\ShortcodeService\CatalogShortcodeService',
-                'ameliaevents' => 'AmeliaBooking\Infrastructure\WP\ShortcodeService\EventsShortcodeService',
-                'ameliaeventscalendarbooking' => 'AmeliaBooking\Infrastructure\WP\ShortcodeService\EventsCalendarBookingShortcodeService',
-                'ameliaeventslistbooking' => 'AmeliaBooking\Infrastructure\WP\ShortcodeService\EventsListBookingShortcodeService',
-                'ameliasearch' => 'AmeliaBooking\Infrastructure\WP\ShortcodeService\SearchShortcodeService',
-                'ameliacustomer' => 'AmeliaBooking\Infrastructure\WP\ShortcodeService\CabinetCustomerShortcodeService',
-                'ameliaemployee' => 'AmeliaBooking\Infrastructure\WP\ShortcodeService\CabinetEmployeeShortcodeService',
-            );
-            
-            if (!isset($shortcode_handlers[$shortcode_tag])) {
-                amelia_cpt_sync_debug_log('ERROR: Unknown Amelia shortcode type: ' . $shortcode_tag);
-                wp_send_json_error(array('message' => __('Unsupported shortcode type.', 'amelia-cpt-sync')));
-            }
-            
-            $handler_class = $shortcode_handlers[$shortcode_tag];
-            
-            if (!class_exists($handler_class)) {
-                amelia_cpt_sync_debug_log('ERROR: Handler class not found: ' . $handler_class);
-                wp_send_json_error(array('message' => __('Amelia booking plugin not properly loaded.', 'amelia-cpt-sync')));
-            }
-            
-            amelia_cpt_sync_debug_log('Calling Amelia handler: ' . $handler_class);
-            $rendered_html = call_user_func(array($handler_class, 'shortcodeHandler'), $attributes);
-            
-        } catch (\Exception $e) {
-            amelia_cpt_sync_debug_log('ERROR rendering shortcode: ' . $e->getMessage());
-            wp_send_json_error(array('message' => __('Error rendering booking form.', 'amelia-cpt-sync')));
-        }
+        // Render the shortcode using WordPress's standard method
+        $rendered_html = do_shortcode($shortcode);
         
         // Check if shortcode was actually processed
         if (empty($rendered_html) || $rendered_html === $shortcode) {
