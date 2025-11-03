@@ -95,6 +95,27 @@ class Amelia_CPT_Sync_Popup_Handler {
 
         amelia_cpt_sync_debug_log('Processing shortcode: ' . $shortcode);
         
+        // Force Amelia to initialize if not already loaded
+        if (class_exists('AmeliaBooking\Plugin')) {
+            amelia_cpt_sync_debug_log('Amelia plugin class found, attempting initialization');
+            
+            // Trigger any deferred hooks Amelia might be waiting for
+            do_action('wp');
+            do_action('wp_loaded');
+        } else {
+            amelia_cpt_sync_debug_log('WARNING: Amelia plugin class not found');
+        }
+        
+        // Check if Amelia shortcodes are registered
+        global $shortcode_tags;
+        $amelia_shortcodes_registered = array();
+        foreach ($shortcode_tags as $tag => $handler) {
+            if (stripos($tag, 'amelia') !== false) {
+                $amelia_shortcodes_registered[] = $tag;
+            }
+        }
+        amelia_cpt_sync_debug_log('Registered Amelia shortcodes: ' . implode(', ', $amelia_shortcodes_registered));
+        
         // Render the shortcode
         $rendered_html = do_shortcode($shortcode);
         
