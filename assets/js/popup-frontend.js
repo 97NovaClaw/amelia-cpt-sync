@@ -320,18 +320,36 @@
     }
 
     function bindJetPopupEvents() {
-        var events = ['jet-popup/show-popup', 'jet-popup/show-event', 'jet-popup/after-open'];
+        var events = [
+            'jet-popup/show-popup',
+            'jet-popup/show-event',
+            'jet-popup/show-event/after-show',
+            'jet-popup/show-event/before-show',
+            'jet-popup/after-open',
+            'jet-popup/ajax/frontend-init',
+            'jet-popup/ajax/frontend-init/after'
+        ];
+
+        console.log('[Amelia Popup] Binding to JetPopup events:', events);
 
         events.forEach(function(evt) {
             document.addEventListener(evt, function(event) {
+                console.log('[Amelia Popup] Document event caught:', evt);
                 handlePopupOpen(event, event.detail);
             });
 
             window.addEventListener(evt, function(event) {
+                console.log('[Amelia Popup] Window event caught:', evt);
                 handlePopupOpen(event, event.detail);
             });
 
             $(document).on(evt, function(event, data) {
+                console.log('[Amelia Popup] jQuery event caught:', evt, data);
+                handlePopupOpen(event, data);
+            });
+
+            $(window).on(evt, function(event, data) {
+                console.log('[Amelia Popup] jQuery window event caught:', evt, data);
                 handlePopupOpen(event, data);
             });
         });
@@ -339,6 +357,7 @@
         if (window.JetPopupEvents && typeof window.JetPopupEvents.subscribe === 'function') {
             events.forEach(function(evt) {
                 window.JetPopupEvents.subscribe(evt, function(data) {
+                    console.log('[Amelia Popup] JetPopupEvents bus caught:', evt);
                     handlePopupOpen({ type: evt }, data);
                 });
             });
@@ -389,8 +408,8 @@
             mutations.forEach(function(mutation) {
                 mutation.addedNodes.forEach(function(node) {
                     if (node.nodeType === 1 && node.classList) {
-                        const classes = node.className || '';
-                        if (classes.indexOf('jet-popup') !== -1 || classes.indexOf('popup') !== -1) {
+                        const classes = typeof node.className === 'string' ? node.className : (node.className.baseVal || '');
+                        if (classes && (classes.indexOf('jet-popup') !== -1 || classes.indexOf('popup') !== -1)) {
                             console.log('[DOM MONITOR] Popup-related element added:', {
                                 tag: node.tagName,
                                 id: node.id,
