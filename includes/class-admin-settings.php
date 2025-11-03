@@ -999,6 +999,11 @@ class Amelia_CPT_Sync_Admin_Settings {
             $popup_numeric_id = isset($config['popup_numeric_id']) ? absint($config['popup_numeric_id']) : 0;
             $shortcode_template = isset($config['shortcode_template']) ? sanitize_text_field($config['shortcode_template']) : '';
             $notes = isset($config['notes']) ? sanitize_textarea_field($config['notes']) : '';
+            
+            // Form customization checkboxes
+            $hide_employees = !empty($config['hide_employees']);
+            $hide_pricing = !empty($config['hide_pricing']);
+            $hide_extras = !empty($config['hide_extras']);
 
             if (!$label && !$popup_slug && !$popup_numeric_id) {
                 continue;
@@ -1017,6 +1022,9 @@ class Amelia_CPT_Sync_Admin_Settings {
                 'label' => $label,
                 'popup_slug' => $popup_slug,
                 'popup_numeric_id' => $popup_numeric_id,
+                'hide_employees' => $hide_employees,
+                'hide_pricing' => $hide_pricing,
+                'hide_extras' => $hide_extras,
             );
 
             if ($shortcode_template) {
