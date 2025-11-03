@@ -517,8 +517,9 @@
 
         bindJetPopupEvents();
         
-        // Listen for iframe height updates
+        // Listen for iframe messages
         window.addEventListener('message', function(event) {
+            // Height updates
             if (event.data && event.data.ameliaIframeHeight) {
                 var iframeId = event.data.ameliaIframeId || 'amelia-form-container';
                 var $iframe = $('#' + iframeId).find('iframe');
@@ -527,6 +528,25 @@
                     var newHeight = parseInt(event.data.ameliaIframeHeight, 10);
                     $iframe.css('height', newHeight + 'px');
                     reportDebug('Iframe height updated', { height: newHeight });
+                }
+            }
+            
+            // Booking completion
+            if (event.data && event.data.ameliaBookingComplete) {
+                reportDebug('Booking completed, closing popup');
+                
+                // Find the currently open JetPopup
+                var $popup = $('.jet-popup.jet-popup--show-state');
+                
+                if ($popup.length) {
+                    // Trigger JetPopup close
+                    $popup.find('.jet-popup__close-button').trigger('click');
+                    
+                    // Fallback: use JetPopup API if available
+                    if (window.jetPopup && typeof window.jetPopup.hidePopup === 'function') {
+                        var popupId = $popup.attr('id');
+                        window.jetPopup.hidePopup({ popupId: popupId });
+                    }
                 }
             }
         });

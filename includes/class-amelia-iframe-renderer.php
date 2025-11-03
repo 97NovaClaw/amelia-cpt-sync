@@ -136,6 +136,60 @@ class Amelia_CPT_Sync_Iframe_Renderer {
                 });
             });
         }
+
+        // Detect booking completion via Amelia's JS hooks
+        window.ameliaActions = window.ameliaActions || {};
+        
+        var completionHandled = false;
+        
+        function notifyBookingComplete() {
+            if (completionHandled) return;
+            completionHandled = true;
+            
+            console.log('[Amelia Iframe] Booking completed, notifying parent');
+            
+            if (window.parent && window.parent !== window) {
+                setTimeout(function() {
+                    window.parent.postMessage({
+                        ameliaBookingComplete: true
+                    }, '*');
+                }, 1500); // Short delay so user sees confirmation
+            }
+        }
+        
+        // Hook: On-site bookings / no payment required
+        window.ameliaActions.Schedule = function(success, error, data) {
+            console.log('[Amelia Iframe] Schedule hook fired (on-site booking)');
+            if (success) success();
+            notifyBookingComplete();
+        };
+        
+        // Hook: Online payments completed
+        window.ameliaActions.Purchased = function(success, error, data) {
+            console.log('[Amelia Iframe] Purchased hook fired (online payment)');
+            if (success) success();
+            notifyBookingComplete();
+        };
+        
+        // Fallback: Watch for congratulations/success step appearing
+        document.addEventListener('DOMContentLoaded', function() {
+            var checkInterval = setInterval(function() {
+                // Look for Amelia's success indicators
+                var successFound = document.querySelector('.am-confirmation') ||
+                                   document.querySelector('[class*="congratulations"]') ||
+                                   document.querySelector('[class*="success"]') ||
+                                   (document.body.textContent.indexOf('successfully booked') !== -1);
+                
+                if (successFound) {
+                    console.log('[Amelia Iframe] Success screen detected');
+                    clearInterval(checkInterval);
+                    notifyBookingComplete();
+                }
+            }, 500);
+            
+            // Stop checking after 60 seconds
+            setTimeout(function() { clearInterval(checkInterval); }, 60000);
+        });
     </script>
 </head>
 <body class="amelia-iframe-body">
