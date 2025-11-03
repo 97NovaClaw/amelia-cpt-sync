@@ -531,23 +531,9 @@
                 }
             }
             
-            // Booking completion
+            // Log booking completion events (no auto-close)
             if (event.data && event.data.ameliaBookingComplete) {
-                reportDebug('Booking completed, closing popup');
-                
-                // Find the currently open JetPopup
-                var $popup = $('.jet-popup.jet-popup--show-state');
-                
-                if ($popup.length) {
-                    // Trigger JetPopup close
-                    $popup.find('.jet-popup__close-button').trigger('click');
-                    
-                    // Fallback: use JetPopup API if available
-                    if (window.jetPopup && typeof window.jetPopup.hidePopup === 'function') {
-                        var popupId = $popup.attr('id');
-                        window.jetPopup.hidePopup({ popupId: popupId });
-                    }
-                }
+                reportDebug('Booking completed - customer will manually close popup');
             }
         });
     });
