@@ -61,10 +61,28 @@
                 var $popup = $(popupData.popup);
                 return $popup.data('popup-id') || $popup.attr('data-popup-id') || '';
             }
+
+            if (popupData.data && popupData.data.popupId) {
+                return popupData.data.popupId;
+            }
         }
 
         if (lastTrigger && lastTrigger.popupId) {
-            return lastTrigger.popupId;
+            var rawPopupId = lastTrigger.popupId;
+
+            // Check if it's a JSON string (from data-jet-popup attribute)
+            if (typeof rawPopupId === 'string' && rawPopupId.indexOf('{') === 0) {
+                try {
+                    var parsed = JSON.parse(rawPopupId);
+                    if (parsed['attached-popup']) {
+                        return parsed['attached-popup'];
+                    }
+                } catch (e) {
+                    console.warn('[Amelia Popup] Failed to parse popup ID JSON:', e);
+                }
+            }
+
+            return rawPopupId;
         }
 
         return defaultPopup || '';
@@ -95,14 +113,6 @@
         return textarea.value;
     }
 
-    function stripScripts(input) {
-        if (!input) {
-            return input;
-        }
-
-        return input.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-    }
-
     function normalizePayload(value) {
         if (!value) {
             return '';
@@ -113,8 +123,6 @@
         if (!decoded) {
             return '';
         }
-
-        decoded = stripScripts(decoded);
 
         // Support [[shortcode]] syntax to escape server-side processing.
         if (decoded.indexOf('[[') !== -1 || decoded.indexOf(']]') !== -1) {
@@ -204,10 +212,33 @@
 
         $container.empty().append($wrapper.contents());
 
-        // Execute inline scripts if present (Amelia uses inline setup).
+        // Extract and execute inline scripts (Amelia initialization)
+        var scriptsExecuted = 0;
+        $container.find('script').each(function() {
+            var $script = $(this);
+            var scriptContent = $script.html() || $script.text();
+
+            if (scriptContent) {
+                reportDebug('Executing inline script', { length: scriptContent.length });
+                try {
+                    $.globalEval(scriptContent);
+                    scriptsExecuted++;
+                } catch (e) {
+                    console.error('[Amelia Popup] Script execution error:', e);
+                }
+            }
+
+            if ($script.attr('src')) {
+                $.getScript($script.attr('src'));
+            }
+        });
+
+        reportDebug('Scripts executed', { count: scriptsExecuted });
+
+        // Give Amelia's script time to set up data, then reinitialize
         setTimeout(function() {
             reinitializeAmeliaScripts();
-        }, 50);
+        }, 100);
     }
 
     function loadAmeliaForm(shortcode, popupId) {
