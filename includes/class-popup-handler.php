@@ -156,6 +156,10 @@ class Amelia_CPT_Sync_Popup_Handler {
         }
         
         amelia_cpt_sync_debug_log('SUCCESS: Shortcode rendered (' . strlen($rendered_html) . ' bytes)');
+        amelia_cpt_sync_debug_log('First 500 chars of HTML: ' . substr($rendered_html, 0, 500));
+        amelia_cpt_sync_debug_log('Last 500 chars of HTML: ' . substr($rendered_html, -500));
+        amelia_cpt_sync_debug_log('HTML contains <script>: ' . (strpos($rendered_html, '<script>') !== false ? 'YES' : 'NO'));
+        amelia_cpt_sync_debug_log('HTML contains <div: ' . (strpos($rendered_html, '<div') !== false ? 'YES' : 'NO'));
         amelia_cpt_sync_debug_log('========== END RENDER BOOKING FORM ==========');
         
         wp_send_json_success(array(
