@@ -3,7 +3,7 @@
  * Plugin Name: Amelia to CPT Sync
  * Plugin URI: https://github.com/97NovaClaw/amelia-cpt-sync
  * Description: Real-time, one-way synchronization from AmeliaWP booking plugin to JetEngine Custom Post Types
- * Version: 1.3.2
+ * Version: 1.4.0
  * Author: 97NovaClaw
  * Author URI: https://github.com/97NovaClaw
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('WPINC')) {
 /**
  * Current plugin version.
  */
-define('AMELIA_CPT_SYNC_VERSION', '1.3.2');
+define('AMELIA_CPT_SYNC_VERSION', '1.4.0');
 define('AMELIA_CPT_SYNC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AMELIA_CPT_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -86,6 +86,11 @@ function activate_amelia_cpt_sync() {
     $taxonomy_custom_fields_manager = new Amelia_CPT_Sync_Taxonomy_Custom_Fields_Manager();
     $taxonomy_custom_fields_manager->create_tables();
 
+    // Initialize iframe renderer to register endpoint before flushing
+    require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-amelia-iframe-renderer.php';
+    $iframe_renderer = new Amelia_CPT_Sync_Iframe_Renderer();
+    $iframe_renderer->init();
+    
     // Flush rewrite rules
     flush_rewrite_rules();
 }
@@ -110,6 +115,7 @@ require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-custom-fields-manager.
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-taxonomy-custom-fields-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-popup-handler.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-popup-config-manager.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-amelia-iframe-renderer.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-admin-settings.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-cpt-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-sync-handler.php';
@@ -131,6 +137,10 @@ function run_amelia_cpt_sync() {
     // Initialize popup handler (AJAX + frontend scripts)
     $popup_handler = new Amelia_CPT_Sync_Popup_Handler();
     $popup_handler->init();
+    
+    // Initialize iframe renderer
+    $iframe_renderer = new Amelia_CPT_Sync_Iframe_Renderer();
+    $iframe_renderer->init();
 }
 
 add_action('plugins_loaded', 'run_amelia_cpt_sync');

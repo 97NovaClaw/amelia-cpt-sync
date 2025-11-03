@@ -8,6 +8,15 @@
 #amelia-form-container {
     min-height: 400px;
     position: relative;
+    background: transparent;
+}
+
+#amelia-form-container iframe {
+    width: 100%;
+    border: none;
+    background: transparent;
+    display: block;
+    transition: height 0.3s ease;
 }
 
 /* Loading State */

@@ -237,40 +237,30 @@
             return;
         }
 
-        setLoadingState($container);
-
-        reportDebug('Requesting shortcode render', {
+        reportDebug('Loading Amelia form via iframe', {
             popup: popupId,
-            snippet: shortcode
+            shortcode: shortcode
         });
 
-        $.ajax({
-            url: ameliaPopupConfig.ajax_url,
-            type: 'POST',
-            data: {
-                action: 'amelia_render_booking_form',
-                nonce: ameliaPopupConfig.nonce,
-                shortcode: shortcode,
-                popup_id: popupId
-            }
-        }).done(function(response) {
-            reportDebug('AJAX response received', response);
+        // Build iframe URL
+        var iframeUrl = window.location.origin + '/amelia-render/?sc=' + encodeURIComponent(shortcode) + '&iframe_id=amelia-form-container';
 
-            if (response.success && response.data && response.data.html) {
-                $container.html(response.data.html);
-                reinitializeAmeliaScripts();
-            } else {
-                var message = (response && response.data && response.data.message) ? response.data.message : 'Unable to load booking form.';
-                showError(message);
-            }
-        }).fail(function(xhr, status, error) {
-            reportDebug('AJAX request failed', {
-                status: status,
-                error: error,
-                response: xhr.responseText
+        // Create iframe
+        var $iframe = $('<iframe>')
+            .attr('id', 'amelia-booking-iframe')
+            .attr('src', iframeUrl)
+            .css({
+                width: '100%',
+                border: 'none',
+                background: 'transparent',
+                display: 'block',
+                minHeight: '400px'
             });
-            showError('Connection error. Please try again.');
-        });
+
+        // Replace container content with iframe
+        $container.empty().append($iframe);
+
+        reportDebug('Iframe created', { src: iframeUrl });
     }
 
     function handlePopupPayload(payload, popupId) {
@@ -526,6 +516,20 @@
         });
 
         bindJetPopupEvents();
+        
+        // Listen for iframe height updates
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.ameliaIframeHeight) {
+                var iframeId = event.data.ameliaIframeId || 'amelia-form-container';
+                var $iframe = $('#' + iframeId).find('iframe');
+                
+                if ($iframe.length) {
+                    var newHeight = parseInt(event.data.ameliaIframeHeight, 10);
+                    $iframe.css('height', newHeight + 'px');
+                    reportDebug('Iframe height updated', { height: newHeight });
+                }
+            }
+        });
     });
 })(jQuery);
 
