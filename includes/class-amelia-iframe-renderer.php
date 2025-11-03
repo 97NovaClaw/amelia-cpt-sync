@@ -150,18 +150,41 @@ class Amelia_CPT_Sync_Iframe_Renderer {
             if (success) success();
         };
         
-        // Log when success screen appears (for debugging)
+        // Intercept Finish button click to close popup
         document.addEventListener('DOMContentLoaded', function() {
-            var checkInterval = setInterval(function() {
-                var successFound = document.querySelector('.am-confirmation') ||
-                                   document.querySelector('[class*="congratulations"]');
-                
-                if (successFound) {
-                    console.log('[Amelia Iframe] Success screen detected - customer can manually close popup');
-                    clearInterval(checkInterval);
-                }
-            }, 1000);
+            var finishHandled = false;
             
+            var checkInterval = setInterval(function() {
+                if (finishHandled) return;
+                
+                // Look for Finish button
+                var finishButtons = document.querySelectorAll('.am-button');
+                
+                finishButtons.forEach(function(button) {
+                    var text = button.textContent || button.innerText || '';
+                    if (text.toLowerCase().indexOf('finish') !== -1 && !button.dataset.ameliaIntercepted) {
+                        button.dataset.ameliaIntercepted = 'true';
+                        
+                        button.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            console.log('[Amelia Iframe] Finish clicked, closing popup');
+                            finishHandled = true;
+                            
+                            if (window.parent && window.parent !== window) {
+                                window.parent.postMessage({
+                                    ameliaBookingComplete: true
+                                }, '*');
+                            }
+                        }, true); // Capture phase
+                        
+                        console.log('[Amelia Iframe] Finish button intercepted');
+                    }
+                });
+            }, 500);
+            
+            // Stop checking after 60 seconds
             setTimeout(function() { clearInterval(checkInterval); }, 60000);
         });
     </script>
