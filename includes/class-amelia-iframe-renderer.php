@@ -350,24 +350,18 @@ class Amelia_CPT_Sync_Iframe_Renderer {
                         
                         button.dataset.ameliaIntercepted = 'true';
                         
-                        // Add multiple event listeners for reliability
+                        // Add click event listeners (capture and bubble for reliability)
                         button.addEventListener('click', function(e) {
-                            console.log('[Amelia Iframe] Finish button clicked (capture)');
+                            console.log('[Amelia Iframe] Finish button clicked (capture) - closing popup');
                             closePopup();
                         }, true);
                         
                         button.addEventListener('click', function(e) {
-                            console.log('[Amelia Iframe] Finish button clicked (bubble)');
+                            console.log('[Amelia Iframe] Finish button clicked (bubble) - closing popup');
                             closePopup();
                         }, false);
                         
-                        // Also intercept mousedown as backup
-                        button.addEventListener('mousedown', function(e) {
-                            console.log('[Amelia Iframe] Finish button mousedown');
-                            setTimeout(closePopup, 100);
-                        }, true);
-                        
-                        console.log('[Amelia Iframe] Finish button intercepted:', text.trim());
+                        console.log('[Amelia Iframe] Finish button intercepted and ready:', text.trim());
                     }
                 });
             });
@@ -407,21 +401,19 @@ class Amelia_CPT_Sync_Iframe_Renderer {
             }
         }
         
-        // Also listen for Amelia's completion hooks
+        // Log Amelia's completion hooks for debugging (but don't auto-close)
         window.ameliaActions = window.ameliaActions || {};
         var originalSchedule = window.ameliaActions.Schedule;
         var originalPurchased = window.ameliaActions.Purchased;
         
         window.ameliaActions.Schedule = function(success, error, data) {
-            console.log('[Amelia Iframe] Schedule action triggered');
-            setTimeout(closePopup, 500);
+            console.log('[Amelia Iframe] Schedule action triggered - waiting for user to click Finish');
             if (originalSchedule) originalSchedule(success, error, data);
             else if (success) success();
         };
         
         window.ameliaActions.Purchased = function(success, error, data) {
-            console.log('[Amelia Iframe] Purchased action triggered');
-            setTimeout(closePopup, 500);
+            console.log('[Amelia Iframe] Purchased action triggered - waiting for user to click Finish');
             if (originalPurchased) originalPurchased(success, error, data);
             else if (success) success();
         };
