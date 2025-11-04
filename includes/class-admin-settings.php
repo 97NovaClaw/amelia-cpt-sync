@@ -39,6 +39,8 @@ class Amelia_CPT_Sync_Admin_Settings {
         add_action('wp_ajax_amelia_cpt_sync_get_taxonomy_custom_fields_modal', array($this, 'ajax_get_taxonomy_custom_fields_modal'));
         add_action('wp_ajax_amelia_cpt_sync_save_taxonomy_custom_field_values', array($this, 'ajax_save_taxonomy_custom_field_values'));
         add_action('wp_ajax_amelia_save_popup_configs', array($this, 'ajax_save_popup_configs'));
+        add_action('wp_ajax_amelia_get_popup_config', array($this, 'ajax_get_popup_config'));
+        add_action('wp_ajax_nopriv_amelia_get_popup_config', array($this, 'ajax_get_popup_config'));
         add_action('wp_ajax_amelia_resolve_popup_slug', array($this, 'ajax_resolve_popup_slug'));
         add_action('wp_ajax_amelia_cpt_sync_log_debug', array($this, 'ajax_log_debug'));
     }
@@ -965,6 +967,45 @@ class Amelia_CPT_Sync_Admin_Settings {
     /**
      * AJAX handler to save popup configurations
      */
+    /**
+     * AJAX handler to get fresh popup config for a specific popup ID
+     */
+    public function ajax_get_popup_config() {
+        check_ajax_referer('amelia_popup_nonce', 'nonce');
+        
+        $popup_id = isset($_POST['popup_id']) ? sanitize_text_field($_POST['popup_id']) : '';
+        
+        if (empty($popup_id)) {
+            wp_send_json_error(array('message' => 'No popup ID provided'));
+        }
+        
+        $config_manager = new Amelia_CPT_Sync_Popup_Config_Manager();
+        $configurations = $config_manager->get_configurations();
+        
+        // Find matching config
+        $matched_config = null;
+        if (!empty($configurations['configs'])) {
+            foreach ($configurations['configs'] as $config_id => $config) {
+                if (isset($config['popup_slug']) && $config['popup_slug'] === $popup_id) {
+                    $matched_config = $config;
+                    break;
+                }
+                if (isset($config['popup_numeric_id']) && 
+                    ($config['popup_numeric_id'] == $popup_id || 
+                     ('jet-popup-' . $config['popup_numeric_id']) === $popup_id)) {
+                    $matched_config = $config;
+                    break;
+                }
+            }
+        }
+        
+        if ($matched_config) {
+            wp_send_json_success(array('config' => $matched_config));
+        } else {
+            wp_send_json_success(array('config' => null));
+        }
+    }
+    
     public function ajax_save_popup_configs() {
         amelia_cpt_sync_debug_log('========== SAVE POPUP CONFIGS REQUEST ==========');
         amelia_cpt_sync_debug_log('Raw $_POST: ' . print_r($_POST, true));

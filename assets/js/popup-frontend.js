@@ -293,8 +293,35 @@
             shortcode: shortcode
         });
 
-        // Get popup configuration for customizations
-        var config = getPopupConfig(popupId);
+        // Show loading state
+        setLoadingState($container);
+
+        // Fetch FRESH config from server to avoid cache issues
+        $.post(ameliaPopupConfig.ajax_url, {
+            action: 'amelia_get_popup_config',
+            nonce: ameliaPopupConfig.nonce,
+            popup_id: popupId
+        }).done(function(response) {
+            if (!response.success) {
+                reportDebug('Failed to fetch popup config', response);
+                // Fall back to cached config
+                var config = getPopupConfig(popupId);
+                buildAndLoadIframe(shortcode, popupId, config, $container);
+                return;
+            }
+
+            var freshConfig = response.data.config;
+            reportDebug('Fetched fresh config from server', freshConfig);
+            
+            buildAndLoadIframe(shortcode, popupId, freshConfig, $container);
+        }).fail(function() {
+            reportDebug('AJAX failed, using cached config');
+            var config = getPopupConfig(popupId);
+            buildAndLoadIframe(shortcode, popupId, config, $container);
+        });
+    }
+
+    function buildAndLoadIframe(shortcode, popupId, config, $container) {
         var customizationParams = buildCustomizationParams(config);
 
         reportDebug('Popup customizations', {
