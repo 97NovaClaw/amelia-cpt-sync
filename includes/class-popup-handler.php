@@ -34,11 +34,14 @@ class Amelia_CPT_Sync_Popup_Handler {
         $configurations = $config_manager->get_configurations();
         $tracked_popups = array_values($config_manager->get_tracked_popups());
 
+        // Add timestamp to version for aggressive cache busting
+        $version_with_time = AMELIA_CPT_SYNC_VERSION . '.' . time();
+
         wp_enqueue_script(
             'amelia-popup-frontend',
             AMELIA_CPT_SYNC_PLUGIN_URL . 'assets/js/popup-frontend.js',
             array('jquery'),
-            AMELIA_CPT_SYNC_VERSION,
+            $version_with_time,
             true
         );
         
@@ -46,7 +49,7 @@ class Amelia_CPT_Sync_Popup_Handler {
             'amelia-popup-styles',
             AMELIA_CPT_SYNC_PLUGIN_URL . 'assets/css/popup-styles.css',
             array(),
-            AMELIA_CPT_SYNC_VERSION
+            $version_with_time
         );
         
         wp_localize_script('amelia-popup-frontend', 'ameliaPopupConfig', array(
@@ -56,7 +59,8 @@ class Amelia_CPT_Sync_Popup_Handler {
             'debug_enabled' => !empty($configurations['global']['debug_enabled']),
             'log_nonce' => wp_create_nonce('amelia_cpt_sync_nonce'),
             'default_popup' => isset($configurations['global']['default_popup_id']) ? $configurations['global']['default_popup_id'] : '',
-            'configs' => isset($configurations['configs']) ? $configurations['configs'] : array()
+            'configs' => isset($configurations['configs']) ? $configurations['configs'] : array(),
+            '_cache_bust' => time() // Force config refresh
         ));
     }
     
