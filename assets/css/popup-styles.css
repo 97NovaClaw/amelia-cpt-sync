@@ -22,19 +22,36 @@
 /* Loading State */
 .amelia-loading {
     text-align: center;
-    padding: 60px 20px;
+    padding: 80px 20px;
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 .amelia-loading .spinner {
     float: none;
     margin: 0 auto 20px;
     display: block;
+    width: 50px;
+    height: 50px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #2271b1;
+    border-radius: 50%;
+    animation: ameliaSpinner 1s linear infinite;
+}
+
+.amelia-loading .spinner.is-active {
+    display: block;
+    visibility: visible;
 }
 
 .amelia-loading p {
     color: #666;
     font-size: 16px;
-    margin: 0;
+    margin: 20px 0 0;
+    font-weight: 500;
 }
 
 /* Error State */
@@ -66,8 +83,18 @@
 }
 
 /* Spinner animation */
-@keyframes spinner {
+@keyframes ameliaSpinner {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* Fade in animation for smooth loading */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.amelia-loading {
+    animation: fadeIn 0.3s ease-in;
 }
 

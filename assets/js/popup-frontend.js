@@ -204,7 +204,7 @@
     function setLoadingState($container) {
         $container.html(
             '<div class="amelia-loading">' +
-                '<span class="spinner is-active"></span>' +
+                '<div class="spinner is-active"></div>' +
                 '<p>Loading booking form...</p>' +
             '</div>'
         );
