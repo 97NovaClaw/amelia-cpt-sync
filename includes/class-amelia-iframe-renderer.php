@@ -112,7 +112,8 @@ class Amelia_CPT_Sync_Iframe_Renderer {
         .am-employee,
         .am-step-employee,
         [data-step="employee"],
-        .am-bringing-anyone-with-employee {
+        .am-bringing-anyone-with-employee,
+        .am-fs__congrats-info-app-employee {
             display: none !important;
         }
         <?php endif; ?>
@@ -131,7 +132,8 @@ class Amelia_CPT_Sync_Iframe_Renderer {
         .am-confirmation-booking-price,
         .am-price-per-person,
         .am-total-amount,
-        .am-payment-amount {
+        .am-payment-amount,
+        .am-fs__congrats-info-payment {
             display: none !important;
         }
         <?php endif; ?>
@@ -223,7 +225,8 @@ class Amelia_CPT_Sync_Iframe_Renderer {
                 '.am-step-employee',
                 '[data-step="employee"]',
                 '.am-employee',
-                '.am-bringing-anyone-employee'
+                '.am-bringing-anyone-employee',
+                '.am-fs__congrats-info-app-employee'
             ];
             employeeSelectors.forEach(function(selector) {
                 var elements = document.querySelectorAll(selector);
@@ -240,6 +243,7 @@ class Amelia_CPT_Sync_Iframe_Renderer {
                 '.am-service-price',
                 '.am-total-price',
                 '.am-payment-total',
+                '.am-fs__congrats-info-payment',
                 '[class*="price"]'
             ];
             priceSelectors.forEach(function(selector) {
@@ -247,6 +251,23 @@ class Amelia_CPT_Sync_Iframe_Renderer {
                 elements.forEach(function(el) {
                     el.style.display = 'none';
                 });
+            });
+            
+            // Remove price from duration dropdown text (e.g., "1h ($100.00)" -> "1h")
+            var durationElements = document.querySelectorAll('.am-advsc__duration .el-select__selected-item span, .am-advsc__duration .el-select__placeholder');
+            durationElements.forEach(function(el) {
+                if (el.textContent && el.textContent.indexOf('($') !== -1) {
+                    // Remove everything from "($" onwards
+                    el.textContent = el.textContent.replace(/\s*\(\$[^)]*\)/g, '').trim();
+                }
+            });
+            
+            // Also check dropdown options
+            var durationOptions = document.querySelectorAll('.am-advsc__duration .el-select-dropdown__item span');
+            durationOptions.forEach(function(el) {
+                if (el.textContent && el.textContent.indexOf('($') !== -1) {
+                    el.textContent = el.textContent.replace(/\s*\(\$[^)]*\)/g, '').trim();
+                }
             });
             <?php endif; ?>
             
