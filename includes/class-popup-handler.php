@@ -52,6 +52,8 @@ class Amelia_CPT_Sync_Popup_Handler {
             $version_with_time
         );
         
+        $global_config_loading = isset($configurations['global']['config_loading']) ? $configurations['global']['config_loading'] : 'fresh';
+        
         wp_localize_script('amelia-popup-frontend', 'ameliaPopupConfig', array(
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('amelia_popup_nonce'),
@@ -59,6 +61,7 @@ class Amelia_CPT_Sync_Popup_Handler {
             'debug_enabled' => !empty($configurations['global']['debug_enabled']),
             'log_nonce' => wp_create_nonce('amelia_cpt_sync_nonce'),
             'default_popup' => isset($configurations['global']['default_popup_id']) ? $configurations['global']['default_popup_id'] : '',
+            'config_loading' => $global_config_loading,
             'configs' => isset($configurations['configs']) ? $configurations['configs'] : array(),
             '_cache_bust' => time() // Force config refresh
         ));

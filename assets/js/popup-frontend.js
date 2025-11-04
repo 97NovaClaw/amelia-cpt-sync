@@ -14,6 +14,7 @@
     var debugEnabled = !!ameliaPopupConfig.debug_enabled;
     var logNonce = ameliaPopupConfig.log_nonce || '';
     var popupConfigs = ameliaPopupConfig.configs || {};
+    var globalConfigLoading = ameliaPopupConfig.config_loading || 'fresh';
     var lastTrigger = null;
 
     function reportDebug(message, context) {
@@ -114,6 +115,19 @@
         }
 
         return null;
+    }
+
+    function shouldUseFreshConfig(popupId) {
+        var config = getPopupConfig(popupId);
+        
+        // If popup has override enabled (use_global_caching unchecked)
+        if (config && config.use_global_caching === false) {
+            // Use the popup's specific caching method
+            return config.caching_method === 'fresh';
+        }
+        
+        // Otherwise use global setting
+        return globalConfigLoading === 'fresh';
     }
 
     function buildCustomizationParams(config) {
@@ -296,29 +310,45 @@
         // Show loading state
         setLoadingState($container);
 
-        // Fetch FRESH config from server to avoid cache issues
-        $.post(ameliaPopupConfig.ajax_url, {
-            action: 'amelia_get_popup_config',
-            nonce: ameliaPopupConfig.nonce,
-            popup_id: popupId
-        }).done(function(response) {
-            if (!response.success) {
-                reportDebug('Failed to fetch popup config', response);
-                // Fall back to cached config
+        // Check if we should use fresh config or cached
+        var useFresh = shouldUseFreshConfig(popupId);
+        
+        reportDebug('Config loading method', {
+            popupId: popupId,
+            method: useFresh ? 'fresh (AJAX)' : 'cached (fast)',
+            globalSetting: globalConfigLoading
+        });
+
+        if (useFresh) {
+            // Fetch FRESH config from server via AJAX
+            $.post(ameliaPopupConfig.ajax_url, {
+                action: 'amelia_get_popup_config',
+                nonce: ameliaPopupConfig.nonce,
+                popup_id: popupId
+            }).done(function(response) {
+                if (!response.success) {
+                    reportDebug('Failed to fetch popup config', response);
+                    // Fall back to cached config
+                    var config = getPopupConfig(popupId);
+                    buildAndLoadIframe(shortcode, popupId, config, $container);
+                    return;
+                }
+
+                var freshConfig = response.data.config;
+                reportDebug('Fetched fresh config from server', freshConfig);
+                
+                buildAndLoadIframe(shortcode, popupId, freshConfig, $container);
+            }).fail(function() {
+                reportDebug('AJAX failed, using cached config');
                 var config = getPopupConfig(popupId);
                 buildAndLoadIframe(shortcode, popupId, config, $container);
-                return;
-            }
-
-            var freshConfig = response.data.config;
-            reportDebug('Fetched fresh config from server', freshConfig);
-            
-            buildAndLoadIframe(shortcode, popupId, freshConfig, $container);
-        }).fail(function() {
-            reportDebug('AJAX failed, using cached config');
+            });
+        } else {
+            // Use cached config from page load (faster)
+            reportDebug('Using cached config (production mode)');
             var config = getPopupConfig(popupId);
             buildAndLoadIframe(shortcode, popupId, config, $container);
-        });
+        }
     }
 
     function buildAndLoadIframe(shortcode, popupId, config, $container) {
@@ -466,10 +496,12 @@
     $(function() {
         reportDebug('Frontend script initialized', {
             tracked: trackedPopups,
-            configs: popupConfigs
+            configs: popupConfigs,
+            globalConfigLoading: globalConfigLoading
         });
         
         console.log('[Amelia Popup] Full config object:', popupConfigs);
+        console.log('[Amelia Popup] Global config loading mode:', globalConfigLoading);
 
         // ========== COMPREHENSIVE EVENT LOGGING ==========
         console.log('[Amelia Popup] ========== INSTALLING COMPREHENSIVE EVENT MONITORS ==========');

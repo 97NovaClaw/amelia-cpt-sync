@@ -53,6 +53,29 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                         </label>
                     </td>
                 </tr>
+                <tr>
+                    <th scope="row">
+                        <label><?php _e('Config Loading Method', 'amelia-cpt-sync'); ?></label>
+                    </th>
+                    <td>
+                        <?php
+                        $config_loading = isset($configurations['global']['config_loading']) ? $configurations['global']['config_loading'] : 'fresh';
+                        ?>
+                        <fieldset>
+                            <label style="display: block; margin-bottom: 8px;">
+                                <input type="radio" name="global[config_loading]" value="fresh" <?php checked($config_loading, 'fresh'); ?>>
+                                <strong><?php _e('Fresh (Development)', 'amelia-cpt-sync'); ?></strong> - <?php _e('Slower, fetches latest config from database on each popup open', 'amelia-cpt-sync'); ?>
+                            </label>
+                            <label style="display: block;">
+                                <input type="radio" name="global[config_loading]" value="cached" <?php checked($config_loading, 'cached'); ?>>
+                                <strong><?php _e('Cached (Production)', 'amelia-cpt-sync'); ?></strong> - <?php _e('Faster, uses config loaded with page (requires page refresh after changes)', 'amelia-cpt-sync'); ?>
+                            </label>
+                        </fieldset>
+                        <p class="description">
+                            <?php _e('Choose how popups load their configuration. Individual popups can override this below.', 'amelia-cpt-sync'); ?>
+                        </p>
+                    </td>
+                </tr>
             </table>
         </div>
 
@@ -222,6 +245,45 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                                                 </label>
                                             </fieldset>
                                             <p class="description"><?php _e('These options will dynamically hide elements in the booking form when the popup opens.', 'amelia-cpt-sync'); ?></p>
+                                        </td>
+                                    </tr>
+                                    
+                                    <tr>
+                                        <th><label><?php _e('Caching', 'amelia-cpt-sync'); ?></label></th>
+                                        <td>
+                                            <?php
+                                            $use_global_caching = !isset($config['override_caching']) || !$config['override_caching'];
+                                            $popup_caching = isset($config['caching_method']) ? $config['caching_method'] : 'fresh';
+                                            ?>
+                                            <label style="display: block; margin-bottom: 12px;">
+                                                <input type="checkbox" 
+                                                       name="configs[<?php echo esc_attr($config_id); ?>][use_global_caching]" 
+                                                       class="use-global-caching-checkbox"
+                                                       value="1" 
+                                                       <?php checked($use_global_caching); ?>>
+                                                <?php _e('Use Global Settings', 'amelia-cpt-sync'); ?>
+                                            </label>
+                                            
+                                            <div class="popup-caching-override" style="<?php echo $use_global_caching ? 'display: none;' : ''; ?> margin-left: 20px;">
+                                                <fieldset>
+                                                    <label style="display: block; margin-bottom: 8px;">
+                                                        <input type="radio" 
+                                                               name="configs[<?php echo esc_attr($config_id); ?>][caching_method]" 
+                                                               value="fresh" 
+                                                               <?php checked($popup_caching, 'fresh'); ?>>
+                                                        <strong><?php _e('Fresh (Development)', 'amelia-cpt-sync'); ?></strong> - <?php _e('Slower, fetches latest config', 'amelia-cpt-sync'); ?>
+                                                    </label>
+                                                    <label style="display: block;">
+                                                        <input type="radio" 
+                                                               name="configs[<?php echo esc_attr($config_id); ?>][caching_method]" 
+                                                               value="cached" 
+                                                               <?php checked($popup_caching, 'cached'); ?>>
+                                                        <strong><?php _e('Cached (Production)', 'amelia-cpt-sync'); ?></strong> - <?php _e('Faster, uses page-loaded config', 'amelia-cpt-sync'); ?>
+                                                    </label>
+                                                </fieldset>
+                                            </div>
+                                            
+                                            <p class="description"><?php _e('Override the global caching setting for this specific popup.', 'amelia-cpt-sync'); ?></p>
                                         </td>
                                     </tr>
                                 </table>
@@ -842,6 +904,40 @@ jQuery(function($) {
                                 </fieldset>
                             </td>
                         </tr>
+                        
+                        <tr>
+                            <th><label><?php echo esc_js(__('Caching', 'amelia-cpt-sync')); ?></label></th>
+                            <td>
+                                <label style="display: block; margin-bottom: 12px;">
+                                    <input type="checkbox" 
+                                           name="configs[${configId}][use_global_caching]" 
+                                           class="use-global-caching-checkbox"
+                                           value="1" 
+                                           checked>
+                                    <?php echo esc_js(__('Use Global Settings', 'amelia-cpt-sync')); ?>
+                                </label>
+                                
+                                <div class="popup-caching-override" style="display: none; margin-left: 20px;">
+                                    <fieldset>
+                                        <label style="display: block; margin-bottom: 8px;">
+                                            <input type="radio" 
+                                                   name="configs[${configId}][caching_method]" 
+                                                   value="fresh" 
+                                                   checked>
+                                            <strong><?php echo esc_js(__('Fresh (Development)', 'amelia-cpt-sync')); ?></strong> - <?php echo esc_js(__('Slower, fetches latest config', 'amelia-cpt-sync')); ?>
+                                        </label>
+                                        <label style="display: block;">
+                                            <input type="radio" 
+                                                   name="configs[${configId}][caching_method]" 
+                                                   value="cached">
+                                            <strong><?php echo esc_js(__('Cached (Production)', 'amelia-cpt-sync')); ?></strong> - <?php echo esc_js(__('Faster, uses page-loaded config', 'amelia-cpt-sync')); ?>
+                                        </label>
+                                    </fieldset>
+                                </div>
+                                
+                                <p class="description"><?php echo esc_js(__('Override the global caching setting for this specific popup.', 'amelia-cpt-sync')); ?></p>
+                            </td>
+                        </tr>
                     </table>
                 </div>
                 <div class="elementor-instructions-box">
@@ -859,6 +955,18 @@ jQuery(function($) {
         const $config = $(template);
         $('#configurations-container').append($config);
         bindNewConfig($config);
+    });
+
+    // Toggle caching override visibility
+    $(document).on('change', '.use-global-caching-checkbox', function() {
+        var $checkbox = $(this);
+        var $override = $checkbox.closest('td').find('.popup-caching-override');
+        
+        if ($checkbox.is(':checked')) {
+            $override.slideUp(200);
+        } else {
+            $override.slideDown(200);
+        }
     });
 
     $(document).on('click', '.delete-config', function() {

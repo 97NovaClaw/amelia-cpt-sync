@@ -1023,10 +1023,16 @@ class Amelia_CPT_Sync_Admin_Settings {
         amelia_cpt_sync_debug_log('Parsed global: ' . print_r($global, true));
         amelia_cpt_sync_debug_log('Parsed configs: ' . print_r($configs, true));
         
+        $global_config_loading = isset($global['config_loading']) ? sanitize_text_field($global['config_loading']) : 'fresh';
+        if (!in_array($global_config_loading, array('fresh', 'cached'))) {
+            $global_config_loading = 'fresh';
+        }
+        
         $data = array(
             'global' => array(
                 'default_popup_id' => isset($global['default_popup_id']) ? sanitize_title($global['default_popup_id']) : '',
-                'debug_enabled' => !empty($global['debug_enabled'])
+                'debug_enabled' => !empty($global['debug_enabled']),
+                'config_loading' => $global_config_loading
             ),
             'configs' => array()
         );
@@ -1045,6 +1051,16 @@ class Amelia_CPT_Sync_Admin_Settings {
             $hide_employees = isset($config['hide_employees']) && $config['hide_employees'] == '1';
             $hide_pricing = isset($config['hide_pricing']) && $config['hide_pricing'] == '1';
             $hide_extras = isset($config['hide_extras']) && $config['hide_extras'] == '1';
+            
+            // Caching settings
+            $use_global_caching = isset($config['use_global_caching']) && $config['use_global_caching'] == '1';
+            $caching_method = 'fresh'; // Default
+            if (!$use_global_caching && isset($config['caching_method'])) {
+                $caching_method = sanitize_text_field($config['caching_method']);
+                if (!in_array($caching_method, array('fresh', 'cached'))) {
+                    $caching_method = 'fresh';
+                }
+            }
 
             if (!$label && !$popup_slug && !$popup_numeric_id) {
                 continue;
@@ -1066,9 +1082,11 @@ class Amelia_CPT_Sync_Admin_Settings {
                 'hide_employees' => $hide_employees,
                 'hide_pricing' => $hide_pricing,
                 'hide_extras' => $hide_extras,
+                'use_global_caching' => $use_global_caching,
+                'caching_method' => $caching_method,
             );
             
-            amelia_cpt_sync_debug_log("Config {$key} customizations: employees=" . ($hide_employees ? 'true' : 'false') . ", pricing=" . ($hide_pricing ? 'true' : 'false') . ", extras=" . ($hide_extras ? 'true' : 'false'));
+            amelia_cpt_sync_debug_log("Config {$key} customizations: employees=" . ($hide_employees ? 'true' : 'false') . ", pricing=" . ($hide_pricing ? 'true' : 'false') . ", extras=" . ($hide_extras ? 'true' : 'false') . ", caching=" . ($use_global_caching ? 'global' : $caching_method));
 
             if ($shortcode_template) {
                 $data['configs'][$key]['shortcode_template'] = $shortcode_template;
