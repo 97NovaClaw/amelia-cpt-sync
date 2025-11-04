@@ -306,8 +306,9 @@
             params: customizationParams
         });
 
-        // Build iframe URL with customization parameters
-        var iframeUrl = window.location.origin + '/amelia-render/?sc=' + encodeURIComponent(shortcode) + '&iframe_id=amelia-form-container' + customizationParams;
+        // Build iframe URL with customization parameters + cache buster
+        var cacheBuster = '&v=' + new Date().getTime();
+        var iframeUrl = window.location.origin + '/amelia-render/?sc=' + encodeURIComponent(shortcode) + '&iframe_id=amelia-form-container' + customizationParams + cacheBuster;
 
         // Create iframe
         var $iframe = $('<iframe>')
