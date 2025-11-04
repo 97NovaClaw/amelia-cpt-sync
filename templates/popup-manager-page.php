@@ -228,23 +228,45 @@ $detector = new Amelia_CPT_Sync_Field_Detector();
                             </div>
 
                             <div class="elementor-instructions-box">
-                                <h4><?php _e('Elementor Setup Checklist', 'amelia-cpt-sync'); ?></h4>
+                                <h4><?php _e('Elementor Setup Guide', 'amelia-cpt-sync'); ?></h4>
+                                <p class="description" style="margin-bottom: 15px;">
+                                    <?php _e('Follow these steps to set up your dynamic booking button in JetEngine listings:', 'amelia-cpt-sync'); ?>
+                                </p>
+                                
                                 <ol>
-                                    <li><?php _e('Edit the JetEngine listing item that contains your trigger button.', 'amelia-cpt-sync'); ?></li>
-                                    <li><?php _e('Under Advanced → JetPopup, choose this popup ID so JetPopup handles the opening.', 'amelia-cpt-sync'); ?></li>
-                                    <li><?php _e('Add CSS class', 'amelia-cpt-sync'); ?> <code>amelia-booking-trigger</code>.</li>
-                                    <li><?php _e('Add a Custom Attribute with key', 'amelia-cpt-sync'); ?> <code>data-amelia-shortcode</code> <?php _e('and set the value to your fully built Amelia shortcode (JetEngine dynamic tags welcome).', 'amelia-cpt-sync'); ?></li>
+                                    <li>
+                                        <strong><?php _e('Edit Your Listing Button', 'amelia-cpt-sync'); ?></strong><br>
+                                        <?php _e('In Elementor, edit the JetEngine listing item that contains your trigger button.', 'amelia-cpt-sync'); ?>
+                                    </li>
+                                    
+                                    <li>
+                                        <strong><?php _e('Set JetPopup Trigger', 'amelia-cpt-sync'); ?></strong><br>
+                                        <?php _e('Under Advanced → JetPopup, choose this popup ID so JetPopup handles the opening.', 'amelia-cpt-sync'); ?>
+                                    </li>
+                                    
+                                    <li>
+                                        <strong><?php _e('Add Required CSS Class', 'amelia-cpt-sync'); ?></strong><br>
+                                        <?php _e('In Advanced → CSS Classes, add:', 'amelia-cpt-sync'); ?> <code>amelia-booking-trigger</code>
+                                    </li>
+                                    
+                                    <li>
+                                        <strong><?php _e('Add Custom Attribute (3 Parts)', 'amelia-cpt-sync'); ?></strong><br>
+                                        <?php _e('In Advanced → Custom Attributes, create ONE attribute with these 3 fields:', 'amelia-cpt-sync'); ?>
+                                        <ul style="margin: 10px 0 10px 20px; list-style: disc;">
+                                            <li><strong>Key:</strong> <code>data-amelia-shortcode</code></li>
+                                            <li><strong>Before:</strong> <?php _e('Copy from the "Before" field above', 'amelia-cpt-sync'); ?> ⬆️</li>
+                                            <li><strong>Dynamic Tag:</strong> <?php _e('Click the dynamic icon → JetEngine → Meta field for your service/vehicle ID', 'amelia-cpt-sync'); ?></li>
+                                            <li><strong>After:</strong> <?php _e('Copy from the "After" field above', 'amelia-cpt-sync'); ?> ⬆️</li>
+                                        </ul>
+                                        <p class="description" style="margin-left: 20px;">
+                                            💡 <?php _e('The double brackets [[...]] prevent Elementor from executing the shortcode—our loader will clean them and send to the backend.', 'amelia-cpt-sync'); ?>
+                                        </p>
+                                    </li>
                                 </ol>
 
-                                <div class="attribute-template">
-                                    <label><?php _e('Copy-ready Attribute Template', 'amelia-cpt-sync'); ?></label>
-                                    <div class="attribute-template__field">
-                                        <input type="text" class="regular-text code attribute-template-input" value="data-amelia-shortcode|[paste your Amelia shortcode here]" readonly>
-                                        <button type="button" class="button button-secondary copy-attribute-template">
-                                            <span class="dashicons dashicons-clipboard"></span> <?php _e('Copy', 'amelia-cpt-sync'); ?>
-                                        </button>
-                                    </div>
-                                    <p class="description"><?php _e('Replace the placeholder with the exact Amelia shortcode from your listing. JetEngine can output the dynamic ID inside this value.', 'amelia-cpt-sync'); ?></p>
+                                <div style="background: #fff9e6; border: 1px solid #f0ad4e; border-left: 4px solid #f0ad4e; padding: 15px; margin-top: 20px;">
+                                    <strong>⚠️ <?php _e('Important:', 'amelia-cpt-sync'); ?></strong>
+                                    <?php _e('Use the "Before" and "After" fields shown above in the Shortcode Template section—they are automatically generated from your template!', 'amelia-cpt-sync'); ?>
                                 </div>
                             </div>
 
