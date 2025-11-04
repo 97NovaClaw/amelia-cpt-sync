@@ -200,19 +200,6 @@ class Amelia_CPT_Sync_Iframe_Renderer {
             });
         }
 
-        // Just log Amelia's hooks for debugging, don't auto-close
-        window.ameliaActions = window.ameliaActions || {};
-        
-        window.ameliaActions.Schedule = function(success, error, data) {
-            console.log('[Amelia Iframe] Schedule hook fired', data);
-            if (success) success();
-        };
-        
-        window.ameliaActions.Purchased = function(success, error, data) {
-            console.log('[Amelia Iframe] Purchased hook fired', data);
-            if (success) success();
-        };
-        
         <?php if ($hide_employees || $hide_pricing || $hide_extras): ?>
         // Apply customizations to dynamically loaded elements
         function applyCustomizations() {
@@ -315,43 +302,129 @@ class Amelia_CPT_Sync_Iframe_Renderer {
         }
         <?php endif; ?>
         
-        // Intercept Finish button click to close popup
-        document.addEventListener('DOMContentLoaded', function() {
-            var finishHandled = false;
+        // Intercept Finish button click to close popup - Enhanced for reliability
+        var finishHandled = false;
+        var finishButtonSelectors = [
+            '.am-button',
+            'button',
+            '[class*="finish"]',
+            '[class*="complete"]',
+            '.el-button',
+            'button[type="button"]'
+        ];
+        
+        function closePopup() {
+            if (finishHandled) return;
+            finishHandled = true;
             
-            var checkInterval = setInterval(function() {
-                if (finishHandled) return;
+            console.log('[Amelia Iframe] Closing popup via postMessage');
+            
+            if (window.parent && window.parent !== window) {
+                // Send multiple times to ensure delivery
+                for (var i = 0; i < 3; i++) {
+                    setTimeout(function() {
+                        window.parent.postMessage({
+                            ameliaBookingComplete: true,
+                            timestamp: Date.now()
+                        }, '*');
+                    }, i * 100);
+                }
+            }
+        }
+        
+        function interceptFinishButton() {
+            finishButtonSelectors.forEach(function(selector) {
+                var buttons = document.querySelectorAll(selector);
                 
-                // Look for Finish button
-                var finishButtons = document.querySelectorAll('.am-button');
-                
-                finishButtons.forEach(function(button) {
+                buttons.forEach(function(button) {
+                    if (button.dataset.ameliaIntercepted) return;
+                    
                     var text = button.textContent || button.innerText || '';
-                    if (text.toLowerCase().indexOf('finish') !== -1 && !button.dataset.ameliaIntercepted) {
+                    var lowerText = text.toLowerCase().trim();
+                    
+                    // Check for finish, complete, done, etc.
+                    if (lowerText.indexOf('finish') !== -1 || 
+                        lowerText.indexOf('complete') !== -1 ||
+                        lowerText.indexOf('done') !== -1 ||
+                        lowerText === 'ok') {
+                        
                         button.dataset.ameliaIntercepted = 'true';
                         
+                        // Add multiple event listeners for reliability
                         button.addEventListener('click', function(e) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            
-                            console.log('[Amelia Iframe] Finish clicked, closing popup');
-                            finishHandled = true;
-                            
-                            if (window.parent && window.parent !== window) {
-                                window.parent.postMessage({
-                                    ameliaBookingComplete: true
-                                }, '*');
-                            }
-                        }, true); // Capture phase
+                            console.log('[Amelia Iframe] Finish button clicked (capture)');
+                            closePopup();
+                        }, true);
                         
-                        console.log('[Amelia Iframe] Finish button intercepted');
+                        button.addEventListener('click', function(e) {
+                            console.log('[Amelia Iframe] Finish button clicked (bubble)');
+                            closePopup();
+                        }, false);
+                        
+                        // Also intercept mousedown as backup
+                        button.addEventListener('mousedown', function(e) {
+                            console.log('[Amelia Iframe] Finish button mousedown');
+                            setTimeout(closePopup, 100);
+                        }, true);
+                        
+                        console.log('[Amelia Iframe] Finish button intercepted:', text.trim());
                     }
                 });
-            }, 500);
-            
-            // Stop checking after 60 seconds
-            setTimeout(function() { clearInterval(checkInterval); }, 60000);
+            });
+        }
+        
+        // Check immediately and repeatedly
+        interceptFinishButton();
+        
+        // Check periodically with increasing intervals
+        var checkTimes = [100, 300, 500, 1000, 1500, 2000, 3000, 5000, 7000, 10000];
+        checkTimes.forEach(function(delay) {
+            setTimeout(interceptFinishButton, delay);
         });
+        
+        // Use MutationObserver to detect when buttons are added
+        if (window.MutationObserver) {
+            var finishObserver = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.addedNodes.length > 0) {
+                        interceptFinishButton();
+                    }
+                });
+            });
+            
+            if (document.body) {
+                finishObserver.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+            } else {
+                document.addEventListener('DOMContentLoaded', function() {
+                    finishObserver.observe(document.body, {
+                        childList: true,
+                        subtree: true
+                    });
+                });
+            }
+        }
+        
+        // Also listen for Amelia's completion hooks
+        window.ameliaActions = window.ameliaActions || {};
+        var originalSchedule = window.ameliaActions.Schedule;
+        var originalPurchased = window.ameliaActions.Purchased;
+        
+        window.ameliaActions.Schedule = function(success, error, data) {
+            console.log('[Amelia Iframe] Schedule action triggered');
+            setTimeout(closePopup, 500);
+            if (originalSchedule) originalSchedule(success, error, data);
+            else if (success) success();
+        };
+        
+        window.ameliaActions.Purchased = function(success, error, data) {
+            console.log('[Amelia Iframe] Purchased action triggered');
+            setTimeout(closePopup, 500);
+            if (originalPurchased) originalPurchased(success, error, data);
+            else if (success) success();
+        };
     </script>
 </head>
 <body class="amelia-iframe-body">

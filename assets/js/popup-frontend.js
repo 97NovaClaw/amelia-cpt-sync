@@ -612,7 +612,9 @@
 
         bindJetPopupEvents();
         
-        // Listen for iframe messages
+        // Listen for iframe messages - Enhanced for reliability
+        var bookingCompleteHandled = false;
+        
         window.addEventListener('message', function(event) {
             // Height updates
             if (event.data && event.data.ameliaIframeHeight) {
@@ -626,23 +628,57 @@
                 }
             }
             
-            // Booking completion - close popup
-            if (event.data && event.data.ameliaBookingComplete) {
-                reportDebug('Finish button clicked, closing popup');
+            // Booking completion - close popup with multiple fallback methods
+            if (event.data && event.data.ameliaBookingComplete && !bookingCompleteHandled) {
+                bookingCompleteHandled = true;
                 
-                // Find the currently open JetPopup
-                var $popup = $('.jet-popup.jet-popup--show-state');
+                reportDebug('Booking complete message received, closing popup');
+                
+                // Method 1: Find and click close button
+                var $popup = $('.jet-popup.jet-popup--show-state, .jet-popup--is-open, [class*="jet-popup"][class*="open"]');
                 
                 if ($popup.length) {
-                    // Trigger JetPopup close
-                    $popup.find('.jet-popup__close-button').trigger('click');
+                    reportDebug('Found open popup', { id: $popup.attr('id'), classes: $popup.attr('class') });
                     
-                    // Fallback: use JetPopup API if available
-                    if (window.jetPopup && typeof window.jetPopup.hidePopup === 'function') {
-                        var popupId = $popup.attr('id');
-                        window.jetPopup.hidePopup({ popupId: popupId });
+                    // Try clicking close button
+                    var $closeBtn = $popup.find('.jet-popup__close-button, .jet-popup-close, [class*="close"]');
+                    if ($closeBtn.length) {
+                        reportDebug('Clicking close button');
+                        $closeBtn.trigger('click');
+                        $closeBtn.click();
                     }
+                    
+                    // Method 2: Use JetPopup API
+                    setTimeout(function() {
+                        if (window.jetPopup && typeof window.jetPopup.hidePopup === 'function') {
+                            var popupId = $popup.attr('id') || $popup.data('popup-id');
+                            reportDebug('Using JetPopup API to close', { popupId: popupId });
+                            window.jetPopup.hidePopup({ popupId: popupId });
+                        }
+                    }, 100);
+                    
+                    // Method 3: Dispatch custom event
+                    setTimeout(function() {
+                        reportDebug('Dispatching jet-popup/close event');
+                        $(document).trigger('jet-popup/close', { popupId: $popup.attr('id') });
+                        $popup.trigger('jet-popup-close');
+                    }, 200);
+                    
+                    // Method 4: Remove popup visibility classes as last resort
+                    setTimeout(function() {
+                        reportDebug('Forcing popup classes removal');
+                        $popup.removeClass('jet-popup--show-state jet-popup--is-open');
+                        $popup.css('display', 'none');
+                        $('.jet-popup-overlay, .jet-popup__overlay').fadeOut();
+                    }, 300);
+                } else {
+                    reportDebug('ERROR: No open popup found to close');
                 }
+                
+                // Reset handler after 2 seconds
+                setTimeout(function() {
+                    bookingCompleteHandled = false;
+                }, 2000);
             }
         });
     });
