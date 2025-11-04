@@ -123,15 +123,16 @@
 
         var params = [];
         
-        if (config.hide_employees) {
+        // Explicitly check for truthy values (handles 1, "1", true, etc.)
+        if (config.hide_employees === true || config.hide_employees === 1 || config.hide_employees === '1') {
             params.push('hide_employees=1');
         }
         
-        if (config.hide_pricing) {
+        if (config.hide_pricing === true || config.hide_pricing === 1 || config.hide_pricing === '1') {
             params.push('hide_pricing=1');
         }
         
-        if (config.hide_extras) {
+        if (config.hide_extras === true || config.hide_extras === 1 || config.hide_extras === '1') {
             params.push('hide_extras=1');
         }
 
@@ -297,7 +298,11 @@
         var customizationParams = buildCustomizationParams(config);
 
         reportDebug('Popup customizations', {
+            popupId: popupId,
             config: config,
+            hide_employees: config ? config.hide_employees : 'no config',
+            hide_pricing: config ? config.hide_pricing : 'no config',
+            hide_extras: config ? config.hide_extras : 'no config',
             params: customizationParams
         });
 
@@ -432,8 +437,11 @@
 
     $(function() {
         reportDebug('Frontend script initialized', {
-            tracked: trackedPopups
+            tracked: trackedPopups,
+            configs: popupConfigs
         });
+        
+        console.log('[Amelia Popup] Full config object:', popupConfigs);
 
         // ========== COMPREHENSIVE EVENT LOGGING ==========
         console.log('[Amelia Popup] ========== INSTALLING COMPREHENSIVE EVENT MONITORS ==========');

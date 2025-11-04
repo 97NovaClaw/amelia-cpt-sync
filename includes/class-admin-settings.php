@@ -1000,10 +1000,10 @@ class Amelia_CPT_Sync_Admin_Settings {
             $shortcode_template = isset($config['shortcode_template']) ? sanitize_text_field($config['shortcode_template']) : '';
             $notes = isset($config['notes']) ? sanitize_textarea_field($config['notes']) : '';
             
-            // Form customization checkboxes
-            $hide_employees = !empty($config['hide_employees']);
-            $hide_pricing = !empty($config['hide_pricing']);
-            $hide_extras = !empty($config['hide_extras']);
+            // Form customization checkboxes - explicitly cast to boolean
+            $hide_employees = isset($config['hide_employees']) && $config['hide_employees'] == '1';
+            $hide_pricing = isset($config['hide_pricing']) && $config['hide_pricing'] == '1';
+            $hide_extras = isset($config['hide_extras']) && $config['hide_extras'] == '1';
 
             if (!$label && !$popup_slug && !$popup_numeric_id) {
                 continue;
@@ -1026,6 +1026,8 @@ class Amelia_CPT_Sync_Admin_Settings {
                 'hide_pricing' => $hide_pricing,
                 'hide_extras' => $hide_extras,
             );
+            
+            amelia_cpt_sync_debug_log("Config {$key} customizations: employees=" . ($hide_employees ? 'true' : 'false') . ", pricing=" . ($hide_pricing ? 'true' : 'false') . ", extras=" . ($hide_extras ? 'true' : 'false'));
 
             if ($shortcode_template) {
                 $data['configs'][$key]['shortcode_template'] = $shortcode_template;
