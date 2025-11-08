@@ -136,6 +136,10 @@ require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-sync-handler.php';
 // Load ART module classes
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-database-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-admin-settings.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-form-config-manager.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-form-parser.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-jetformbuilder-parser.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-hook-handler.php';
 
 /**
  * Initialize the plugin
@@ -150,6 +154,10 @@ function run_amelia_cpt_sync() {
         $art_admin_settings = new Amelia_CPT_Sync_ART_Admin_Settings();
         $art_admin_settings->init();
     }
+    
+    // Initialize ART hook handler (runs on both frontend and backend)
+    $art_hook_handler = new Amelia_CPT_Sync_ART_Hook_Handler();
+    $art_hook_handler->init();
     
     // Initialize sync handler (runs on both frontend and backend)
     $sync_handler = new Amelia_CPT_Sync_Handler();

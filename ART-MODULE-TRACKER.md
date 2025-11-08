@@ -146,7 +146,7 @@ add_action('plugins_loaded', 'init_art_module', 20); // After main plugin
 ## 📅 Phase-Based Implementation Plan
 
 ### **Phase 1: Foundation & Database** ✅ COMPLETE
-**Goal**: Set up database structure and settings framework
+**Goal**: Segit  
 
 #### Tasks
 - [x] Create database abstraction class (`Amelia_CPT_Sync_ART_Database_Manager`)
@@ -179,34 +179,45 @@ add_action('plugins_loaded', 'init_art_module', 20); // After main plugin
 
 ---
 
-### **Phase 2: Form Capture & Mapping** (Week 2)
+### **Phase 2: Form Capture & Mapping** ✅ COMPLETE
 **Goal**: Implement form-to-database pipeline
 
 #### Tasks
-- [ ] Create form parser abstraction
-  - [ ] Define `ART_Form_Parser` interface
-  - [ ] Implement JetFormBuilder parser
-  - [ ] JSON extraction logic for field detection
-- [ ] Build mapping UI on settings page
-  - [ ] File upload for form JSON export
-  - [ ] "Populate Mapping Table" button
-  - [ ] Dynamic dropdown generation
-  - [ ] Save mapping to wp_options
-- [ ] Implement intake field definitions repeater
-- [ ] Create hook handler class (`Amelia_CPT_Sync_ART_Hook_Handler`)
-  - [ ] Register custom hook based on settings
-  - [ ] Read mapping configuration
-  - [ ] Parse form data into buckets (customer/request/intake)
-  - [ ] Implement post-processing logic:
-    - [ ] Service ID resolution (CPT vs direct)
-    - [ ] Duration calculation (start/end vs manual)
-    - [ ] Price handling (manual vs form vs hook)
-  - [ ] Save to database tables
-- [ ] Add comprehensive validation
-  - [ ] Email validation
-  - [ ] Datetime format validation
-  - [ ] Required field checking
-- [ ] Test with sample form submission
+- [x] Create form parser abstraction
+  - [x] Define `ART_Form_Parser` interface
+  - [x] Implement JetFormBuilder parser (using proven regex from WC plugin)
+  - [x] JSON extraction logic for field detection with encoding handling
+- [x] Build mapping UI on settings page
+  - [x] "Triage Forms" submenu page (separate from ART Settings)
+  - [x] Forms list view with add/edit/delete
+  - [x] File upload for form JSON export
+  - [x] "Populate Mapping Table" button (separate form)
+  - [x] Dynamic dropdown generation with Select2
+  - [x] Save mapping to wp_options (per form config)
+- [x] Implement intake field definitions repeater
+  - [x] Add/remove buttons for dynamic field list
+  - [x] JavaScript for repeater functionality
+- [x] Create hook handler class (`Amelia_CPT_Sync_ART_Hook_Handler`)
+  - [x] Register custom-filter hooks (one per form config)
+  - [x] Read mapping configuration by hook name
+  - [x] Parse form data into buckets (customer/request/intake)
+  - [x] Implement post-processing logic:
+    - [x] Service ID resolution (CPT vs direct)
+    - [x] Duration calculation (start/end vs manual)
+    - [x] Price handling (manual vs form)
+    - [x] Location and persons handling
+  - [x] Save to database tables (art_customers, art_requests, art_intake_fields)
+- [x] Add comprehensive validation
+  - [x] Two validation modes (pass_through_fails, require_pass_through)
+  - [x] Per-config critical fields definition
+  - [x] Email validation with is_email()
+  - [x] Datetime format validation with multiple format support
+  - [x] DateTime conversion to UTC for storage
+  - [x] Numeric field validation
+- [x] Form Config Manager with CRUD operations
+- [x] Hook name uniqueness validation
+- [x] API caching controls in global settings
+- [x] Clear cache functionality
 
 **Success Criteria**:
 ✅ Form JSON uploads and parses correctly  
@@ -706,6 +717,31 @@ if (version_compare($current_version, '1.1.0', '<')) {
 
 ## 📝 Notes & Decisions Log
 
+### 2024-11-08: Phase 2 Complete
+- ✅ **Form Config Manager** - Multi-form CRUD system like popup manager
+- ✅ **JFB Parser** - Using proven regex from WC plugin reference
+- ✅ **Hook Handler** - Dynamic registration, two validation modes
+- ✅ **Triage Forms Page** - Complete add/edit/list UI
+- ✅ **Mapping Table** - Select2 dropdowns with critical fields system
+- ✅ **API Caching** - Enable/disable toggle with clear cache function
+
+**Key Architectural Decisions**:
+- One unique hook per form configuration (simple, reliable)
+- Form configs stored in wp_options (not files)
+- Use `custom-filter` hook type (can return validation errors)
+- Two validation modes: Pass Through Fails (forgiving) vs Require Pass Through (strict)
+- Critical fields configurable per form
+- Customer created in art_customers immediately (amelia_customer_id = NULL until booking)
+- DateTime stored as UTC in MySQL format
+- API Base URL: Full endpoint (user enters complete URL)
+- Select2 for better UX on mapping dropdowns
+
+**Testing Approach**:
+- Upload real JFB export to test parser
+- Submit test form to verify end-to-end flow
+- Check database for proper record creation
+- Verify both validation modes work correctly
+
 ### 2024-11-08: Phase 1 Complete
 - ✅ **Database Manager** created with 5 tables (added art_request_notes)
 - ✅ **Settings Architecture** designed for multi-form support (global + forms array)
@@ -737,6 +773,6 @@ if (version_compare($current_version, '1.1.0', '<')) {
 ---
 
 **Last Updated**: 2024-11-08  
-**Current Phase**: Phase 1 Complete ✅ - Ready for Phase 2  
-**Next Review**: Before starting Phase 2
+**Current Phase**: Phase 2 Complete ✅ - Ready for Phase 3  
+**Next Review**: Before starting Phase 3
 

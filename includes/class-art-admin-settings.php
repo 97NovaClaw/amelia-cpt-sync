@@ -28,13 +28,14 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         add_action('admin_menu', array($this, 'add_admin_menu'), 20);
         add_action('admin_init', array($this, 'register_settings'));
         add_action('wp_ajax_art_save_settings', array($this, 'ajax_save_settings'));
+        add_action('wp_ajax_art_clear_cache', array($this, 'ajax_clear_cache'));
     }
     
     /**
      * Add admin menu pages
      */
     public function add_admin_menu() {
-        // Add submenu under main plugin menu
+        // Add submenu: ART Settings
         add_submenu_page(
             'amelia-cpt-sync',
             __('ART Settings', 'amelia-cpt-sync'),
@@ -42,6 +43,16 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             'manage_options',
             'art-settings',
             array($this, 'render_settings_page')
+        );
+        
+        // Add submenu: Triage Forms
+        add_submenu_page(
+            'amelia-cpt-sync',
+            __('Triage Forms', 'amelia-cpt-sync'),
+            __('Triage Forms', 'amelia-cpt-sync'),
+            'manage_options',
+            'art-triage-forms',
+            array($this, 'render_triage_forms_page')
         );
     }
     
@@ -65,8 +76,10 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $defaults = array(
             'global' => array(
                 'api_key' => '',
-                'api_base_url' => site_url(),
-                'debug_enabled' => false
+                'api_base_url' => site_url() . '/wp-admin/admin-ajax.php?action=wpamelia_api&call=/api/v1',
+                'debug_enabled' => false,
+                'enable_caching' => true,
+                'cache_duration' => 60
             ),
             'forms' => array()
         );
@@ -90,11 +103,13 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             $sanitized['global'] = array(
                 'api_key' => sanitize_text_field($input['global']['api_key']),
                 'api_base_url' => esc_url_raw($input['global']['api_base_url']),
-                'debug_enabled' => !empty($input['global']['debug_enabled'])
+                'debug_enabled' => !empty($input['global']['debug_enabled']),
+                'enable_caching' => !empty($input['global']['enable_caching']),
+                'cache_duration' => absint($input['global']['cache_duration'])
             );
         }
         
-        // Preserve form configurations (will be added in Phase 2)
+        // Preserve form configurations
         if (isset($input['forms'])) {
             $sanitized['forms'] = $input['forms'];
         }
@@ -113,14 +128,18 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         }
         
         $api_key = sanitize_text_field($_POST['api_key'] ?? '');
-        $api_base_url = esc_url_raw($_POST['api_base_url'] ?? site_url());
+        $api_base_url = esc_url_raw($_POST['api_base_url'] ?? '');
         $debug_enabled = !empty($_POST['debug_enabled']);
+        $enable_caching = !empty($_POST['enable_caching']);
+        $cache_duration = absint($_POST['cache_duration'] ?? 60);
         
         $settings = $this->get_settings();
         
         $settings['global']['api_key'] = $api_key;
         $settings['global']['api_base_url'] = $api_base_url;
         $settings['global']['debug_enabled'] = $debug_enabled;
+        $settings['global']['enable_caching'] = $enable_caching;
+        $settings['global']['cache_duration'] = $cache_duration;
         
         $result = update_option($this->option_name, $settings);
         
@@ -135,6 +154,30 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                 'message' => 'Failed to save settings'
             ));
         }
+    }
+    
+    /**
+     * AJAX handler for clearing cache
+     */
+    public function ajax_clear_cache() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        global $wpdb;
+        
+        // Delete all ART transients
+        $wpdb->query(
+            "DELETE FROM {$wpdb->options} 
+             WHERE option_name LIKE '_transient_art_%' 
+             OR option_name LIKE '_transient_timeout_art_%'"
+        );
+        
+        amelia_cpt_sync_debug_log('ART Settings: Cleared all API caches');
+        
+        wp_send_json_success(array('message' => 'Cache cleared successfully'));
     }
     
     /**
@@ -246,6 +289,49 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                             </p>
                         </td>
                     </tr>
+                    
+                    <tr>
+                        <th scope="row">
+                            <label for="art-enable-caching">API Caching</label>
+                        </th>
+                        <td>
+                            <label>
+                                <input 
+                                    type="checkbox" 
+                                    id="art-enable-caching" 
+                                    name="enable_caching" 
+                                    value="1"
+                                    <?php checked($global['enable_caching'], true); ?>
+                                />
+                                Enable API response caching
+                            </label>
+                            <p class="description">
+                                Cache Amelia API responses (services, locations, providers) for better performance.<br>
+                                Disable during development/debugging to always get fresh data.
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <th scope="row">
+                            <label for="art-cache-duration">Cache Duration</label>
+                        </th>
+                        <td>
+                            <input 
+                                type="number" 
+                                id="art-cache-duration" 
+                                name="cache_duration" 
+                                value="<?php echo esc_attr($global['cache_duration']); ?>" 
+                                min="1" 
+                                max="1440"
+                                style="width: 80px;"
+                            />
+                            minutes
+                            <p class="description">
+                                How long to cache API responses. Default: 60 minutes (1 hour).
+                            </p>
+                        </td>
+                    </tr>
                 </table>
                 
                 <p class="submit">
@@ -254,6 +340,23 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                     </button>
                     <span class="spinner" id="art-save-spinner" style="float: none; margin: 0 0 0 10px;"></span>
                 </p>
+                
+                <hr>
+                
+                <h3>Cache Management</h3>
+                <p>
+                    <button type="button" class="button" id="art-clear-cache">
+                        Clear All API Caches
+                    </button>
+                    <span class="spinner" id="art-cache-spinner" style="float: none; margin: 0 0 0 10px;"></span>
+                </p>
+                <p class="description">
+                    Clears all cached Amelia API data (services, locations, providers). 
+                    Use this if data appears outdated or after making changes in Amelia.
+                </p>
+                <div class="notice notice-success is-dismissible" style="display:none;" id="art-cache-cleared">
+                    <p>Cache cleared successfully!</p>
+                </div>
             </div>
             
             <div class="card" style="max-width: 800px; margin-top: 20px;">
@@ -331,7 +434,9 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                         nonce: '<?php echo wp_create_nonce('art_nonce'); ?>',
                         api_key: $('#art-api-key').val(),
                         api_base_url: $('#art-api-base-url').val(),
-                        debug_enabled: $('#art-debug-enabled').is(':checked') ? 1 : 0
+                        debug_enabled: $('#art-debug-enabled').is(':checked') ? 1 : 0,
+                        enable_caching: $('#art-enable-caching').is(':checked') ? 1 : 0,
+                        cache_duration: $('#art-cache-duration').val()
                     },
                     success: function(response) {
                         spinner.removeClass('is-active');
@@ -353,6 +458,40 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                     }
                 });
             });
+            
+            // Clear cache button
+            $('#art-clear-cache').on('click', function() {
+                var button = $(this);
+                var spinner = $('#art-cache-spinner');
+                
+                button.prop('disabled', true);
+                spinner.addClass('is-active');
+                $('#art-cache-cleared').hide();
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'art_clear_cache',
+                        nonce: '<?php echo wp_create_nonce('art_nonce'); ?>'
+                    },
+                    success: function(response) {
+                        spinner.removeClass('is-active');
+                        button.prop('disabled', false);
+                        
+                        if (response.success) {
+                            $('#art-cache-cleared').fadeIn();
+                            setTimeout(function() {
+                                $('#art-cache-cleared').fadeOut();
+                            }, 3000);
+                        }
+                    },
+                    error: function() {
+                        spinner.removeClass('is-active');
+                        button.prop('disabled', false);
+                    }
+                });
+            });
         });
         </script>
         
@@ -371,6 +510,18 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             }
         </style>
         <?php
+    }
+    
+    /**
+     * Render the Triage Forms management page
+     */
+    public function render_triage_forms_page() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        
+        // Include the template
+        include AMELIA_CPT_SYNC_PLUGIN_DIR . 'templates/art-triage-forms-page.php';
     }
 }
 
