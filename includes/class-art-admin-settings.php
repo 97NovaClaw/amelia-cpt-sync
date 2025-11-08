@@ -238,11 +238,11 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                                     value="1"
                                     <?php checked($global['debug_enabled'], true); ?>
                                 />
-                                Enable debug logging
+                                Enable ART debug logging
                             </label>
                             <p class="description">
-                                Log ART module activity to WordPress debug log.<br>
-                                Requires <code>WP_DEBUG</code> and <code>WP_DEBUG_LOG</code> to be enabled in wp-config.php.
+                                Log ART module activity to the plugin's debug file.<br>
+                                Debug log location: <code><?php echo esc_html(AMELIA_CPT_SYNC_PLUGIN_DIR); ?>debug.txt</code>
                             </p>
                         </td>
                     </tr>

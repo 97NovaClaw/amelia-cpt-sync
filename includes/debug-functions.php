@@ -14,11 +14,19 @@ if (!defined('WPINC')) {
 
 /**
  * Check if debug is enabled by reading from wp_options
+ * Checks both main plugin settings and ART module settings
  */
 function amelia_cpt_sync_is_debug_enabled() {
+    // Check main plugin debug setting
     $settings = get_option('amelia_cpt_sync_settings', array('debug_enabled' => false));
+    $main_debug = isset($settings['debug_enabled']) && $settings['debug_enabled'] === true;
     
-    return isset($settings['debug_enabled']) && $settings['debug_enabled'] === true;
+    // Check ART module debug setting
+    $art_settings = get_option('art_settings', array());
+    $art_debug = isset($art_settings['global']['debug_enabled']) && $art_settings['global']['debug_enabled'] === true;
+    
+    // Return true if either is enabled
+    return $main_debug || $art_debug;
 }
 
 /**
