@@ -93,6 +93,11 @@ function activate_amelia_cpt_sync() {
     require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-taxonomy-custom-fields-manager.php';
     $taxonomy_custom_fields_manager = new Amelia_CPT_Sync_Taxonomy_Custom_Fields_Manager();
     $taxonomy_custom_fields_manager->create_tables();
+    
+    // Create ART module database tables
+    require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-database-manager.php';
+    $art_db_manager = new Amelia_CPT_Sync_ART_Database_Manager();
+    $art_db_manager->create_tables();
 
     // Initialize iframe renderer to register endpoint before flushing
     require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-amelia-iframe-renderer.php';
@@ -128,6 +133,10 @@ require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-admin-settings.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-cpt-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-sync-handler.php';
 
+// Load ART module classes
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-database-manager.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-admin-settings.php';
+
 /**
  * Initialize the plugin
  */
@@ -136,6 +145,10 @@ function run_amelia_cpt_sync() {
     if (is_admin()) {
         $admin_settings = new Amelia_CPT_Sync_Admin_Settings();
         $admin_settings->init();
+        
+        // Initialize ART module admin settings
+        $art_admin_settings = new Amelia_CPT_Sync_ART_Admin_Settings();
+        $art_admin_settings->init();
     }
     
     // Initialize sync handler (runs on both frontend and backend)

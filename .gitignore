@@ -62,3 +62,7 @@ wp-content/debug.log
 settings.json.backup
 debug.txt
 
+# Development resources (not for commit)
+dev-resources/
+DEV-NOTES.md
+
