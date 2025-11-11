@@ -23,12 +23,19 @@ $form_id = isset($_GET['form_id']) ? sanitize_key($_GET['form_id']) : '';
 // Handle form submission (edit/add)
 if (isset($_POST['art_save_form_config']) && check_admin_referer('art_form_config_nonce', 'art_nonce')) {
     
-    $form_id = sanitize_key($_POST['form_id']);
+    $form_id_post = sanitize_key($_POST['form_id']);
     $label = sanitize_text_field($_POST['form_label']);
     $hook_name = sanitize_key($_POST['hook_name']);
     
-    // Build config data
-    $config_data = $config_manager->get_default_config();
+    // Get existing config or start with defaults
+    if ($form_id_post !== 'new' && $config_manager->form_exists($form_id_post)) {
+        $config_data = $config_manager->get_configuration($form_id_post);
+    } else {
+        $config_data = $config_manager->get_default_config();
+        $form_id_post = $config_manager->generate_form_id($label);
+    }
+    
+    // Update basic info
     $config_data['label'] = $label;
     $config_data['hook_name'] = $hook_name;
     
@@ -47,16 +54,16 @@ if (isset($_POST['art_save_form_config']) && check_admin_referer('art_form_confi
         } else {
             add_settings_error('art_forms', 'file_type', 'File must be JSON format', 'error');
         }
-    } elseif ($config_manager->form_exists($form_id)) {
-        // Preserve existing JSON if no new upload
-        $existing = $config_manager->get_configuration($form_id);
-        $config_data['uploaded_json'] = $existing['uploaded_json'] ?? null;
     }
     
     // Save mappings if provided
     if (isset($_POST['mappings']) && is_array($_POST['mappings'])) {
+        $config_data['mappings'] = array();
         foreach ($_POST['mappings'] as $field_id => $destination) {
-            $config_data['mappings'][sanitize_text_field($field_id)] = sanitize_text_field($destination);
+            $dest = sanitize_text_field($destination);
+            if (!empty($dest)) {
+                $config_data['mappings'][sanitize_text_field($field_id)] = $dest;
+            }
         }
     }
     
@@ -76,21 +83,20 @@ if (isset($_POST['art_save_form_config']) && check_admin_referer('art_form_confi
     
     // Save critical fields
     if (isset($_POST['critical_fields']) && is_array($_POST['critical_fields'])) {
-        $config_data['critical_fields'] = array_map('sanitize_text_field', $_POST['critical_fields']);
+        $config_data['critical_fields'] = array_filter(array_map('sanitize_text_field', $_POST['critical_fields']));
+    } else {
+        $config_data['critical_fields'] = array();
     }
     
     // Save intake fields
     if (isset($_POST['intake_fields']) && is_array($_POST['intake_fields'])) {
         $config_data['intake_fields'] = array_filter(array_map('sanitize_text_field', $_POST['intake_fields']));
-    }
-    
-    // Generate ID for new forms
-    if (empty($form_id) || $form_id === 'new') {
-        $form_id = $config_manager->generate_form_id($label);
+    } else {
+        $config_data['intake_fields'] = array();
     }
     
     // Save configuration
-    $result = $config_manager->save_configuration($form_id, $config_data);
+    $result = $config_manager->save_configuration($form_id_post, $config_data);
     
     if (is_wp_error($result)) {
         add_settings_error('art_forms', 'save_error', $result->get_error_message(), 'error');
@@ -101,7 +107,7 @@ if (isset($_POST['art_save_form_config']) && check_admin_referer('art_form_confi
         wp_redirect(add_query_arg(array(
             'page' => 'art-triage-forms',
             'action' => 'edit',
-            'form_id' => $form_id,
+            'form_id' => $form_id_post,
             'saved' => '1'
         ), admin_url('admin.php')));
         exit;
@@ -115,30 +121,6 @@ if ($action === 'delete' && !empty($form_id) && check_admin_referer('art_delete_
     
     wp_redirect(add_query_arg(array('page' => 'art-triage-forms'), admin_url('admin.php')));
     exit;
-}
-
-// Handle populate mapping table action
-$populate_table_html = '';
-if (isset($_POST['art_populate_mapping']) && check_admin_referer('art_populate_nonce', 'art_nonce')) {
-    $form_id = sanitize_key($_POST['form_id']);
-    $form_config = $config_manager->get_configuration($form_id);
-    
-    if ($form_config && !empty($form_config['uploaded_json'])) {
-        $fields = $parser->extract_fields($form_config['uploaded_json']);
-        
-        if (!empty($fields)) {
-            // Generate mapping table HTML (stored in variable for display)
-            ob_start();
-            include AMELIA_CPT_SYNC_PLUGIN_DIR . 'templates/art-mapping-table.php';
-            $populate_table_html = ob_get_clean();
-            
-            add_settings_error('art_forms', 'populated', 'Mapping table populated successfully', 'success');
-        } else {
-            add_settings_error('art_forms', 'no_fields', 'No fields found in JSON', 'error');
-        }
-    } else {
-        add_settings_error('art_forms', 'no_json', 'Please upload a form JSON first', 'error');
-    }
 }
 
 ?>
@@ -222,6 +204,12 @@ if (isset($_POST['art_populate_mapping']) && check_admin_referer('art_populate_n
         $critical_fields = $form_config['critical_fields'] ?? array();
         $intake_fields = $form_config['intake_fields'] ?? array();
         $has_json = !empty($form_config['uploaded_json']);
+        
+        // Extract fields if JSON exists (for mapping table)
+        $fields = array();
+        if ($has_json) {
+            $fields = $parser->extract_fields($form_config['uploaded_json']);
+        }
         ?>
         
         <p>
@@ -230,11 +218,13 @@ if (isset($_POST['art_populate_mapping']) && check_admin_referer('art_populate_n
             </a>
         </p>
         
+        <!-- ONE COMPREHENSIVE FORM -->
         <form method="post" enctype="multipart/form-data" action="">
             <?php wp_nonce_field('art_form_config_nonce', 'art_nonce'); ?>
             <input type="hidden" name="form_id" value="<?php echo esc_attr($form_id); ?>">
             <input type="hidden" name="art_save_form_config" value="1">
             
+            <!-- BASIC INFO -->
             <div class="card" style="max-width: 1200px; margin-top: 20px;">
                 <h2><?php echo $action === 'edit' ? 'Edit Form Configuration' : 'Add New Form Configuration'; ?></h2>
                 
@@ -287,53 +277,24 @@ if (isset($_POST['art_populate_mapping']) && check_admin_referer('art_populate_n
                                 <?php if ($has_json): ?>
                                     <span style="color: #46b450;">✓ JSON file uploaded</span>
                                 <?php else: ?>
-                                    <span style="color: #dc3232;">⚠ No JSON file uploaded yet</span>
+                                    <span style="color: #dc3232;">⚠ No JSON file uploaded yet - Upload to enable field mapping</span>
                                 <?php endif; ?>
                             </p>
                         </td>
                     </tr>
                 </table>
-                
-                <p class="submit">
-                    <button type="submit" class="button button-primary">
-                        <?php echo $action === 'edit' ? 'Update' : 'Save'; ?> Form Configuration
-                    </button>
-                </p>
             </div>
-        </form>
-        
-        <?php if ($has_json): ?>
-            <!-- POPULATE MAPPING TABLE (Separate Form) -->
-            <form method="post" id="art-populate-form" style="margin-top: 20px;">
-                <?php wp_nonce_field('art_populate_nonce', 'art_nonce'); ?>
-                <input type="hidden" name="form_id" value="<?php echo esc_attr($form_id); ?>">
-                <input type="hidden" name="art_populate_mapping" value="1">
-                
-                <div class="card" style="max-width: 1200px;">
-                    <h2>Field Mapping</h2>
-                    <p>Click "Populate Mapping Table" to generate the field mapping interface from your uploaded JSON.</p>
-                    
-                    <p>
-                        <button type="submit" class="button">
-                            🔄 Populate Mapping Table
-                        </button>
-                    </p>
-                </div>
-            </form>
             
-            <?php if (!empty($populate_table_html)): ?>
-                <!-- Display generated mapping table -->
+            <?php if ($has_json && !empty($fields)): ?>
+                <!-- FIELD MAPPING -->
                 <div class="card" style="max-width: 1200px; margin-top: 20px;">
-                    <?php echo $populate_table_html; ?>
+                    <?php
+                    // Include mapping table
+                    include AMELIA_CPT_SYNC_PLUGIN_DIR . 'templates/art-mapping-table.php';
+                    ?>
                 </div>
-            <?php endif; ?>
-            
-            <!-- LOGIC SETTINGS -->
-            <form method="post">
-                <?php wp_nonce_field('art_form_config_nonce', 'art_nonce'); ?>
-                <input type="hidden" name="form_id" value="<?php echo esc_attr($form_id); ?>">
-                <input type="hidden" name="art_save_form_config" value="1">
                 
+                <!-- LOGIC SETTINGS -->
                 <div class="card" style="max-width: 1200px; margin-top: 20px;">
                     <h2>Logic Settings</h2>
                     
@@ -446,15 +407,21 @@ if (isset($_POST['art_populate_mapping']) && check_admin_referer('art_populate_n
                                            name="logic[validation_mode]" 
                                            value="pass_through_fails" 
                                            <?php checked($logic['validation_mode'] ?? 'pass_through_fails', 'pass_through_fails'); ?>>
-                                    Pass Through Fails (Forgiving) - Log and skip invalid fields
-                                </label><br>
+                                    <strong>Pass Through Fails</strong> (Forgiving) - Log and skip invalid fields
+                                </label>
+                                <p class="description" style="margin-left: 20px;">
+                                    Invalid fields are logged and skipped. Request created with partial data. Admin fixes in workbench.
+                                </p>
                                 <label>
                                     <input type="radio" 
                                            name="logic[validation_mode]" 
                                            value="require_pass_through" 
                                            <?php checked($logic['validation_mode'] ?? 'pass_through_fails', 'require_pass_through'); ?>>
-                                    Require Pass Through (Strict) - Fail form if critical fields invalid
+                                    <strong>Require Pass Through</strong> (Strict) - Fail form if critical fields invalid
                                 </label>
+                                <p class="description" style="margin-left: 20px;">
+                                    Critical fields must be valid or form submission fails. User sees error message.
+                                </p>
                             </td>
                         </tr>
                     </table>
@@ -475,7 +442,7 @@ if (isset($_POST['art_populate_mapping']) && check_admin_referer('art_populate_n
                                        name="intake_fields[]" 
                                        value="<?php echo esc_attr($field_label); ?>" 
                                        class="regular-text" 
-                                       placeholder="Field Label">
+                                       placeholder="Field Label (e.g., Flight Number)">
                                 <button type="button" class="button remove-intake-field">Remove</button>
                             </div>
                         <?php 
@@ -488,32 +455,37 @@ if (isset($_POST['art_populate_mapping']) && check_admin_referer('art_populate_n
                         <button type="button" class="button" id="add-intake-field">+ Add Intake Field</button>
                     </p>
                 </div>
-                
-                <p class="submit">
-                    <button type="submit" class="button button-primary button-large">
-                        Save All Settings
-                    </button>
-                </p>
-            </form>
+            <?php endif; ?>
             
-            <script>
-            jQuery(document).ready(function($) {
-                // Add intake field
-                $('#add-intake-field').on('click', function() {
-                    var html = '<div class="intake-field-row" style="margin-bottom: 10px;">' +
-                        '<input type="text" name="intake_fields[]" class="regular-text" placeholder="Field Label">' +
-                        ' <button type="button" class="button remove-intake-field">Remove</button>' +
-                        '</div>';
-                    $('#intake-fields-list').append(html);
-                });
-                
-                // Remove intake field
-                $(document).on('click', '.remove-intake-field', function() {
-                    $(this).closest('.intake-field-row').remove();
-                });
+            <!-- SAVE BUTTON -->
+            <p class="submit">
+                <button type="submit" class="button button-primary button-large">
+                    <?php if ($has_json && !empty($fields)): ?>
+                        Save All Configuration
+                    <?php else: ?>
+                        Save Basic Info (Upload JSON to enable mapping)
+                    <?php endif; ?>
+                </button>
+            </p>
+        </form>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            // Add intake field
+            $('#add-intake-field').on('click', function() {
+                var html = '<div class="intake-field-row" style="margin-bottom: 10px;">' +
+                    '<input type="text" name="intake_fields[]" class="regular-text" placeholder="Field Label (e.g., Flight Number)">' +
+                    ' <button type="button" class="button remove-intake-field">Remove</button>' +
+                    '</div>';
+                $('#intake-fields-list').append(html);
             });
-            </script>
-        <?php endif; ?>
+            
+            // Remove intake field
+            $(document).on('click', '.remove-intake-field', function() {
+                $(this).closest('.intake-field-row').remove();
+            });
+        });
+        </script>
     <?php endif; ?>
 </div>
 
@@ -531,4 +503,3 @@ if (isset($_POST['art_populate_mapping']) && check_admin_referer('art_populate_n
         border-bottom: 1px solid #eee;
     }
 </style>
-
