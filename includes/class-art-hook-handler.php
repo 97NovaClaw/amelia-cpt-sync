@@ -54,11 +54,16 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
             
             $hook_tag = sanitize_key($form_config['hook_name']);
             
-            // Use custom-filter (not custom-action) to allow validation/error returns
+            // Register BOTH action and filter to support either JFB configuration
+            // Prefer filter (can return validation errors)
             add_filter("jet-form-builder/custom-filter/{$hook_tag}", 
                 array($this, 'handle_form_submission'), 10, 3);
             
-            amelia_cpt_sync_debug_log('ART Hook Handler: Registered filter for hook: ' . $hook_tag);
+            // Also register action (for compatibility)
+            add_action("jet-form-builder/custom-action/{$hook_tag}", 
+                array($this, 'handle_form_submission_action'), 10, 2);
+            
+            amelia_cpt_sync_debug_log('ART Hook Handler: Registered filter AND action for hook: ' . $hook_tag);
         }
     }
     
@@ -126,6 +131,17 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
         
         // Return original result to allow JFB to continue
         return $result;
+    }
+    
+    /**
+     * Handle form submission from custom-action (no validation return)
+     *
+     * @param array $request Form data
+     * @param object $action_handler JFB action handler
+     */
+    public function handle_form_submission_action($request, $action_handler) {
+        // Call main handler with null result (actions don't return)
+        $this->handle_form_submission(null, $request, $action_handler);
     }
     
     /**
