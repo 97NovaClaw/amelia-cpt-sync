@@ -54,16 +54,12 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
             
             $hook_tag = sanitize_key($form_config['hook_name']);
             
-            // Register BOTH action and filter to support either JFB configuration
-            // Prefer filter (can return validation errors)
+            // ONLY register custom-filter (not action)
+            // Filter allows us to return validation errors to JFB
             add_filter("jet-form-builder/custom-filter/{$hook_tag}", 
                 array($this, 'handle_form_submission'), 10, 3);
             
-            // Also register action (for compatibility)
-            add_action("jet-form-builder/custom-action/{$hook_tag}", 
-                array($this, 'handle_form_submission_action'), 10, 2);
-            
-            amelia_cpt_sync_debug_log('ART Hook Handler: Registered filter AND action for hook: ' . $hook_tag);
+            amelia_cpt_sync_debug_log('ART Hook Handler: Registered FILTER for hook: ' . $hook_tag);
         }
     }
     
@@ -131,17 +127,6 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
         
         // Return original result to allow JFB to continue
         return $result;
-    }
-    
-    /**
-     * Handle form submission from custom-action (no validation return)
-     *
-     * @param array $request Form data
-     * @param object $action_handler JFB action handler
-     */
-    public function handle_form_submission_action($request, $action_handler) {
-        // Call main handler with null result (actions don't return)
-        $this->handle_form_submission(null, $request, $action_handler);
     }
     
     /**
@@ -216,6 +201,19 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
         $errors = array();
         
         amelia_cpt_sync_debug_log('ART Validation: Mode = ' . $validation_mode);
+        amelia_cpt_sync_debug_log('ART Validation: Critical fields = ' . print_r($critical_fields, true));
+        
+        // Check for MISSING critical fields (only in strict mode)
+        if ($validation_mode === 'require_pass_through') {
+            foreach ($critical_fields as $critical_field) {
+                list($bucket, $field) = explode('.', $critical_field, 2);
+                
+                if (!isset($buckets[$bucket][$field]) || empty($buckets[$bucket][$field])) {
+                    $errors[] = "Missing required field: {$critical_field}";
+                    amelia_cpt_sync_debug_log('ART Validation: CRITICAL MISSING: ' . $critical_field);
+                }
+            }
+        }
         
         // Validate customer.email
         if (isset($buckets['customer']['email'])) {
@@ -289,11 +287,24 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
         
         // If critical errors in strict mode, fail the submission
         if ($validation_mode === 'require_pass_through' && !empty($errors)) {
-            amelia_cpt_sync_debug_log('ART Validation: Critical errors found: ' . implode(', ', $errors));
-            return new WP_Error('art_validation_failed', implode(', ', $errors));
+            $error_message = 'Validation failed: ' . implode(', ', $errors);
+            amelia_cpt_sync_debug_log('ART Validation: FAILED - ' . $error_message);
+            
+            // Try to throw Action_Exception if available (JFB's preferred method)
+            if (class_exists('Jet_Form_Builder\Actions\Action_Exception')) {
+                try {
+                    throw new \Jet_Form_Builder\Actions\Action_Exception($error_message);
+                } catch (Exception $e) {
+                    // Fallback to WP_Error
+                    return new WP_Error('art_validation_failed', $error_message);
+                }
+            }
+            
+            // Return WP_Error (should stop JFB)
+            return new WP_Error('art_validation_failed', $error_message);
         }
         
-        amelia_cpt_sync_debug_log('ART Validation: Passed');
+        amelia_cpt_sync_debug_log('ART Validation: Passed - All critical fields present and valid');
         return $buckets;
     }
     

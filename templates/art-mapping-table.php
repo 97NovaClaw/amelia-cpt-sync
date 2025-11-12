@@ -99,10 +99,11 @@ if (!empty($intake_field_defs)) {
                                name="critical_fields[]" 
                                value="<?php echo esc_attr($current_mapping); ?>"
                                data-field-id="<?php echo esc_attr($field_id); ?>"
+                               data-row-id="row-<?php echo esc_attr($field_id); ?>"
                                class="critical-field-checkbox"
-                               <?php checked(in_array($current_mapping, $critical_fields)); ?>
+                               <?php checked(in_array($current_mapping, $critical_fields) && !empty($current_mapping)); ?>
                                <?php echo empty($current_mapping) ? 'disabled' : ''; ?>>
-                        <span title="Form will fail in Strict mode if this field is invalid">⚠️</span>
+                        <span title="In Strict mode: Form fails if this field is missing or invalid. In Forgiving mode: Field is logged and skipped if invalid.">⚠️ Critical</span>
                     </label>
                 </td>
             </tr>
@@ -129,18 +130,36 @@ jQuery(document).ready(function($) {
         width: 'resolve'
     });
     
-    // When mapping changes, update critical checkbox
+    // When mapping changes, update critical checkbox value
     $('.art-mapping-select2').on('change', function() {
         var row = $(this).closest('tr');
         var checkbox = row.find('.critical-field-checkbox');
         var newValue = $(this).val();
         
-        if (newValue) {
+        console.log('ART Mapping: Dropdown changed to:', newValue);
+        
+        if (newValue && newValue !== '') {
+            // Enable checkbox and update its value to match the destination
             checkbox.prop('disabled', false);
             checkbox.val(newValue);
+            console.log('ART Mapping: Checkbox enabled, value set to:', newValue);
         } else {
+            // Disable and uncheck if unmapped
             checkbox.prop('disabled', true);
             checkbox.prop('checked', false);
+            checkbox.val('');
+            console.log('ART Mapping: Checkbox disabled (field unmapped)');
+        }
+    });
+    
+    // On page load, ensure all checkbox values match their mapping
+    $('.art-mapping-select2').each(function() {
+        var row = $(this).closest('tr');
+        var checkbox = row.find('.critical-field-checkbox');
+        var currentValue = $(this).val();
+        
+        if (currentValue) {
+            checkbox.val(currentValue);
         }
     });
 });
