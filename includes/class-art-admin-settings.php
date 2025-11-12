@@ -35,14 +35,14 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
      * Add admin menu pages
      */
     public function add_admin_menu() {
-        // Add submenu: ART Settings
+        // Add submenu: Triage Requests (Workbench) - PRIMARY
         add_submenu_page(
             'amelia-cpt-sync',
-            __('ART Settings', 'amelia-cpt-sync'),
-            __('ART Settings', 'amelia-cpt-sync'),
+            __('Triage Requests', 'amelia-cpt-sync'),
+            __('Triage Requests', 'amelia-cpt-sync'),
             'manage_options',
-            'art-settings',
-            array($this, 'render_settings_page')
+            'art-workbench',
+            array($this, 'render_workbench_page')
         );
         
         // Add submenu: Triage Forms
@@ -53,6 +53,16 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             'manage_options',
             'art-triage-forms',
             array($this, 'render_triage_forms_page')
+        );
+        
+        // Add submenu: ART Settings
+        add_submenu_page(
+            'amelia-cpt-sync',
+            __('ART Settings', 'amelia-cpt-sync'),
+            __('ART Settings', 'amelia-cpt-sync'),
+            'manage_options',
+            'art-settings',
+            array($this, 'render_settings_page')
         );
     }
     
@@ -515,6 +525,15 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
     /**
      * Render the Triage Forms management page
      */
+    public function render_workbench_page() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        
+        // Include the template
+        include AMELIA_CPT_SYNC_PLUGIN_DIR . 'templates/art-workbench-page.php';
+    }
+    
     public function render_triage_forms_page() {
         if (!current_user_can('manage_options')) {
             return;

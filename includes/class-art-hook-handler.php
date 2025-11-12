@@ -149,7 +149,10 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
             'intake' => array()
         );
         
-        foreach ($mappings as $form_field_id => $destination) {
+        foreach ($mappings as $form_field_id => $mapping_data) {
+            // Support both old format (string) and new format (array with 'destination' and 'label')
+            $destination = is_array($mapping_data) ? ($mapping_data['destination'] ?? '') : $mapping_data;
+            
             if (empty($destination) || $destination === '') {
                 continue;  // Skip unmapped fields
             }
@@ -198,10 +201,28 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
     private function validate_data($buckets, $form_config) {
         $validation_mode = $form_config['logic']['validation_mode'] ?? 'pass_through_fails';
         $critical_fields = $form_config['critical_fields'] ?? array();
+        $mappings = $form_config['mappings'] ?? array();
         $errors = array();
         
         amelia_cpt_sync_debug_log('ART Validation: Mode = ' . $validation_mode);
         amelia_cpt_sync_debug_log('ART Validation: Critical fields = ' . print_r($critical_fields, true));
+        
+        // Build reverse lookup: destination => label
+        $destination_to_label = array();
+        foreach ($mappings as $field_id => $mapping_data) {
+            // Support both old format (string) and new format (array with 'destination' and 'label')
+            if (is_array($mapping_data)) {
+                $destination = $mapping_data['destination'] ?? '';
+                $label = $mapping_data['label'] ?? $field_id;
+            } else {
+                $destination = $mapping_data;
+                $label = $field_id; // Fallback for old format
+            }
+            
+            if (!empty($destination)) {
+                $destination_to_label[$destination] = $label;
+            }
+        }
         
         // Check for MISSING critical fields (only in strict mode)
         if ($validation_mode === 'require_pass_through') {
@@ -209,8 +230,10 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
                 list($bucket, $field) = explode('.', $critical_field, 2);
                 
                 if (!isset($buckets[$bucket][$field]) || empty($buckets[$bucket][$field])) {
-                    $errors[] = "Missing required field: {$critical_field}";
-                    amelia_cpt_sync_debug_log('ART Validation: CRITICAL MISSING: ' . $critical_field);
+                    // Use friendly label if available
+                    $field_label = $destination_to_label[$critical_field] ?? $critical_field;
+                    $errors[] = "Missing required field: {$field_label}";
+                    amelia_cpt_sync_debug_log('ART Validation: CRITICAL MISSING: ' . $critical_field . ' (label: ' . $field_label . ')');
                 }
             }
         }

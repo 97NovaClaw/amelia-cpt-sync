@@ -1,0 +1,320 @@
+<?php
+/**
+ * ART Request Manager
+ *
+ * Handles CRUD operations for triage requests
+ *
+ * @package AmeliaCPTSync
+ * @subpackage ART
+ */
+
+// If this file is called directly, abort.
+if (!defined('WPINC')) {
+    die;
+}
+
+class Amelia_CPT_Sync_ART_Request_Manager {
+    
+    /**
+     * Get all triage requests with optional filtering
+     *
+     * @param array $args Query arguments
+     * @return array Array of request objects
+     */
+    public function get_requests($args = array()) {
+        global $wpdb;
+        
+        // Default arguments
+        $defaults = array(
+            'status' => '',           // Filter by status
+            'search' => '',           // Search term (customer name, email)
+            'form_id' => '',          // Filter by form config
+            'orderby' => 'submitted_at',  // Column to order by
+            'order' => 'DESC',        // ASC or DESC
+            'per_page' => 20,         // Results per page
+            'paged' => 1              // Current page
+        );
+        
+        $args = wp_parse_args($args, $defaults);
+        
+        // Build the query
+        $requests_table = $wpdb->prefix . 'art_requests';
+        $customers_table = $wpdb->prefix . 'art_customers';
+        
+        $where = array('1=1');
+        $join = "LEFT JOIN {$customers_table} ON {$requests_table}.customer_id = {$customers_table}.id";
+        
+        // Status filter
+        if (!empty($args['status'])) {
+            $where[] = $wpdb->prepare("{$requests_table}.status = %s", $args['status']);
+        }
+        
+        // Form filter
+        if (!empty($args['form_id'])) {
+            $where[] = $wpdb->prepare("{$requests_table}.form_config_id = %s", $args['form_id']);
+        }
+        
+        // Search filter (customer name or email)
+        if (!empty($args['search'])) {
+            $search_like = '%' . $wpdb->esc_like($args['search']) . '%';
+            $where[] = $wpdb->prepare(
+                "({$customers_table}.first_name LIKE %s OR {$customers_table}.last_name LIKE %s OR {$customers_table}.email LIKE %s)",
+                $search_like,
+                $search_like,
+                $search_like
+            );
+        }
+        
+        // Build WHERE clause
+        $where_clause = implode(' AND ', $where);
+        
+        // Sanitize ORDER BY
+        $allowed_orderby = array('submitted_at', 'status', 'last_status_change', 'id');
+        $orderby = in_array($args['orderby'], $allowed_orderby) ? $args['orderby'] : 'submitted_at';
+        $order = strtoupper($args['order']) === 'ASC' ? 'ASC' : 'DESC';
+        
+        // Calculate offset
+        $per_page = absint($args['per_page']);
+        $paged = absint($args['paged']);
+        $offset = ($paged - 1) * $per_page;
+        
+        // Get total count (for pagination)
+        $count_sql = "SELECT COUNT(*) FROM {$requests_table} {$join} WHERE {$where_clause}";
+        $total_items = $wpdb->get_var($count_sql);
+        
+        // Get results
+        $sql = "SELECT 
+                    {$requests_table}.*,
+                    {$customers_table}.first_name as customer_first_name,
+                    {$customers_table}.last_name as customer_last_name,
+                    {$customers_table}.email as customer_email,
+                    {$customers_table}.phone as customer_phone
+                FROM {$requests_table}
+                {$join}
+                WHERE {$where_clause}
+                ORDER BY {$requests_table}.{$orderby} {$order}
+                LIMIT {$per_page} OFFSET {$offset}";
+        
+        $results = $wpdb->get_results($sql);
+        
+        return array(
+            'items' => $results,
+            'total' => $total_items,
+            'per_page' => $per_page,
+            'current_page' => $paged,
+            'total_pages' => ceil($total_items / $per_page)
+        );
+    }
+    
+    /**
+     * Get a single request by ID with all related data
+     *
+     * @param int $request_id Request ID
+     * @return object|null Request object or null
+     */
+    public function get_request($request_id) {
+        global $wpdb;
+        
+        $requests_table = $wpdb->prefix . 'art_requests';
+        $customers_table = $wpdb->prefix . 'art_customers';
+        $intake_table = $wpdb->prefix . 'art_intake_fields';
+        $booking_table = $wpdb->prefix . 'art_booking_links';
+        $notes_table = $wpdb->prefix . 'art_request_notes';
+        
+        // Get main request data with customer
+        $sql = $wpdb->prepare(
+            "SELECT 
+                r.*,
+                c.first_name as customer_first_name,
+                c.last_name as customer_last_name,
+                c.email as customer_email,
+                c.phone as customer_phone,
+                c.amelia_customer_id
+            FROM {$requests_table} r
+            LEFT JOIN {$customers_table} c ON r.customer_id = c.id
+            WHERE r.id = %d",
+            $request_id
+        );
+        
+        $request = $wpdb->get_row($sql);
+        
+        if (!$request) {
+            return null;
+        }
+        
+        // Get intake fields
+        $intake_sql = $wpdb->prepare(
+            "SELECT field_name, field_value FROM {$intake_table} WHERE request_id = %d",
+            $request_id
+        );
+        $request->intake_fields = $wpdb->get_results($intake_sql);
+        
+        // Get booking links
+        $booking_sql = $wpdb->prepare(
+            "SELECT * FROM {$booking_table} WHERE request_id = %d ORDER BY linked_at DESC",
+            $request_id
+        );
+        $request->bookings = $wpdb->get_results($booking_sql);
+        
+        // Get notes
+        $notes_sql = $wpdb->prepare(
+            "SELECT n.*, u.display_name as author_name
+             FROM {$notes_table} n
+             LEFT JOIN {$wpdb->users} u ON n.user_id = u.ID
+             WHERE n.request_id = %d
+             ORDER BY n.created_at DESC",
+            $request_id
+        );
+        $request->notes = $wpdb->get_results($notes_sql);
+        
+        return $request;
+    }
+    
+    /**
+     * Update request status
+     *
+     * @param int $request_id Request ID
+     * @param string $new_status New status
+     * @return bool Success
+     */
+    public function update_status($request_id, $new_status) {
+        global $wpdb;
+        
+        $allowed_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Abandoned');
+        
+        if (!in_array($new_status, $allowed_statuses)) {
+            return false;
+        }
+        
+        $table = $wpdb->prefix . 'art_requests';
+        
+        $result = $wpdb->update(
+            $table,
+            array(
+                'status' => $new_status,
+                'last_status_change' => current_time('mysql', 1)
+            ),
+            array('id' => $request_id),
+            array('%s', '%s'),
+            array('%d')
+        );
+        
+        return $result !== false;
+    }
+    
+    /**
+     * Add a note to a request
+     *
+     * @param int $request_id Request ID
+     * @param string $note_text Note content
+     * @param int $user_id User ID (defaults to current user)
+     * @return int|false Note ID or false on failure
+     */
+    public function add_note($request_id, $note_text, $user_id = null) {
+        global $wpdb;
+        
+        if ($user_id === null) {
+            $user_id = get_current_user_id();
+        }
+        
+        $table = $wpdb->prefix . 'art_request_notes';
+        
+        $result = $wpdb->insert(
+            $table,
+            array(
+                'request_id' => $request_id,
+                'user_id' => $user_id,
+                'note_text' => sanitize_textarea_field($note_text),
+                'created_at' => current_time('mysql', 1)
+            ),
+            array('%d', '%d', '%s', '%s')
+        );
+        
+        return $result ? $wpdb->insert_id : false;
+    }
+    
+    /**
+     * Link an Amelia booking to a request
+     *
+     * @param int $request_id Request ID
+     * @param int $amelia_booking_id Amelia booking ID
+     * @param int $amelia_appointment_id Amelia appointment ID
+     * @param string $booking_status Booking status
+     * @return int|false Link ID or false on failure
+     */
+    public function link_booking($request_id, $amelia_booking_id, $amelia_appointment_id = null, $booking_status = 'approved') {
+        global $wpdb;
+        
+        $table = $wpdb->prefix . 'art_booking_links';
+        
+        $result = $wpdb->insert(
+            $table,
+            array(
+                'request_id' => $request_id,
+                'amelia_booking_id' => $amelia_booking_id,
+                'amelia_appointment_id' => $amelia_appointment_id,
+                'linked_at' => current_time('mysql', 1),
+                'booking_status' => $booking_status
+            ),
+            array('%d', '%d', '%d', '%s', '%s')
+        );
+        
+        return $result ? $wpdb->insert_id : false;
+    }
+    
+    /**
+     * Get status counts for all requests (for filter chips)
+     *
+     * @return array Status counts
+     */
+    public function get_status_counts() {
+        global $wpdb;
+        
+        $table = $wpdb->prefix . 'art_requests';
+        
+        $sql = "SELECT status, COUNT(*) as count FROM {$table} GROUP BY status";
+        $results = $wpdb->get_results($sql);
+        
+        $counts = array(
+            'all' => 0,
+            'Requested' => 0,
+            'Responded' => 0,
+            'Tentative' => 0,
+            'Booked' => 0,
+            'Abandoned' => 0
+        );
+        
+        foreach ($results as $row) {
+            $counts[$row->status] = (int) $row->count;
+            $counts['all'] += (int) $row->count;
+        }
+        
+        return $counts;
+    }
+    
+    /**
+     * Delete a request and all related data
+     *
+     * @param int $request_id Request ID
+     * @return bool Success
+     */
+    public function delete_request($request_id) {
+        global $wpdb;
+        
+        // Delete related data first
+        $intake_table = $wpdb->prefix . 'art_intake_fields';
+        $booking_table = $wpdb->prefix . 'art_booking_links';
+        $notes_table = $wpdb->prefix . 'art_request_notes';
+        $requests_table = $wpdb->prefix . 'art_requests';
+        
+        $wpdb->delete($intake_table, array('request_id' => $request_id), array('%d'));
+        $wpdb->delete($booking_table, array('request_id' => $request_id), array('%d'));
+        $wpdb->delete($notes_table, array('request_id' => $request_id), array('%d'));
+        
+        // Delete the request
+        $result = $wpdb->delete($requests_table, array('id' => $request_id), array('%d'));
+        
+        return $result !== false;
+    }
+}
+

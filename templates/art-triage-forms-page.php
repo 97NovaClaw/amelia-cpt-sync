@@ -56,13 +56,21 @@ if (isset($_POST['art_save_form_config']) && check_admin_referer('art_form_confi
         }
     }
     
-    // Save mappings if provided
+    // Save mappings if provided (now includes labels for better error messages)
     if (isset($_POST['mappings']) && is_array($_POST['mappings'])) {
         $config_data['mappings'] = array();
+        $field_labels = $_POST['field_labels'] ?? array();
+        
         foreach ($_POST['mappings'] as $field_id => $destination) {
             $dest = sanitize_text_field($destination);
             if (!empty($dest)) {
-                $config_data['mappings'][sanitize_text_field($field_id)] = $dest;
+                $sanitized_field_id = sanitize_text_field($field_id);
+                $label = isset($field_labels[$field_id]) ? sanitize_text_field($field_labels[$field_id]) : $sanitized_field_id;
+                
+                $config_data['mappings'][$sanitized_field_id] = array(
+                    'destination' => $dest,
+                    'label' => $label
+                );
             }
         }
     }

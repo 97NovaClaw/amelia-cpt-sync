@@ -140,6 +140,7 @@ require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-form-config-manage
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-form-parser.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-jetformbuilder-parser.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-hook-handler.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-request-manager.php';
 
 /**
  * Initialize the plugin

@@ -66,7 +66,10 @@ if (!empty($intake_field_defs)) {
             $field_id = $field['id'];
             $field_name = $field['name'];
             $field_type = $field['type'] ?? '';
-            $current_mapping = $current_mappings[$field_id] ?? '';
+            
+            // Support both old format (string) and new format (array with 'destination' and 'label')
+            $mapping_data = $current_mappings[$field_id] ?? '';
+            $current_mapping = is_array($mapping_data) ? ($mapping_data['destination'] ?? '') : $mapping_data;
         ?>
             <tr>
                 <td><?php echo esc_html($field_name); ?></td>
@@ -92,6 +95,10 @@ if (!empty($intake_field_defs)) {
                             </optgroup>
                         <?php endforeach; ?>
                     </select>
+                    <!-- Hidden field to pass label for better error messages -->
+                    <input type="hidden" 
+                           name="field_labels[<?php echo esc_attr($field_id); ?>]" 
+                           value="<?php echo esc_attr($field_name); ?>">
                 </td>
                 <td>
                     <label>
