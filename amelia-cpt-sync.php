@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: Amelia to CPT Sync
+ * Plugin Name: Amelia Expansion Suite
  * Plugin URI: https://github.com/97NovaClaw/amelia-cpt-sync
- * Description: Real-time, one-way synchronization from AmeliaWP booking plugin to JetEngine Custom Post Types
- * Version: 1.4.14
+ * Description: Complete Amelia integration suite: CPT Sync, Dynamic Popups, and Request Triage System
+ * Version: 2.0.0
  * Author: 97NovaClaw
  * Author URI: https://github.com/97NovaClaw
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('WPINC')) {
 /**
  * Current plugin version.
  */
-define('AMELIA_CPT_SYNC_VERSION', '1.4.14');
+define('AMELIA_CPT_SYNC_VERSION', '2.0.0');
 define('AMELIA_CPT_SYNC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AMELIA_CPT_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
 

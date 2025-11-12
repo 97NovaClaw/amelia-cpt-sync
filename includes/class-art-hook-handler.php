@@ -287,21 +287,12 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
         
         // If critical errors in strict mode, fail the submission
         if ($validation_mode === 'require_pass_through' && !empty($errors)) {
-            $error_message = 'Validation failed: ' . implode(', ', $errors);
+            $error_message = implode(', ', $errors);
             amelia_cpt_sync_debug_log('ART Validation: FAILED - ' . $error_message);
             
-            // Try to throw Action_Exception if available (JFB's preferred method)
-            if (class_exists('Jet_Form_Builder\Actions\Action_Exception')) {
-                try {
-                    throw new \Jet_Form_Builder\Actions\Action_Exception($error_message);
-                } catch (Exception $e) {
-                    // Fallback to WP_Error
-                    return new WP_Error('art_validation_failed', $error_message);
-                }
-            }
-            
-            // Return WP_Error (should stop JFB)
-            return new WP_Error('art_validation_failed', $error_message);
+            // Throw JFB's exception to properly fail the form
+            // This is the correct way per JFB documentation
+            throw new \Jet_Form_Builder\Exceptions\Action_Exception($error_message);
         }
         
         amelia_cpt_sync_debug_log('ART Validation: Passed - All critical fields present and valid');

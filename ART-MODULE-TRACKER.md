@@ -717,30 +717,35 @@ if (version_compare($current_version, '1.1.0', '<')) {
 
 ## 📝 Notes & Decisions Log
 
-### 2024-11-08: Phase 2 Complete
+### 2024-11-11: Phase 2 Complete + Validation Fixed
 - ✅ **Form Config Manager** - Multi-form CRUD system like popup manager
 - ✅ **JFB Parser** - Using proven regex from WC plugin reference
 - ✅ **Hook Handler** - Dynamic registration, two validation modes
 - ✅ **Triage Forms Page** - Complete add/edit/list UI
 - ✅ **Mapping Table** - Select2 dropdowns with critical fields system
 - ✅ **API Caching** - Enable/disable toggle with clear cache function
+- ✅ **Plugin Renamed** - Now "Amelia Expansion Suite" v2.0.0
+
+**Critical Fixes**:
+- ✅ Validation now works correctly using `\Jet_Form_Builder\Exceptions\Action_Exception`
+- ✅ Form data persistence fixed (single comprehensive form)
+- ✅ Duplicate entries fixed (only register custom-filter, not action)
 
 **Key Architectural Decisions**:
 - One unique hook per form configuration (simple, reliable)
 - Form configs stored in wp_options (not files)
-- Use `custom-filter` hook type (can return validation errors)
+- Use ONLY `custom-filter` hook type (can throw exceptions to fail form)
 - Two validation modes: Pass Through Fails (forgiving) vs Require Pass Through (strict)
 - Critical fields configurable per form
 - Customer created in art_customers immediately (amelia_customer_id = NULL until booking)
 - DateTime stored as UTC in MySQL format
-- API Base URL: Full endpoint (user enters complete URL)
+- API Base URL: Full endpoint including `/api/v1` path
 - Select2 for better UX on mapping dropdowns
 
-**Testing Approach**:
-- Upload real JFB export to test parser
-- Submit test form to verify end-to-end flow
-- Check database for proper record creation
-- Verify both validation modes work correctly
+**JFB Integration Notes**:
+- Exception class: `\Jet_Form_Builder\Exceptions\Action_Exception` (NOT Actions!)
+- Hook type: `jet-form-builder/custom-filter/{hook_name}` only
+- Arguments: `$result, $request, $action_handler`
 
 ### 2024-11-08: Phase 1 Complete
 - ✅ **Database Manager** created with 5 tables (added art_request_notes)
