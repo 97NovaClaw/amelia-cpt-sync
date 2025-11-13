@@ -26,10 +26,10 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         
         // Default arguments
         $defaults = array(
-            'status' => '',           // Filter by status
+            'status' => '',           // Filter by status (status_key in DB)
             'search' => '',           // Search term (customer name, email)
             'form_id' => '',          // Filter by form config
-            'orderby' => 'submitted_at',  // Column to order by
+            'orderby' => 'created_at',  // Column to order by
             'order' => 'DESC',        // ASC or DESC
             'per_page' => 20,         // Results per page
             'paged' => 1              // Current page
@@ -46,12 +46,13 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         
         // Status filter
         if (!empty($args['status'])) {
-            $where[] = $wpdb->prepare("{$requests_table}.status = %s", $args['status']);
+            $where[] = $wpdb->prepare("{$requests_table}.status_key = %s", strtolower($args['status']));
         }
         
-        // Form filter
+        // Form filter (Note: Database doesn't have form_config_id column yet - will add in migration)
         if (!empty($args['form_id'])) {
-            $where[] = $wpdb->prepare("{$requests_table}.form_config_id = %s", $args['form_id']);
+            // Skip for now - column doesn't exist yet
+            // $where[] = $wpdb->prepare("{$requests_table}.form_config_id = %s", $args['form_id']);
         }
         
         // Search filter (customer name or email)
@@ -69,8 +70,8 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         $where_clause = implode(' AND ', $where);
         
         // Sanitize ORDER BY
-        $allowed_orderby = array('submitted_at', 'status', 'last_status_change', 'id');
-        $orderby = in_array($args['orderby'], $allowed_orderby) ? $args['orderby'] : 'submitted_at';
+        $allowed_orderby = array('created_at', 'status_key', 'last_activity_at', 'id');
+        $orderby = in_array($args['orderby'], $allowed_orderby) ? $args['orderby'] : 'created_at';
         $order = strtoupper($args['order']) === 'ASC' ? 'ASC' : 'DESC';
         
         // Calculate offset
@@ -144,7 +145,7 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         
         // Get intake fields
         $intake_sql = $wpdb->prepare(
-            "SELECT field_name, field_value FROM {$intake_table} WHERE request_id = %d",
+            "SELECT field_label, field_value FROM {$intake_table} WHERE request_id = %d",
             $request_id
         );
         $request->intake_fields = $wpdb->get_results($intake_sql);
@@ -187,15 +188,28 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         }
         
         $table = $wpdb->prefix . 'art_requests';
+        $status_key = strtolower($new_status);
+        
+        // Update data array based on status
+        $update_data = array(
+            'status_key' => $status_key,
+            'last_activity_at' => current_time('mysql', 1)
+        );
+        
+        // Update timestamp columns based on status
+        if ($new_status === 'Responded') {
+            $update_data['responded_at'] = current_time('mysql', 1);
+        } elseif ($new_status === 'Tentative') {
+            $update_data['tentative_at'] = current_time('mysql', 1);
+        } elseif ($new_status === 'Booked') {
+            $update_data['booked_at'] = current_time('mysql', 1);
+        }
         
         $result = $wpdb->update(
             $table,
-            array(
-                'status' => $new_status,
-                'last_status_change' => current_time('mysql', 1)
-            ),
+            $update_data,
             array('id' => $request_id),
-            array('%s', '%s'),
+            array_fill(0, count($update_data), '%s'),
             array('%d')
         );
         
@@ -272,7 +286,7 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         
         $table = $wpdb->prefix . 'art_requests';
         
-        $sql = "SELECT status, COUNT(*) as count FROM {$table} GROUP BY status";
+        $sql = "SELECT status_key, COUNT(*) as count FROM {$table} GROUP BY status_key";
         $results = $wpdb->get_results($sql);
         
         $counts = array(
@@ -285,7 +299,9 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         );
         
         foreach ($results as $row) {
-            $counts[$row->status] = (int) $row->count;
+            // Convert status_key (lowercase) to display name (ucfirst)
+            $status_display = ucfirst($row->status_key);
+            $counts[$status_display] = (int) $row->count;
             $counts['all'] += (int) $row->count;
         }
         

@@ -130,7 +130,10 @@ $status_colors = array(
             </thead>
             <tbody>
                 <?php foreach ($results['items'] as $request): 
-                    $status_color = $status_colors[$request->status] ?? 'gray';
+                    // Map status_key to display name
+                    $status_display = ucfirst($request->status_key ?? 'requested');
+                    $status_color = $status_colors[$status_display] ?? 'gray';
+                    
                     $customer_name = trim($request->customer_first_name . ' ' . $request->customer_last_name);
                     if (empty($customer_name)) {
                         $customer_name = '—';
@@ -159,7 +162,7 @@ $status_colors = array(
                         </td>
                         <td class="art-submitted-date">
                             <?php
-                            $submitted_date = get_date_from_gmt($request->submitted_at);
+                            $submitted_date = get_date_from_gmt($request->created_at);
                             $date = date_i18n('M j, Y', strtotime($submitted_date));
                             $time = date_i18n('g:i a', strtotime($submitted_date));
                             ?>
@@ -168,12 +171,12 @@ $status_colors = array(
                         </td>
                         <td class="art-status">
                             <span class="art-status-badge status-<?php echo esc_attr($status_color); ?>">
-                                <?php echo esc_html($request->status); ?>
+                                <?php echo esc_html($status_display); ?>
                             </span>
                         </td>
                         <td class="art-service">
-                            <?php if (!empty($request->service_id_source)): ?>
-                                <code><?php echo esc_html($request->service_id_source); ?></code>
+                            <?php if (!empty($request->service_id)): ?>
+                                <code><?php echo esc_html($request->service_id); ?></code>
                             <?php else: ?>
                                 <span style="color: #999;">—</span>
                             <?php endif; ?>
