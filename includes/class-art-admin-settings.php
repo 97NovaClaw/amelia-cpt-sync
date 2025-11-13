@@ -30,6 +30,13 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         add_action('wp_ajax_art_save_settings', array($this, 'ajax_save_settings'));
         add_action('wp_ajax_art_clear_cache', array($this, 'ajax_clear_cache'));
         add_action('wp_ajax_art_save_per_page', array($this, 'ajax_save_per_page'));
+        
+        // Phase 4: Detail view AJAX handlers
+        add_action('wp_ajax_art_update_status', array($this, 'ajax_update_status'));
+        add_action('wp_ajax_art_update_follow_up', array($this, 'ajax_update_follow_up'));
+        add_action('wp_ajax_art_save_pillars', array($this, 'ajax_save_pillars'));
+        add_action('wp_ajax_art_check_customer_match', array($this, 'ajax_check_customer_match'));
+        add_action('wp_ajax_art_get_locations', array($this, 'ajax_get_locations'));
     }
     
     /**
@@ -64,6 +71,16 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             'manage_options',
             'art-settings',
             array($this, 'render_settings_page')
+        );
+        
+        // Add hidden submenu: Request Detail (accessed via link, not menu)
+        add_submenu_page(
+            null,  // No parent = hidden from menu
+            __('Request Detail', 'amelia-cpt-sync'),
+            __('Request Detail', 'amelia-cpt-sync'),
+            'manage_options',
+            'art-request-detail',
+            array($this, 'render_request_detail_page')
         );
     }
     
@@ -571,6 +588,207 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         
         // Include the template
         include AMELIA_CPT_SYNC_PLUGIN_DIR . 'templates/art-triage-forms-page.php';
+    }
+    
+    public function render_request_detail_page() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        
+        // Include the template
+        include AMELIA_CPT_SYNC_PLUGIN_DIR . 'templates/art-request-detail-page.php';
+    }
+    
+    /**
+     * AJAX handler for updating request status
+     */
+    public function ajax_update_status() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $request_id = isset($_POST['request_id']) ? absint($_POST['request_id']) : 0;
+        $status = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : '';
+        
+        if (!$request_id || !$status) {
+            wp_send_json_error(array('message' => 'Missing required parameters'));
+        }
+        
+        $request_manager = new Amelia_CPT_Sync_ART_Request_Manager();
+        $result = $request_manager->update_status($request_id, $status);
+        
+        if ($result) {
+            amelia_cpt_sync_debug_log('ART Detail: Updated request ' . $request_id . ' status to ' . $status);
+            wp_send_json_success(array('message' => 'Status updated'));
+        } else {
+            wp_send_json_error(array('message' => 'Failed to update status'));
+        }
+    }
+    
+    /**
+     * AJAX handler for updating follow-up date
+     */
+    public function ajax_update_follow_up() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $request_id = isset($_POST['request_id']) ? absint($_POST['request_id']) : 0;
+        $follow_up_date = isset($_POST['follow_up_date']) ? sanitize_text_field($_POST['follow_up_date']) : '';
+        
+        if (!$request_id) {
+            wp_send_json_error(array('message' => 'Missing request ID'));
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'art_requests';
+        
+        // Convert to UTC for storage
+        $follow_up_utc = null;
+        if (!empty($follow_up_date)) {
+            $follow_up_utc = gmdate('Y-m-d H:i:s', strtotime($follow_up_date . ' 00:00:00'));
+        }
+        
+        $result = $wpdb->update(
+            $table,
+            array('follow_up_by' => $follow_up_utc),
+            array('id' => $request_id),
+            array('%s'),
+            array('%d')
+        );
+        
+        if ($result !== false) {
+            amelia_cpt_sync_debug_log('ART Detail: Updated request ' . $request_id . ' follow_up_by to ' . $follow_up_date);
+            wp_send_json_success(array('message' => 'Follow-up date saved'));
+        } else {
+            wp_send_json_error(array('message' => 'Failed to save follow-up date'));
+        }
+    }
+    
+    /**
+     * AJAX handler for saving booking pillars
+     */
+    public function ajax_save_pillars() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $request_id = isset($_POST['request_id']) ? absint($_POST['request_id']) : 0;
+        
+        if (!$request_id) {
+            wp_send_json_error(array('message' => 'Missing request ID'));
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'art_requests';
+        
+        // Prepare data for update
+        $data = array();
+        
+        if (isset($_POST['category_id'])) {
+            $data['category_id'] = !empty($_POST['category_id']) ? absint($_POST['category_id']) : null;
+        }
+        
+        if (isset($_POST['service_id'])) {
+            $data['service_id'] = !empty($_POST['service_id']) ? absint($_POST['service_id']) : null;
+        }
+        
+        if (isset($_POST['location_id'])) {
+            $data['location_id'] = !empty($_POST['location_id']) ? absint($_POST['location_id']) : null;
+        }
+        
+        if (isset($_POST['persons'])) {
+            $data['persons'] = absint($_POST['persons']) ?: 1;
+        }
+        
+        if (isset($_POST['start_datetime']) && !empty($_POST['start_datetime'])) {
+            $data['start_datetime'] = gmdate('Y-m-d H:i:s', strtotime($_POST['start_datetime']));
+        }
+        
+        if (isset($_POST['end_datetime']) && !empty($_POST['end_datetime'])) {
+            $data['end_datetime'] = gmdate('Y-m-d H:i:s', strtotime($_POST['end_datetime']));
+        }
+        
+        if (isset($_POST['duration_seconds'])) {
+            $data['duration_seconds'] = absint($_POST['duration_seconds']);
+        }
+        
+        if (isset($_POST['final_price'])) {
+            $data['final_price'] = !empty($_POST['final_price']) ? floatval($_POST['final_price']) : null;
+        }
+        
+        // Always update last_activity_at
+        $data['last_activity_at'] = current_time('mysql', 1);
+        
+        $result = $wpdb->update(
+            $table,
+            $data,
+            array('id' => $request_id),
+            array_fill(0, count($data), '%s'),
+            array('%d')
+        );
+        
+        if ($result !== false) {
+            amelia_cpt_sync_debug_log('ART Detail: Saved pillars for request ' . $request_id);
+            wp_send_json_success(array('message' => 'Booking details saved'));
+        } else {
+            wp_send_json_error(array('message' => 'Failed to save booking details'));
+        }
+    }
+    
+    /**
+     * AJAX handler for customer match check
+     */
+    public function ajax_check_customer_match() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+        
+        if (empty($email) || !is_email($email)) {
+            wp_send_json_error(array('message' => 'Invalid email'));
+        }
+        
+        $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
+        $customer = $api_manager->find_customer($email);
+        
+        if ($customer) {
+            wp_send_json_success(array('customer' => $customer));
+        } else {
+            wp_send_json_success(array('customer' => null));
+        }
+    }
+    
+    /**
+     * AJAX handler for getting locations
+     */
+    public function ajax_get_locations() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
+        $locations = $api_manager->get_locations();
+        
+        if (is_wp_error($locations)) {
+            wp_send_json_error(array(
+                'message' => $locations->get_error_message(),
+                'locations' => array()
+            ));
+        } else {
+            wp_send_json_success(array('locations' => $locations));
+        }
     }
 }
 
