@@ -28,6 +28,9 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         $defaults = array(
             'status' => '',           // Filter by status (status_key in DB)
             'search' => '',           // Search term (customer name, email)
+            'service_id' => '',       // Filter by service ID
+            'date_from' => '',        // Filter by submitted date (from)
+            'date_to' => '',          // Filter by submitted date (to)
             'form_id' => '',          // Filter by form config
             'orderby' => 'created_at',  // Column to order by
             'order' => 'DESC',        // ASC or DESC
@@ -49,17 +52,31 @@ class Amelia_CPT_Sync_ART_Request_Manager {
             $where[] = $wpdb->prepare("{$requests_table}.status_key = %s", strtolower($args['status']));
         }
         
+        // Service filter
+        if (!empty($args['service_id'])) {
+            $where[] = $wpdb->prepare("{$requests_table}.service_id = %d", $args['service_id']);
+        }
+        
+        // Date range filter (submitted date)
+        if (!empty($args['date_from'])) {
+            $where[] = $wpdb->prepare("{$requests_table}.created_at >= %s", $args['date_from'] . ' 00:00:00');
+        }
+        if (!empty($args['date_to'])) {
+            $where[] = $wpdb->prepare("{$requests_table}.created_at <= %s", $args['date_to'] . ' 23:59:59');
+        }
+        
         // Form filter (Note: Database doesn't have form_config_id column yet - will add in migration)
         if (!empty($args['form_id'])) {
             // Skip for now - column doesn't exist yet
             // $where[] = $wpdb->prepare("{$requests_table}.form_config_id = %s", $args['form_id']);
         }
         
-        // Search filter (customer name or email)
+        // Search filter (customer name, email, or service name)
         if (!empty($args['search'])) {
             $search_like = '%' . $wpdb->esc_like($args['search']) . '%';
             $where[] = $wpdb->prepare(
-                "({$customers_table}.first_name LIKE %s OR {$customers_table}.last_name LIKE %s OR {$customers_table}.email LIKE %s)",
+                "({$customers_table}.first_name LIKE %s OR {$customers_table}.last_name LIKE %s OR {$customers_table}.email LIKE %s OR cpt.post_title LIKE %s)",
+                $search_like,
                 $search_like,
                 $search_like,
                 $search_like
@@ -314,6 +331,32 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         }
         
         return $counts;
+    }
+    
+    /**
+     * Get unique services with names (for filter dropdown)
+     *
+     * @return array Array of service objects
+     */
+    public function get_unique_services() {
+        global $wpdb;
+        
+        $requests_table = $wpdb->prefix . 'art_requests';
+        
+        // Get CPT slug
+        $main_settings = get_option('amelia_cpt_sync_settings', array());
+        $cpt_slug = $main_settings['cpt_slug'] ?? 'vehicles';
+        
+        $sql = "SELECT DISTINCT
+                    r.service_id,
+                    cpt.post_title as service_name
+                FROM {$requests_table} r
+                LEFT JOIN {$wpdb->postmeta} pm ON r.service_id = pm.meta_value AND pm.meta_key = '_amelia_service_id'
+                LEFT JOIN {$wpdb->posts} cpt ON pm.post_id = cpt.ID AND cpt.post_type = %s AND cpt.post_status = 'publish'
+                WHERE r.service_id IS NOT NULL AND r.service_id > 0
+                ORDER BY cpt.post_title ASC, r.service_id ASC";
+        
+        return $wpdb->get_results($wpdb->prepare($sql, $cpt_slug));
     }
     
     /**

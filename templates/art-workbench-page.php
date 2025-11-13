@@ -20,6 +20,9 @@ $request_manager = new Amelia_CPT_Sync_ART_Request_Manager();
 // Get query parameters
 $current_status = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : '';
 $search_term = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
+$service_filter = isset($_GET['service_filter']) ? absint($_GET['service_filter']) : '';
+$date_from = isset($_GET['date_from']) ? sanitize_text_field($_GET['date_from']) : '';
+$date_to = isset($_GET['date_to']) ? sanitize_text_field($_GET['date_to']) : '';
 $current_page = isset($_GET['paged']) ? absint($_GET['paged']) : 1;
 
 // Get user's per-page preference (stored in user meta)
@@ -33,6 +36,9 @@ if (empty($per_page) || !in_array($per_page, array(5, 15, 25, 50, 100))) {
 $results = $request_manager->get_requests(array(
     'status' => $current_status,
     'search' => $search_term,
+    'service_id' => $service_filter,
+    'date_from' => $date_from,
+    'date_to' => $date_to,
     'paged' => $current_page,
     'per_page' => $per_page,
     'orderby' => 'created_at',
@@ -41,6 +47,9 @@ $results = $request_manager->get_requests(array(
 
 // Get status counts for filter chips
 $status_counts = $request_manager->get_status_counts();
+
+// Get unique services for filter dropdown
+$all_services = $request_manager->get_unique_services();
 
 // Status badge colors (matching mockup)
 $status_colors = array(
@@ -84,21 +93,97 @@ $status_colors = array(
             <?php endforeach; ?>
         </div>
         
-        <!-- Toolbar: Search + Per Page -->
+        <!-- Toolbar: Filters + Search + Per Page -->
         <div class="art-toolbar">
-            <!-- Per Page Selector -->
-            <div class="art-per-page">
-                <label for="art-per-page-select" class="per-page-label">
-                    <?php _e('Show:', 'amelia-cpt-sync'); ?>
-                </label>
-                <select id="art-per-page-select" class="art-per-page-select">
-                    <?php foreach (array(5, 15, 25, 50, 100) as $option): ?>
-                        <option value="<?php echo $option; ?>" <?php selected($per_page, $option); ?>>
-                            <?php echo $option; ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <span class="per-page-suffix"><?php _e('per page', 'amelia-cpt-sync'); ?></span>
+            <div class="art-toolbar-left">
+                <!-- Per Page Selector -->
+                <div class="art-per-page">
+                    <label for="art-per-page-select" class="per-page-label">
+                        <?php _e('Show:', 'amelia-cpt-sync'); ?>
+                    </label>
+                    <select id="art-per-page-select" class="art-per-page-select">
+                        <?php foreach (array(5, 15, 25, 50, 100) as $option): ?>
+                            <option value="<?php echo $option; ?>" <?php selected($per_page, $option); ?>>
+                                <?php echo $option; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <span class="per-page-suffix"><?php _e('per page', 'amelia-cpt-sync'); ?></span>
+                </div>
+                
+                <!-- Service Filter -->
+                <div class="art-filter-dropdown">
+                    <form method="get" action="" class="art-filter-form">
+                        <input type="hidden" name="page" value="art-workbench">
+                        <?php if (!empty($current_status)): ?>
+                            <input type="hidden" name="status_filter" value="<?php echo esc_attr($current_status); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($search_term)): ?>
+                            <input type="hidden" name="s" value="<?php echo esc_attr($search_term); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($date_from)): ?>
+                            <input type="hidden" name="date_from" value="<?php echo esc_attr($date_from); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($date_to)): ?>
+                            <input type="hidden" name="date_to" value="<?php echo esc_attr($date_to); ?>">
+                        <?php endif; ?>
+                        
+                        <select name="service_filter" class="art-filter-select" onchange="this.form.submit()">
+                            <option value=""><?php _e('All Services', 'amelia-cpt-sync'); ?></option>
+                            <?php foreach ($all_services as $service): ?>
+                                <option value="<?php echo esc_attr($service->service_id); ?>" 
+                                        <?php selected($service_filter, $service->service_id); ?>>
+                                    <?php 
+                                    echo esc_html(
+                                        !empty($service->service_name) 
+                                            ? $service->service_name 
+                                            : 'Service #' . $service->service_id
+                                    ); 
+                                    ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </form>
+                </div>
+                
+                <!-- Date Range Filter -->
+                <div class="art-date-filter">
+                    <form method="get" action="" class="art-filter-form">
+                        <input type="hidden" name="page" value="art-workbench">
+                        <?php if (!empty($current_status)): ?>
+                            <input type="hidden" name="status_filter" value="<?php echo esc_attr($current_status); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($search_term)): ?>
+                            <input type="hidden" name="s" value="<?php echo esc_attr($search_term); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($service_filter)): ?>
+                            <input type="hidden" name="service_filter" value="<?php echo esc_attr($service_filter); ?>">
+                        <?php endif; ?>
+                        
+                        <div class="date-inputs">
+                            <input type="date" 
+                                   name="date_from" 
+                                   value="<?php echo esc_attr($date_from); ?>"
+                                   placeholder="From date"
+                                   class="art-date-input"
+                                   onchange="this.form.submit()">
+                            <span class="date-separator">—</span>
+                            <input type="date" 
+                                   name="date_to" 
+                                   value="<?php echo esc_attr($date_to); ?>"
+                                   placeholder="To date"
+                                   class="art-date-input"
+                                   onchange="this.form.submit()">
+                        </div>
+                    </form>
+                </div>
+                
+                <?php if (!empty($service_filter) || !empty($date_from) || !empty($date_to)): ?>
+                    <a href="<?php echo esc_url(remove_query_arg(array('service_filter', 'date_from', 'date_to', 'paged'))); ?>" 
+                       class="art-clear-filters">
+                        <?php _e('Clear Filters', 'amelia-cpt-sync'); ?>
+                    </a>
+                <?php endif; ?>
             </div>
             
             <!-- Search Bar -->
@@ -107,6 +192,15 @@ $status_colors = array(
                     <input type="hidden" name="page" value="art-workbench">
                     <?php if (!empty($current_status)): ?>
                         <input type="hidden" name="status_filter" value="<?php echo esc_attr($current_status); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($service_filter)): ?>
+                        <input type="hidden" name="service_filter" value="<?php echo esc_attr($service_filter); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($date_from)): ?>
+                        <input type="hidden" name="date_from" value="<?php echo esc_attr($date_from); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($date_to)): ?>
+                        <input type="hidden" name="date_to" value="<?php echo esc_attr($date_to); ?>">
                     <?php endif; ?>
                     
                     <div class="art-search-input-wrap">
@@ -373,7 +467,8 @@ $status_colors = array(
 .art-search-input {
     width: 100%;
     height: 40px;
-    padding: 0 40px 0 40px;
+    padding-left: 40px !important;
+    padding-right: 40px !important;
     background: #fff;
     border: 1px solid #E0E5F1;
     border-radius: 8px;
@@ -633,7 +728,20 @@ $status_colors = array(
     justify-content: center;
     align-items: center;
     margin-top: 24px;
+}
+
+.art-pagination ul {
+    display: flex;
+    align-items: center;
     gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.art-pagination li {
+    margin: 0;
+    padding: 0;
 }
 
 .art-pagination .page-numbers {
@@ -651,6 +759,7 @@ $status_colors = array(
     font-weight: 500;
     text-decoration: none;
     transition: all 0.2s;
+    line-height: 1;
 }
 
 .art-pagination .page-numbers:hover {
@@ -676,6 +785,7 @@ $status_colors = array(
     font-size: 18px;
     width: 18px;
     height: 18px;
+    line-height: 1;
 }
 
 /* === TOOLBAR === */
@@ -687,10 +797,23 @@ $status_colors = array(
     flex-wrap: wrap;
 }
 
+.art-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
 .art-per-page {
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.art-filter-dropdown,
+.art-date-filter {
+    display: flex;
+    align-items: center;
 }
 
 .per-page-label {
@@ -734,6 +857,94 @@ $status_colors = array(
     color: #64748b;
 }
 
+/* === FILTER DROPDOWNS === */
+.art-filter-select {
+    height: 36px;
+    min-width: 180px;
+    padding: 0 32px 0 12px;
+    background: #fff;
+    border: 1px solid #E0E5F1;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #1E293B;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+    background-position: right 8px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+}
+
+.art-filter-select:hover {
+    border-color: #CBD5E1;
+    background-color: #F8FAFC;
+}
+
+.art-filter-select:focus {
+    outline: none;
+    border-color: #1A84EE;
+    box-shadow: 0 0 0 3px rgba(26, 132, 238, 0.1);
+}
+
+/* === DATE INPUTS === */
+.date-inputs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.art-date-input {
+    height: 36px;
+    padding: 0 12px;
+    background: #fff;
+    border: 1px solid #E0E5F1;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #1E293B;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.art-date-input:hover {
+    border-color: #CBD5E1;
+    background-color: #F8FAFC;
+}
+
+.art-date-input:focus {
+    outline: none;
+    border-color: #1A84EE;
+    box-shadow: 0 0 0 3px rgba(26, 132, 238, 0.1);
+}
+
+.date-separator {
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+/* === CLEAR FILTERS === */
+.art-clear-filters {
+    display: inline-flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 14px;
+    background: #fff;
+    border: 1px solid #E0E5F1;
+    border-radius: 6px;
+    color: #DC2626;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.art-clear-filters:hover {
+    background: #FEE2E2;
+    border-color: #DC2626;
+    text-decoration: none;
+}
+
 /* === RESPONSIVE (matching mockup's container queries) === */
 @media (max-width: 900px) {
     .col-service {
@@ -749,6 +960,14 @@ $status_colors = array(
     .art-toolbar {
         flex-direction: column;
         align-items: stretch;
+    }
+    
+    .art-toolbar-left {
+        flex-wrap: wrap;
+    }
+    
+    .art-search-container {
+        width: 100%;
     }
 }
 
