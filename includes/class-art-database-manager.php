@@ -19,7 +19,7 @@ class Amelia_CPT_Sync_ART_Database_Manager {
     /**
      * Database version for schema tracking
      */
-    const DB_VERSION = '1.0.0';
+    const DB_VERSION = '1.1.0';  // Updated: Added category_id column to art_requests
     
     /**
      * Option name for storing database version
@@ -124,6 +124,7 @@ class Amelia_CPT_Sync_ART_Database_Manager {
             customer_id bigint(20) UNSIGNED NOT NULL,
             status_key varchar(50) NOT NULL DEFAULT 'requested',
             service_id bigint(20) DEFAULT NULL,
+            category_id bigint(20) DEFAULT NULL,
             location_id bigint(20) DEFAULT NULL,
             persons int(11) DEFAULT 1,
             start_datetime datetime DEFAULT NULL,
@@ -140,6 +141,8 @@ class Amelia_CPT_Sync_ART_Database_Manager {
             PRIMARY KEY (id),
             KEY customer_id (customer_id),
             KEY status_key (status_key),
+            KEY service_id (service_id),
+            KEY category_id (category_id),
             KEY start_datetime (start_datetime),
             KEY follow_up_by (follow_up_by),
             KEY created_at (created_at)
@@ -319,6 +322,7 @@ class Amelia_CPT_Sync_ART_Database_Manager {
             'customer_id' => intval($request_data['customer_id']),
             'status_key' => sanitize_key($request_data['status_key'] ?? 'requested'),
             'service_id' => isset($request_data['service_id']) ? intval($request_data['service_id']) : null,
+            'category_id' => isset($request_data['category_id']) ? intval($request_data['category_id']) : null,
             'location_id' => isset($request_data['location_id']) ? intval($request_data['location_id']) : null,
             'persons' => isset($request_data['persons']) ? intval($request_data['persons']) : 1,
             'start_datetime' => $request_data['start_datetime'] ?? null,
@@ -328,7 +332,7 @@ class Amelia_CPT_Sync_ART_Database_Manager {
             'final_provider_id' => isset($request_data['final_provider_id']) ? intval($request_data['final_provider_id']) : null
         );
         
-        $format = array('%d', '%s', '%d', '%d', '%d', '%s', '%s', '%d', '%f', '%d');
+        $format = array('%d', '%s', '%d', '%d', '%d', '%d', '%s', '%s', '%d', '%f', '%d');
         
         $inserted = $this->wpdb->insert($table, $data, $format);
         

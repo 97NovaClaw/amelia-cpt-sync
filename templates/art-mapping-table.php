@@ -33,6 +33,7 @@ $destinations['Customer Fields'] = array(
 // Request fields
 $destinations['Request Fields'] = array(
     'request.service_id_source',
+    'request.category_id',
     'request.location_id',
     'request.persons',
     'request.start_datetime',

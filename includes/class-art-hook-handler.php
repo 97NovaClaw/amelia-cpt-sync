@@ -296,6 +296,10 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
             $buckets['request']['service_id_source'] = absint($buckets['request']['service_id_source']);
         }
         
+        if (isset($buckets['request']['category_id'])) {
+            $buckets['request']['category_id'] = absint($buckets['request']['category_id']);
+        }
+        
         if (isset($buckets['request']['location_id'])) {
             $buckets['request']['location_id'] = absint($buckets['request']['location_id']);
         }
@@ -400,6 +404,62 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
         
         // Remove temporary field
         unset($buckets['request']['service_id_source']);
+        
+        // Category ID transformation
+        $category_source = $logic['category_id_source'] ?? 'cpt';
+        
+        if ($category_source === 'cpt' && isset($buckets['request']['service_id']) && $buckets['request']['service_id'] > 0) {
+            // Mode: CPT - Read category from CPT post meta (when service came from CPT)
+            $settings = get_option('amelia_cpt_sync_settings', array());
+            $cpt_slug = $settings['cpt_slug'] ?? 'vehicles';
+            
+            // Find CPT post by _amelia_service_id meta
+            $cpt_posts = get_posts(array(
+                'post_type' => $cpt_slug,
+                'meta_key' => '_amelia_service_id',
+                'meta_value' => $buckets['request']['service_id'],
+                'posts_per_page' => 1,
+                'fields' => 'ids'
+            ));
+            
+            if (!empty($cpt_posts)) {
+                $cpt_id = $cpt_posts[0];
+                $category_id_from_cpt = get_post_meta($cpt_id, 'category_id', true);
+                
+                if ($category_id_from_cpt) {
+                    $buckets['request']['category_id'] = intval($category_id_from_cpt);
+                    amelia_cpt_sync_debug_log('ART Logic: CPT mode - Read category_id ' . $category_id_from_cpt . ' from CPT meta');
+                }
+            }
+        } elseif ($category_source === 'taxonomy_term' && isset($buckets['request']['category_id'])) {
+            // Mode: Taxonomy Term - Form value is a WordPress term ID, read Amelia category ID from term meta
+            $term_id = absint($buckets['request']['category_id']);
+            
+            if ($term_id > 0) {
+                $settings = get_option('amelia_cpt_sync_settings', array());
+                $taxonomy_slug = $settings['taxonomy_slug'] ?? '';
+                $taxonomy_meta_key = $settings['taxonomy_meta']['category_id'] ?? 'category_id';
+                
+                // Read Amelia category ID from term meta
+                $amelia_category_id = get_term_meta($term_id, $taxonomy_meta_key, true);
+                
+                if ($amelia_category_id) {
+                    $buckets['request']['category_id'] = intval($amelia_category_id);
+                    amelia_cpt_sync_debug_log('ART Logic: Taxonomy mode - Converted term ' . $term_id . ' to category_id ' . $amelia_category_id);
+                } else {
+                    amelia_cpt_sync_debug_log('ART Logic: No Amelia category ID found in term meta for term ' . $term_id);
+                    $buckets['request']['category_id'] = null;
+                }
+            }
+        } elseif ($category_source === 'direct' && isset($buckets['request']['category_id'])) {
+            // Mode: Direct - Form value is already Amelia category ID
+            $buckets['request']['category_id'] = absint($buckets['request']['category_id']);
+            amelia_cpt_sync_debug_log('ART Logic: Direct mode - Using category_id ' . $buckets['request']['category_id'] . ' directly');
+        } elseif ($category_source === 'disabled') {
+            // Mode: Disabled - Don't capture category
+            unset($buckets['request']['category_id']);
+            amelia_cpt_sync_debug_log('ART Logic: Category disabled - will be set by admin in detail view');
+        }
         
         // Duration calculation
         if ($logic['duration_mode'] === 'start_end' && 
