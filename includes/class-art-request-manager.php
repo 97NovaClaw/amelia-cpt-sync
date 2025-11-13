@@ -29,6 +29,7 @@ class Amelia_CPT_Sync_ART_Request_Manager {
             'status' => '',           // Filter by status (status_key in DB)
             'search' => '',           // Search term (customer name, email)
             'service_id' => '',       // Filter by service ID
+            'category_id' => '',      // Filter by category ID
             'submitted_from' => '',   // Filter by submitted date (created_at from)
             'submitted_to' => '',     // Filter by submitted date (created_at to)
             'start_from' => '',       // Filter by requested start date (start_datetime from)
@@ -57,6 +58,11 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         // Service filter
         if (!empty($args['service_id'])) {
             $where[] = $wpdb->prepare("{$requests_table}.service_id = %d", $args['service_id']);
+        }
+        
+        // Category filter
+        if (!empty($args['category_id'])) {
+            $where[] = $wpdb->prepare("{$requests_table}.category_id = %d", $args['category_id']);
         }
         
         // Submitted date range filter (when form was submitted)
@@ -110,12 +116,14 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         $count_sql = "SELECT COUNT(*) FROM {$requests_table} {$join} WHERE {$where_clause}";
         $total_items = $wpdb->get_var($count_sql);
         
-        // Get CPT slug and configured meta field names from main plugin settings
+        // Get CPT slug, taxonomy, and configured meta field names from main plugin settings
         $main_settings = get_option('amelia_cpt_sync_settings', array());
         $cpt_slug = $main_settings['cpt_slug'] ?? 'vehicles';
+        $taxonomy_slug = $main_settings['taxonomy_slug'] ?? '';
         $service_meta_key = $main_settings['field_mappings']['service_id'] ?? '_amelia_service_id';
+        $category_meta_key = $main_settings['taxonomy_meta']['category_id'] ?? 'category_id';
         
-        // Get results with service name from CPT (if available)
+        // Get results with service name from CPT and category name from taxonomy (if available)
         $sql = "SELECT 
                     {$requests_table}.*,
                     {$customers_table}.first_name as customer_first_name,
@@ -123,16 +131,19 @@ class Amelia_CPT_Sync_ART_Request_Manager {
                     {$customers_table}.email as customer_email,
                     {$customers_table}.phone as customer_phone,
                     cpt.post_title as service_name,
-                    cpt.ID as service_cpt_id
+                    cpt.ID as service_cpt_id,
+                    t.name as category_name
                 FROM {$requests_table}
                 {$join}
                 LEFT JOIN {$wpdb->postmeta} pm ON {$requests_table}.service_id = pm.meta_value AND pm.meta_key = %s
                 LEFT JOIN {$wpdb->posts} cpt ON pm.post_id = cpt.ID AND cpt.post_type = %s AND cpt.post_status = 'publish'
+                LEFT JOIN {$wpdb->termmeta} tm ON {$requests_table}.category_id = tm.meta_value AND tm.meta_key = %s
+                LEFT JOIN {$wpdb->terms} t ON tm.term_id = t.term_id
                 WHERE {$where_clause}
                 ORDER BY {$requests_table}.{$orderby} {$order}
                 LIMIT {$per_page} OFFSET {$offset}";
         
-        $results = $wpdb->get_results($wpdb->prepare($sql, $service_meta_key, $cpt_slug));
+        $results = $wpdb->get_results($wpdb->prepare($sql, $service_meta_key, $cpt_slug, $category_meta_key));
         
         return array(
             'items' => $results,
@@ -369,6 +380,32 @@ class Amelia_CPT_Sync_ART_Request_Manager {
                 ORDER BY cpt.post_title ASC, r.service_id ASC";
         
         return $wpdb->get_results($wpdb->prepare($sql, $service_meta_key, $cpt_slug));
+    }
+    
+    /**
+     * Get unique categories with names (for filter dropdown)
+     *
+     * @return array Array of category objects
+     */
+    public function get_unique_categories() {
+        global $wpdb;
+        
+        $requests_table = $wpdb->prefix . 'art_requests';
+        
+        // Get configured taxonomy meta field name
+        $main_settings = get_option('amelia_cpt_sync_settings', array());
+        $category_meta_key = $main_settings['taxonomy_meta']['category_id'] ?? 'category_id';
+        
+        $sql = "SELECT DISTINCT
+                    r.category_id,
+                    t.name as category_name
+                FROM {$requests_table} r
+                LEFT JOIN {$wpdb->termmeta} tm ON r.category_id = tm.meta_value AND tm.meta_key = %s
+                LEFT JOIN {$wpdb->terms} t ON tm.term_id = t.term_id
+                WHERE r.category_id IS NOT NULL AND r.category_id > 0
+                ORDER BY t.name ASC, r.category_id ASC";
+        
+        return $wpdb->get_results($wpdb->prepare($sql, $category_meta_key));
     }
     
     /**

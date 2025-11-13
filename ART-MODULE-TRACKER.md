@@ -728,7 +728,46 @@ if (version_compare($current_version, '1.1.0', '<')) {
 
 ## 📝 Notes & Decisions Log
 
-### 2024-11-11 (Latest): Phase 3 Polish - Advanced Filtering & UX
+### 2024-11-11 (Latest): Category Support Added - Pre-Phase 4
+- ✅ **Database Schema** - Added `category_id` column to art_requests (v1.1.0)
+- ✅ **Mapping Destination** - Added `request.category_id` to available mappings
+- ✅ **Logic Settings** - Category ID Source (Convert, Direct) - matches Service pattern
+- ✅ **Smart Conversion** - Taxonomy term → Amelia category ID via term meta
+- ✅ **Dynamic Meta Keys** - Uses configured field names from settings (not hardcoded!)
+- ✅ **Workbench Display** - Category column and filter dropdown added
+- ✅ **SQL Optimization** - JOINs use configured meta keys for flexibility
+
+**Why This Was Critical**:
+- Category is a core Amelia concept (organizes services)
+- Needed for Phase 4 detail view (category filters service dropdown)
+- Forms often capture category (limo types, spa packages, etc.)
+- Enables better filtering and organization
+
+**Technical Implementation**:
+```php
+// Convert mode (taxonomy term):
+$settings['taxonomy_meta']['category_id'] → term meta lookup
+
+// Direct mode:
+Use form value as-is (Amelia category ID)
+
+// Workbench display:
+JOIN with wp_terms via configured meta key
+```
+
+**Files Modified**:
+- `includes/class-art-database-manager.php` - Schema v1.1.0
+- `includes/class-art-hook-handler.php` - Conversion logic
+- `includes/class-art-request-manager.php` - Category queries
+- `templates/art-mapping-table.php` - Added destination
+- `templates/art-triage-forms-page.php` - Logic settings UI
+- `templates/art-workbench-page.php` - Column & filter
+- `includes/class-art-form-config-manager.php` - Default config
+- `amelia-cpt-sync.php` - v2.1.2
+
+**Phase 4 Plan Created**: `dev-resources/PHASE-4-PLAN.md`
+
+### 2024-11-11: Phase 3 Polish - Advanced Filtering & UX
 - ✅ **Service Names from CPT** - JOIN with vehicles CPT to show actual names
 - ✅ **Advanced Filters** - Service dropdown, 2 date ranges (Submitted & Start Date)
 - ✅ **Per-Page Selector** - 5/15/25/50/100 with AJAX save to user meta

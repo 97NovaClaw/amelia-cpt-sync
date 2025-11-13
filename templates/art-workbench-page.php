@@ -21,6 +21,7 @@ $request_manager = new Amelia_CPT_Sync_ART_Request_Manager();
 $current_status = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : '';
 $search_term = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
 $service_filter = isset($_GET['service_filter']) ? absint($_GET['service_filter']) : '';
+$category_filter = isset($_GET['category_filter']) ? absint($_GET['category_filter']) : '';
 $submitted_from = isset($_GET['submitted_from']) ? sanitize_text_field($_GET['submitted_from']) : '';
 $submitted_to = isset($_GET['submitted_to']) ? sanitize_text_field($_GET['submitted_to']) : '';
 $start_from = isset($_GET['start_from']) ? sanitize_text_field($_GET['start_from']) : '';
@@ -39,6 +40,7 @@ $results = $request_manager->get_requests(array(
     'status' => $current_status,
     'search' => $search_term,
     'service_id' => $service_filter,
+    'category_id' => $category_filter,
     'submitted_from' => $submitted_from,
     'submitted_to' => $submitted_to,
     'start_from' => $start_from,
@@ -52,8 +54,9 @@ $results = $request_manager->get_requests(array(
 // Get status counts for filter chips
 $status_counts = $request_manager->get_status_counts();
 
-// Get unique services for filter dropdown
+// Get unique services and categories for filter dropdowns
 $all_services = $request_manager->get_unique_services();
+$all_categories = $request_manager->get_unique_categories();
 
 // Status badge colors (matching mockup)
 $status_colors = array(
@@ -115,6 +118,50 @@ $status_colors = array(
                     <span class="per-page-suffix"><?php _e('per page', 'amelia-cpt-sync'); ?></span>
                 </div>
                 
+                <!-- Category Filter -->
+                <div class="art-filter-dropdown">
+                    <form method="get" action="" class="art-filter-form">
+                        <input type="hidden" name="page" value="art-workbench">
+                        <?php if (!empty($current_status)): ?>
+                            <input type="hidden" name="status_filter" value="<?php echo esc_attr($current_status); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($search_term)): ?>
+                            <input type="hidden" name="s" value="<?php echo esc_attr($search_term); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($service_filter)): ?>
+                            <input type="hidden" name="service_filter" value="<?php echo esc_attr($service_filter); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($submitted_from)): ?>
+                            <input type="hidden" name="submitted_from" value="<?php echo esc_attr($submitted_from); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($submitted_to)): ?>
+                            <input type="hidden" name="submitted_to" value="<?php echo esc_attr($submitted_to); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($start_from)): ?>
+                            <input type="hidden" name="start_from" value="<?php echo esc_attr($start_from); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($start_to)): ?>
+                            <input type="hidden" name="start_to" value="<?php echo esc_attr($start_to); ?>">
+                        <?php endif; ?>
+                        
+                        <select name="category_filter" class="art-filter-select" onchange="this.form.submit()">
+                            <option value=""><?php _e('All Categories', 'amelia-cpt-sync'); ?></option>
+                            <?php foreach ($all_categories as $category): ?>
+                                <option value="<?php echo esc_attr($category->category_id); ?>" 
+                                        <?php selected($category_filter, $category->category_id); ?>>
+                                    <?php 
+                                    echo esc_html(
+                                        !empty($category->category_name) 
+                                            ? $category->category_name 
+                                            : 'Category #' . $category->category_id
+                                    ); 
+                                    ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </form>
+                </div>
+                
                 <!-- Service Filter -->
                 <div class="art-filter-dropdown">
                     <form method="get" action="" class="art-filter-form">
@@ -124,6 +171,9 @@ $status_colors = array(
                         <?php endif; ?>
                         <?php if (!empty($search_term)): ?>
                             <input type="hidden" name="s" value="<?php echo esc_attr($search_term); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($category_filter)): ?>
+                            <input type="hidden" name="category_filter" value="<?php echo esc_attr($category_filter); ?>">
                         <?php endif; ?>
                         <?php if (!empty($submitted_from)): ?>
                             <input type="hidden" name="submitted_from" value="<?php echo esc_attr($submitted_from); ?>">
@@ -166,6 +216,9 @@ $status_colors = array(
                         <?php if (!empty($search_term)): ?>
                             <input type="hidden" name="s" value="<?php echo esc_attr($search_term); ?>">
                         <?php endif; ?>
+                        <?php if (!empty($category_filter)): ?>
+                            <input type="hidden" name="category_filter" value="<?php echo esc_attr($category_filter); ?>">
+                        <?php endif; ?>
                         <?php if (!empty($service_filter)): ?>
                             <input type="hidden" name="service_filter" value="<?php echo esc_attr($service_filter); ?>">
                         <?php endif; ?>
@@ -205,6 +258,9 @@ $status_colors = array(
                         <?php if (!empty($search_term)): ?>
                             <input type="hidden" name="s" value="<?php echo esc_attr($search_term); ?>">
                         <?php endif; ?>
+                        <?php if (!empty($category_filter)): ?>
+                            <input type="hidden" name="category_filter" value="<?php echo esc_attr($category_filter); ?>">
+                        <?php endif; ?>
                         <?php if (!empty($service_filter)): ?>
                             <input type="hidden" name="service_filter" value="<?php echo esc_attr($service_filter); ?>">
                         <?php endif; ?>
@@ -234,8 +290,8 @@ $status_colors = array(
                     </form>
                 </div>
                 
-                <?php if (!empty($service_filter) || !empty($submitted_from) || !empty($submitted_to) || !empty($start_from) || !empty($start_to)): ?>
-                    <a href="<?php echo esc_url(remove_query_arg(array('service_filter', 'submitted_from', 'submitted_to', 'start_from', 'start_to', 'paged'))); ?>" 
+                <?php if (!empty($category_filter) || !empty($service_filter) || !empty($submitted_from) || !empty($submitted_to) || !empty($start_from) || !empty($start_to)): ?>
+                    <a href="<?php echo esc_url(remove_query_arg(array('category_filter', 'service_filter', 'submitted_from', 'submitted_to', 'start_from', 'start_to', 'paged'))); ?>" 
                        class="art-clear-filters">
                         <?php _e('Clear Filters', 'amelia-cpt-sync'); ?>
                     </a>
@@ -248,6 +304,9 @@ $status_colors = array(
                     <input type="hidden" name="page" value="art-workbench">
                     <?php if (!empty($current_status)): ?>
                         <input type="hidden" name="status_filter" value="<?php echo esc_attr($current_status); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($category_filter)): ?>
+                        <input type="hidden" name="category_filter" value="<?php echo esc_attr($category_filter); ?>">
                     <?php endif; ?>
                     <?php if (!empty($service_filter)): ?>
                         <input type="hidden" name="service_filter" value="<?php echo esc_attr($service_filter); ?>">
@@ -306,6 +365,7 @@ $status_colors = array(
                     <tr>
                         <th class="col-status"><?php _e('Status', 'amelia-cpt-sync'); ?></th>
                         <th class="col-customer"><?php _e('Customer', 'amelia-cpt-sync'); ?></th>
+                        <th class="col-category"><?php _e('Category', 'amelia-cpt-sync'); ?></th>
                         <th class="col-service"><?php _e('Service', 'amelia-cpt-sync'); ?></th>
                         <th class="col-requested-start"><?php _e('Requested Start', 'amelia-cpt-sync'); ?></th>
                         <th class="col-submitted"><?php _e('Submitted', 'amelia-cpt-sync'); ?></th>
@@ -366,6 +426,15 @@ $status_colors = array(
                                     </p>
                                 <?php endif; ?>
                             </div>
+                        </td>
+                        <td class="col-category">
+                            <?php if (!empty($request->category_name)): ?>
+                                <span class="category-name"><?php echo esc_html($request->category_name); ?></span>
+                            <?php elseif (!empty($request->category_id)): ?>
+                                <span class="category-id">Cat #<?php echo esc_html($request->category_id); ?></span>
+                            <?php else: ?>
+                                <span class="no-data">—</span>
+                            <?php endif; ?>
                         </td>
                         <td class="col-service">
                             <?php if (!empty($request->service_name)): ?>
@@ -634,11 +703,15 @@ $status_colors = array(
 
 /* === TABLE COLUMNS === */
 .col-status {
-    width: 160px;
+    width: 140px;
 }
 
 .col-customer {
     min-width: 200px;
+}
+
+.col-category {
+    width: 140px;
 }
 
 .col-service {
@@ -646,15 +719,15 @@ $status_colors = array(
 }
 
 .col-requested-start {
-    width: 200px;
+    width: 180px;
 }
 
 .col-submitted {
-    width: 140px;
+    width: 120px;
 }
 
 .col-actions {
-    width: 100px;
+    width: 80px;
     text-align: center;
 }
 
@@ -726,13 +799,15 @@ $status_colors = array(
     line-height: 1.4;
 }
 
-/* === SERVICE & DATA === */
+/* === SERVICE & CATEGORY DATA === */
+.category-name,
 .service-name {
     color: #1E293B;
     font-size: 14px;
     font-weight: 500;
 }
 
+.category-id,
 .service-id {
     color: #64748b;
     font-size: 13px;
@@ -1029,6 +1104,12 @@ $status_colors = array(
 }
 
 /* === RESPONSIVE (matching mockup's container queries) === */
+@media (max-width: 1024px) {
+    .col-category {
+        display: none;
+    }
+}
+
 @media (max-width: 900px) {
     .col-service {
         display: none;
