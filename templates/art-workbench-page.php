@@ -3,6 +3,7 @@
  * ART Workbench (Triage Requests List) Template
  *
  * Displays all triage requests with filtering, search, and pagination
+ * Design based on ui-mockup-list-view.html (Tailwind aesthetic)
  *
  * @package AmeliaCPTSync
  * @subpackage ART
@@ -27,354 +28,653 @@ $results = $request_manager->get_requests(array(
     'search' => $search_term,
     'paged' => $current_page,
     'per_page' => 20,
-    'orderby' => 'submitted_at',
+    'orderby' => 'created_at',
     'order' => 'DESC'
 ));
 
 // Get status counts for filter chips
 $status_counts = $request_manager->get_status_counts();
 
-// Status badge colors
+// Status badge colors (matching mockup)
 $status_colors = array(
     'Requested' => 'blue',
-    'Responded' => 'purple',
-    'Tentative' => 'yellow',
+    'Responded' => 'yellow',
+    'Tentative' => 'purple',
     'Booked' => 'green',
-    'Abandoned' => 'gray'
+    'Abandoned' => 'red'
 );
 ?>
 
 <div class="wrap art-workbench">
-    <h1 class="wp-heading-inline">
-        <?php _e('Triage Requests', 'amelia-cpt-sync'); ?>
-    </h1>
-    
-    <?php if ($results['total'] > 0): ?>
-        <span class="subtitle" style="color: #666; margin-left: 10px;">
-            (<?php echo number_format($results['total']); ?> total)
-        </span>
-    <?php endif; ?>
-    
-    <hr class="wp-header-end">
-    
-    <!-- Status Filter Chips -->
-    <div class="art-status-filters" style="margin: 20px 0; display: flex; gap: 10px; flex-wrap: wrap;">
-        <a href="<?php echo esc_url(remove_query_arg(array('status_filter', 'paged'))); ?>" 
-           class="art-filter-chip <?php echo empty($current_status) ? 'active' : ''; ?>">
-            <span class="count"><?php echo $status_counts['all']; ?></span>
-            All Requests
-        </a>
-        
-        <?php foreach (array('Requested', 'Responded', 'Tentative', 'Booked', 'Abandoned') as $status): ?>
-            <a href="<?php echo esc_url(add_query_arg(array('status_filter' => $status, 'paged' => 1))); ?>" 
-               class="art-filter-chip <?php echo $current_status === $status ? 'active' : ''; ?> status-<?php echo strtolower($status); ?>">
-                <span class="count"><?php echo $status_counts[$status]; ?></span>
-                <?php echo esc_html($status); ?>
-            </a>
-        <?php endforeach; ?>
+    <!-- Page Heading -->
+    <div class="art-page-header">
+        <h1 class="art-page-title">
+            <?php _e('Triage Requests', 'amelia-cpt-sync'); ?>
+        </h1>
+        <?php if ($results['total'] > 0): ?>
+            <span class="art-subtitle">
+                <?php echo number_format($results['total']); ?> total
+            </span>
+        <?php endif; ?>
     </div>
     
-    <!-- Search Bar -->
-    <div class="art-search-bar" style="margin: 20px 0;">
-        <form method="get" action="">
-            <input type="hidden" name="page" value="art-workbench">
-            <?php if (!empty($current_status)): ?>
-                <input type="hidden" name="status_filter" value="<?php echo esc_attr($current_status); ?>">
-            <?php endif; ?>
+    <!-- Filter Section -->
+    <div class="art-filters-wrapper">
+        <!-- Status Filter Chips -->
+        <div class="art-status-chips">
+            <a href="<?php echo esc_url(remove_query_arg(array('status_filter', 'paged'))); ?>" 
+               class="art-chip <?php echo empty($current_status) ? 'active' : ''; ?>">
+                <span class="chip-count"><?php echo $status_counts['all']; ?></span>
+                All
+            </a>
             
-            <div style="display: flex; gap: 10px; max-width: 600px;">
-                <input type="search" 
-                       name="s" 
-                       value="<?php echo esc_attr($search_term); ?>" 
-                       placeholder="Search by customer name or email..." 
-                       class="regular-text"
-                       style="flex: 1;">
-                <button type="submit" class="button">
-                    <?php _e('Search', 'amelia-cpt-sync'); ?>
-                </button>
-                <?php if (!empty($search_term)): ?>
-                    <a href="<?php echo esc_url(remove_query_arg(array('s', 'paged'))); ?>" class="button">
-                        Clear
-                    </a>
+            <?php foreach (array('Requested', 'Responded', 'Tentative', 'Booked', 'Abandoned') as $status): ?>
+                <a href="<?php echo esc_url(add_query_arg(array('status_filter' => $status, 'paged' => 1))); ?>" 
+                   class="art-chip <?php echo $current_status === $status ? 'active' : ''; ?> chip-<?php echo strtolower($status); ?>">
+                    <span class="chip-count"><?php echo $status_counts[$status]; ?></span>
+                    <?php echo esc_html($status); ?>
+                </a>
+            <?php endforeach; ?>
+        </div>
+        
+        <!-- Search Bar -->
+        <div class="art-search-container">
+            <form method="get" action="" class="art-search-form">
+                <input type="hidden" name="page" value="art-workbench">
+                <?php if (!empty($current_status)): ?>
+                    <input type="hidden" name="status_filter" value="<?php echo esc_attr($current_status); ?>">
                 <?php endif; ?>
-            </div>
-        </form>
+                
+                <div class="art-search-input-wrap">
+                    <span class="dashicons dashicons-search art-search-icon"></span>
+                    <input type="search" 
+                           name="s" 
+                           value="<?php echo esc_attr($search_term); ?>" 
+                           placeholder="Search requests..." 
+                           class="art-search-input">
+                    <?php if (!empty($search_term)): ?>
+                        <a href="<?php echo esc_url(remove_query_arg(array('s', 'paged'))); ?>" 
+                           class="art-clear-search" 
+                           title="Clear search">
+                            <span class="dashicons dashicons-no-alt"></span>
+                        </a>
+                    <?php endif; ?>
+                </div>
+            </form>
+        </div>
     </div>
     
     <!-- Results Table -->
     <?php if (empty($results['items'])): ?>
-        <div class="art-empty-state" style="text-align: center; padding: 60px 20px; background: #fff; border: 1px solid #ddd; border-radius: 4px;">
-            <p style="font-size: 18px; color: #666; margin: 0 0 10px;">
+        <div class="art-empty-state">
+            <p class="empty-title">
                 <?php if (!empty($search_term) || !empty($current_status)): ?>
                     <?php _e('No requests found matching your filters.', 'amelia-cpt-sync'); ?>
                 <?php else: ?>
                     <?php _e('No triage requests yet.', 'amelia-cpt-sync'); ?>
                 <?php endif; ?>
             </p>
-            <p style="color: #999;">
+            <p class="empty-subtitle">
                 <?php _e('Requests will appear here as customers submit triage forms.', 'amelia-cpt-sync'); ?>
             </p>
         </div>
     <?php else: ?>
-        <table class="wp-list-table widefat fixed striped art-requests-table">
-            <thead>
-                <tr>
-                    <th scope="col" style="width: 60px;"><?php _e('ID', 'amelia-cpt-sync'); ?></th>
-                    <th scope="col" style="width: 20%;"><?php _e('Customer', 'amelia-cpt-sync'); ?></th>
-                    <th scope="col" style="width: 20%;"><?php _e('Contact', 'amelia-cpt-sync'); ?></th>
-                    <th scope="col" style="width: 15%;"><?php _e('Submitted', 'amelia-cpt-sync'); ?></th>
-                    <th scope="col" style="width: 12%;"><?php _e('Status', 'amelia-cpt-sync'); ?></th>
-                    <th scope="col" style="width: 15%;"><?php _e('Service', 'amelia-cpt-sync'); ?></th>
-                    <th scope="col" class="art-actions-col"><?php _e('Actions', 'amelia-cpt-sync'); ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($results['items'] as $request): 
+        <div class="art-table-container">
+            <table class="art-table">
+                <thead>
+                    <tr>
+                        <th class="col-status"><?php _e('Status', 'amelia-cpt-sync'); ?></th>
+                        <th class="col-customer"><?php _e('Customer', 'amelia-cpt-sync'); ?></th>
+                        <th class="col-service"><?php _e('Service', 'amelia-cpt-sync'); ?></th>
+                        <th class="col-requested-start"><?php _e('Requested Start', 'amelia-cpt-sync'); ?></th>
+                        <th class="col-submitted"><?php _e('Submitted', 'amelia-cpt-sync'); ?></th>
+                        <th class="col-actions"><?php _e('Actions', 'amelia-cpt-sync'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php 
+                $row_index = 0;
+                foreach ($results['items'] as $request): 
                     // Map status_key to display name
                     $status_display = ucfirst($request->status_key ?? 'requested');
                     $status_color = $status_colors[$status_display] ?? 'gray';
                     
                     $customer_name = trim($request->customer_first_name . ' ' . $request->customer_last_name);
-                    if (empty($customer_name)) {
-                        $customer_name = '—';
+                    if (empty($customer_name) || $customer_name === ' ') {
+                        $customer_name = 'Unknown';
                     }
+                    
+                    // Alternate row background (like mockup)
+                    $row_class = ($row_index % 2 === 0) ? '' : 'alt-row';
+                    $row_index++;
+                    
+                    // Format dates
+                    $submitted_date = get_date_from_gmt($request->created_at);
+                    $submitted_display = date_i18n('M j, Y', strtotime($submitted_date));
+                    
+                    $start_display = '—';
+                    if (!empty($request->start_datetime)) {
+                        $start_date = get_date_from_gmt($request->start_datetime);
+                        $start_display = date_i18n('M j, Y, g:i A', strtotime($start_date));
+                    }
+                    
+                    $detail_url = add_query_arg(
+                        array('page' => 'art-request-detail', 'request_id' => $request->id),
+                        admin_url('admin.php')
+                    );
                 ?>
-                    <tr class="art-request-row" data-request-id="<?php echo esc_attr($request->id); ?>">
-                        <td class="art-request-id">
-                            <strong>#<?php echo esc_html($request->id); ?></strong>
-                        </td>
-                        <td class="art-customer-name">
-                            <?php echo esc_html($customer_name); ?>
-                        </td>
-                        <td class="art-customer-contact">
-                            <?php if (!empty($request->customer_email)): ?>
-                                <div style="margin-bottom: 2px;">
-                                    <a href="mailto:<?php echo esc_attr($request->customer_email); ?>">
-                                        <?php echo esc_html($request->customer_email); ?>
-                                    </a>
-                                </div>
-                            <?php endif; ?>
-                            <?php if (!empty($request->customer_phone)): ?>
-                                <div style="color: #666; font-size: 12px;">
-                                    <?php echo esc_html($request->customer_phone); ?>
-                                </div>
-                            <?php endif; ?>
-                        </td>
-                        <td class="art-submitted-date">
-                            <?php
-                            $submitted_date = get_date_from_gmt($request->created_at);
-                            $date = date_i18n('M j, Y', strtotime($submitted_date));
-                            $time = date_i18n('g:i a', strtotime($submitted_date));
-                            ?>
-                            <div><?php echo $date; ?></div>
-                            <div style="color: #666; font-size: 12px;"><?php echo $time; ?></div>
-                        </td>
-                        <td class="art-status">
-                            <span class="art-status-badge status-<?php echo esc_attr($status_color); ?>">
+                    <tr class="art-row <?php echo esc_attr($row_class); ?>" data-request-id="<?php echo esc_attr($request->id); ?>">
+                        <td class="col-status">
+                            <span class="status-badge badge-<?php echo esc_attr($status_color); ?>">
                                 <?php echo esc_html($status_display); ?>
                             </span>
                         </td>
-                        <td class="art-service">
+                        <td class="col-customer">
+                            <div class="customer-info">
+                                <a href="<?php echo esc_url($detail_url); ?>" class="customer-name">
+                                    <?php echo esc_html($customer_name); ?>
+                                </a>
+                                <?php if (!empty($request->customer_email)): ?>
+                                    <p class="customer-email">
+                                        <?php echo esc_html($request->customer_email); ?>
+                                    </p>
+                                <?php endif; ?>
+                            </div>
+                        </td>
+                        <td class="col-service">
                             <?php if (!empty($request->service_id)): ?>
-                                <code><?php echo esc_html($request->service_id); ?></code>
+                                <span class="service-id">Service #<?php echo esc_html($request->service_id); ?></span>
                             <?php else: ?>
-                                <span style="color: #999;">—</span>
+                                <span class="no-data">—</span>
                             <?php endif; ?>
                         </td>
-                        <td class="art-actions">
-                            <a href="<?php echo esc_url(add_query_arg(array('page' => 'art-request-detail', 'request_id' => $request->id), admin_url('admin.php'))); ?>" 
-                               class="button button-small">
-                                <?php _e('View Details', 'amelia-cpt-sync'); ?>
+                        <td class="col-requested-start">
+                            <?php echo esc_html($start_display); ?>
+                        </td>
+                        <td class="col-submitted">
+                            <?php echo esc_html($submitted_display); ?>
+                        </td>
+                        <td class="col-actions">
+                            <a href="<?php echo esc_url($detail_url); ?>" class="art-btn-view">
+                                <?php _e('View', 'amelia-cpt-sync'); ?>
                             </a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        </div>
         
         <!-- Pagination -->
         <?php if ($results['total_pages'] > 1): ?>
-            <div class="tablenav bottom">
-                <div class="tablenav-pages">
-                    <?php
-                    $page_links = paginate_links(array(
-                        'base' => add_query_arg('paged', '%#%'),
-                        'format' => '',
-                        'prev_text' => __('&laquo; Previous', 'amelia-cpt-sync'),
-                        'next_text' => __('Next &raquo;', 'amelia-cpt-sync'),
-                        'total' => $results['total_pages'],
-                        'current' => $current_page,
-                        'type' => 'plain'
-                    ));
-                    
-                    if ($page_links) {
-                        echo '<span class="pagination-links">' . $page_links . '</span>';
-                    }
-                    ?>
-                    <span class="displaying-num">
-                        <?php
-                        printf(
-                            _n('%s item', '%s items', $results['total'], 'amelia-cpt-sync'),
-                            number_format_i18n($results['total'])
-                        );
-                        ?>
-                    </span>
-                </div>
+            <div class="art-pagination">
+                <?php
+                $page_links = paginate_links(array(
+                    'base' => add_query_arg('paged', '%#%'),
+                    'format' => '',
+                    'prev_text' => '<span class="dashicons dashicons-arrow-left-alt2"></span>',
+                    'next_text' => '<span class="dashicons dashicons-arrow-right-alt2"></span>',
+                    'total' => $results['total_pages'],
+                    'current' => $current_page,
+                    'type' => 'list',
+                    'mid_size' => 2,
+                    'end_size' => 1
+                ));
+                
+                if ($page_links) {
+                    echo $page_links;
+                }
+                ?>
             </div>
         <?php endif; ?>
     <?php endif; ?>
 </div>
 
-<!-- Inline Styles (will move to CSS file) -->
+<!-- Styles (Tailwind-inspired, matching ui-mockup-list-view.html) -->
 <style>
+/* ============================================================================
+   ART WORKBENCH STYLES
+   Design inspired by ui-mockup-list-view.html (Tailwind aesthetic)
+   Modern, clean, rounded corners, better spacing
+   ============================================================================ */
+
 .art-workbench {
-    background: #f5f5f5;
-    padding: 20px;
+    background: #F7F8FC;
+    padding: 32px 24px;
     margin: -10px -20px 0 -22px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    min-height: calc(100vh - 32px);
 }
 
-.art-status-filters {
+/* === PAGE HEADER === */
+.art-page-header {
     display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 24px;
 }
 
-.art-filter-chip {
+.art-page-title {
+    font-size: 30px;
+    font-weight: 900;
+    letter-spacing: -0.025em;
+    color: #1E293B;
+    margin: 0;
+}
+
+.art-subtitle {
+    font-size: 16px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+/* === FILTER SECTION === */
+.art-filters-wrapper {
+    margin-bottom: 24px;
+}
+
+.art-status-chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.art-chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
+    gap: 8px;
+    height: 36px;
+    padding: 0 16px;
     background: #fff;
-    border: 2px solid #ddd;
-    border-radius: 20px;
+    border: 1px solid #E0E5F1;
+    border-radius: 9999px;
     text-decoration: none;
-    color: #333;
+    color: #1E293B;
     font-size: 14px;
     font-weight: 500;
-    transition: all 0.2s;
-}
-
-.art-filter-chip:hover {
-    border-color: #2271b1;
-    color: #2271b1;
-    text-decoration: none;
-}
-
-.art-filter-chip.active {
-    background: #2271b1;
-    border-color: #2271b1;
-    color: #fff;
-}
-
-.art-filter-chip .count {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 24px;
-    height: 24px;
-    padding: 0 6px;
-    background: #f0f0f0;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-}
-
-.art-filter-chip.active .count {
-    background: rgba(255, 255, 255, 0.3);
-    color: #fff;
-}
-
-/* Status color variations */
-.art-filter-chip.status-requested { border-color: #0073aa; }
-.art-filter-chip.status-requested:hover,
-.art-filter-chip.status-requested.active { background: #0073aa; border-color: #0073aa; }
-
-.art-filter-chip.status-responded { border-color: #826eb4; }
-.art-filter-chip.status-responded:hover,
-.art-filter-chip.status-responded.active { background: #826eb4; border-color: #826eb4; }
-
-.art-filter-chip.status-tentative { border-color: #f0b849; }
-.art-filter-chip.status-tentative:hover,
-.art-filter-chip.status-tentative.active { background: #f0b849; border-color: #f0b849; }
-
-.art-filter-chip.status-booked { border-color: #46b450; }
-.art-filter-chip.status-booked:hover,
-.art-filter-chip.status-booked.active { background: #46b450; border-color: #46b450; }
-
-.art-filter-chip.status-abandoned { border-color: #999; }
-.art-filter-chip.status-abandoned:hover,
-.art-filter-chip.status-abandoned.active { background: #999; border-color: #999; }
-
-.art-search-bar {
-    background: #fff;
-    padding: 15px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-}
-
-.art-requests-table {
-    background: #fff;
-    border: 1px solid #ddd;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-
-.art-requests-table th {
-    font-weight: 600;
-}
-
-.art-request-row {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
 }
 
-.art-request-row:hover {
-    background: #f9f9f9 !important;
+.art-chip:hover {
+    background: #F1F5F9;
+    text-decoration: none;
+    color: #1E293B;
+    border-color: #CBD5E1;
 }
 
-.art-status-badge {
-    display: inline-block;
-    padding: 4px 10px;
+.art-chip.active {
+    background: #1A84EE;
+    border-color: #1A84EE;
+    color: #fff;
+}
+
+.chip-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+/* === SEARCH BAR === */
+.art-search-container {
+    max-width: 512px;
+}
+
+.art-search-form {
+    width: 100%;
+}
+
+.art-search-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.art-search-icon {
+    position: absolute;
+    left: 12px;
+    color: #94a3b8;
+    font-size: 18px;
+    width: 20px;
+    height: 20px;
+}
+
+.art-search-input {
+    width: 100%;
+    height: 40px;
+    padding: 0 40px 0 40px;
+    background: #fff;
+    border: 1px solid #E0E5F1;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #1E293B;
+    transition: all 0.2s;
+}
+
+.art-search-input:focus {
+    outline: none;
+    border-color: #1A84EE;
+    box-shadow: 0 0 0 3px rgba(26, 132, 238, 0.1);
+}
+
+.art-search-input::placeholder {
+    color: #94a3b8;
+}
+
+.art-clear-search {
+    position: absolute;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    text-decoration: none;
+    color: #94a3b8;
+    transition: color 0.2s;
+    border-radius: 50%;
+}
+
+.art-clear-search:hover {
+    color: #1E293B;
+    background: #F1F5F9;
+}
+
+.art-clear-search .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+/* === TABLE === */
+.art-table-container {
+    overflow: hidden;
     border-radius: 12px;
+    border: 1px solid #E0E5F1;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.art-table {
+    width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+}
+
+.art-table thead {
+    background: #F8FAFC;
+    border-bottom: 1px solid #E0E5F1;
+}
+
+.art-table thead tr th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1E293B;
+}
+
+.art-table tbody tr {
+    border-top: 1px solid #E0E5F1;
+    transition: background-color 0.15s;
+}
+
+.art-table tbody tr:first-child {
+    border-top: none;
+}
+
+.art-table tbody tr:hover {
+    background: #F8FAFC !important;
+}
+
+.art-table tbody tr.alt-row {
+    background: rgba(248, 250, 252, 0.5);
+}
+
+.art-table tbody td {
+    padding: 18px 16px;
+    font-size: 14px;
+    color: #475569;
+    vertical-align: middle;
+    height: 72px;
+}
+
+/* === TABLE COLUMNS === */
+.col-status {
+    width: 160px;
+}
+
+.col-customer {
+    min-width: 200px;
+}
+
+.col-service {
+    width: 180px;
+}
+
+.col-requested-start {
+    width: 200px;
+}
+
+.col-submitted {
+    width: 140px;
+}
+
+.col-actions {
+    width: 100px;
+    text-align: center;
+}
+
+/* === STATUS BADGES (matching mockup colors) === */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 28px;
+    padding: 0 12px;
+    border-radius: 9999px;
     font-size: 12px;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+    text-transform: capitalize;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    width: fit-content;
 }
 
-.art-status-badge.status-blue {
-    background: #e5f2ff;
-    color: #0073aa;
+.badge-green {
+    background: #DCFCE7;
+    color: #16A34A;
 }
 
-.art-status-badge.status-purple {
-    background: #f0ebf7;
-    color: #826eb4;
+.badge-blue {
+    background: #DBEAFE;
+    color: #2563EB;
 }
 
-.art-status-badge.status-yellow {
-    background: #fef8e5;
-    color: #f0b849;
+.badge-yellow {
+    background: #FEF3C7;
+    color: #D97706;
 }
 
-.art-status-badge.status-green {
-    background: #ecf7ed;
-    color: #46b450;
+.badge-purple {
+    background: #EDE9FE;
+    color: #9333EA;
 }
 
-.art-status-badge.status-gray {
-    background: #f0f0f0;
-    color: #666;
+.badge-red {
+    background: #FEE2E2;
+    color: #DC2626;
 }
 
+/* === CUSTOMER INFO === */
+.customer-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.customer-name {
+    font-weight: 600;
+    color: #1E293B;
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    transition: all 0.2s;
+}
+
+.customer-name:hover {
+    color: #1A84EE;
+    text-decoration-color: #1A84EE;
+}
+
+.customer-email {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+}
+
+/* === SERVICE & DATA === */
+.service-id {
+    color: #475569;
+    font-size: 14px;
+}
+
+.no-data {
+    color: #94a3b8;
+}
+
+/* === VIEW BUTTON === */
+.art-btn-view {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    padding: 0 16px;
+    background: #fff;
+    border: 1px solid #E0E5F1;
+    border-radius: 6px;
+    color: #1E293B;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.art-btn-view:hover {
+    background: #F1F5F9;
+    border-color: #1A84EE;
+    color: #1A84EE;
+    text-decoration: none;
+}
+
+/* === EMPTY STATE === */
 .art-empty-state {
     text-align: center;
-    padding: 60px 20px;
+    padding: 80px 20px;
     background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    border: 1px solid #E0E5F1;
+    border-radius: 12px;
 }
 
-.art-actions-col {
-    text-align: center;
+.empty-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #64748b;
+    margin: 0 0 8px;
+}
+
+.empty-subtitle {
+    font-size: 14px;
+    color: #94a3b8;
+    margin: 0;
+}
+
+/* === PAGINATION === */
+.art-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 24px;
+    gap: 8px;
+}
+
+.art-pagination .page-numbers {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 8px;
+    background: #fff;
+    border: 1px solid #E0E5F1;
+    border-radius: 9999px;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.art-pagination .page-numbers:hover {
+    background: #F1F5F9;
+    color: #1E293B;
+    text-decoration: none;
+    border-color: #CBD5E1;
+}
+
+.art-pagination .page-numbers.current {
+    background: #1A84EE;
+    border-color: #1A84EE;
+    color: #fff;
+    font-weight: 700;
+}
+
+.art-pagination .page-numbers.dots {
+    border: none;
+    background: transparent;
+}
+
+.art-pagination .page-numbers .dashicons {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+
+/* === RESPONSIVE (matching mockup's container queries) === */
+@media (max-width: 900px) {
+    .col-service {
+        display: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .col-requested-start {
+        display: none;
+    }
+}
+
+@media (max-width: 600px) {
+    .col-submitted {
+        display: none;
+    }
+    
+    .art-status-chips {
+        gap: 6px;
+    }
+    
+    .art-chip {
+        font-size: 13px;
+        padding: 0 12px;
+        height: 32px;
+    }
+    
+    .art-page-title {
+        font-size: 24px;
+    }
 }
 </style>
 
