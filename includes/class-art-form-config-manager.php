@@ -190,6 +190,7 @@ class Amelia_CPT_Sync_ART_Form_Config_Manager {
             'mappings' => array(),
             'logic' => array(
                 'service_id_source' => 'cpt',
+                'category_id_source' => 'convert',
                 'duration_mode' => 'manual',
                 'price_mode' => 'manual',
                 'location_mode' => 'disabled',

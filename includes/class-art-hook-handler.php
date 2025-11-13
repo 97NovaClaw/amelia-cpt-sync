@@ -406,59 +406,56 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
         unset($buckets['request']['service_id_source']);
         
         // Category ID transformation
-        $category_source = $logic['category_id_source'] ?? 'cpt';
+        $category_source = $logic['category_id_source'] ?? 'convert';
         
-        if ($category_source === 'cpt' && isset($buckets['request']['service_id']) && $buckets['request']['service_id'] > 0) {
-            // Mode: CPT - Read category from CPT post meta (when service came from CPT)
-            $settings = get_option('amelia_cpt_sync_settings', array());
-            $cpt_slug = $settings['cpt_slug'] ?? 'vehicles';
+        if ($category_source === 'convert' && isset($buckets['request']['category_id'])) {
+            // Mode: Convert - Try multiple lookup strategies
+            $source_value = absint($buckets['request']['category_id']);
+            $amelia_category_id = null;
             
-            // Find CPT post by _amelia_service_id meta
-            $cpt_posts = get_posts(array(
-                'post_type' => $cpt_slug,
-                'meta_key' => '_amelia_service_id',
-                'meta_value' => $buckets['request']['service_id'],
-                'posts_per_page' => 1,
-                'fields' => 'ids'
-            ));
-            
-            if (!empty($cpt_posts)) {
-                $cpt_id = $cpt_posts[0];
-                $category_id_from_cpt = get_post_meta($cpt_id, 'category_id', true);
-                
-                if ($category_id_from_cpt) {
-                    $buckets['request']['category_id'] = intval($category_id_from_cpt);
-                    amelia_cpt_sync_debug_log('ART Logic: CPT mode - Read category_id ' . $category_id_from_cpt . ' from CPT meta');
-                }
-            }
-        } elseif ($category_source === 'taxonomy_term' && isset($buckets['request']['category_id'])) {
-            // Mode: Taxonomy Term - Form value is a WordPress term ID, read Amelia category ID from term meta
-            $term_id = absint($buckets['request']['category_id']);
-            
-            if ($term_id > 0) {
+            if ($source_value > 0) {
                 $settings = get_option('amelia_cpt_sync_settings', array());
+                $cpt_slug = $settings['cpt_slug'] ?? 'vehicles';
                 $taxonomy_slug = $settings['taxonomy_slug'] ?? '';
-                $taxonomy_meta_key = $settings['taxonomy_meta']['category_id'] ?? 'category_id';
                 
-                // Read Amelia category ID from term meta
-                $amelia_category_id = get_term_meta($term_id, $taxonomy_meta_key, true);
+                // Strategy 1: Try as taxonomy term ID (most common for category dropdowns)
+                if (!empty($taxonomy_slug)) {
+                    $term = get_term($source_value, $taxonomy_slug);
+                    if ($term && !is_wp_error($term)) {
+                        $taxonomy_meta_key = $settings['taxonomy_meta']['category_id'] ?? 'category_id';
+                        $term_category_id = get_term_meta($source_value, $taxonomy_meta_key, true);
+                        
+                        if ($term_category_id) {
+                            $amelia_category_id = intval($term_category_id);
+                            amelia_cpt_sync_debug_log('ART Logic: Converted taxonomy term ' . $source_value . ' to category_id ' . $amelia_category_id);
+                        }
+                    }
+                }
                 
-                if ($amelia_category_id) {
-                    $buckets['request']['category_id'] = intval($amelia_category_id);
-                    amelia_cpt_sync_debug_log('ART Logic: Taxonomy mode - Converted term ' . $term_id . ' to category_id ' . $amelia_category_id);
-                } else {
-                    amelia_cpt_sync_debug_log('ART Logic: No Amelia category ID found in term meta for term ' . $term_id);
-                    $buckets['request']['category_id'] = null;
+                // Strategy 2: Try as CPT post ID (if taxonomy didn't work)
+                if (!$amelia_category_id) {
+                    $post = get_post($source_value);
+                    if ($post && $post->post_type === $cpt_slug) {
+                        $post_category_id = get_post_meta($source_value, 'category_id', true);
+                        
+                        if ($post_category_id) {
+                            $amelia_category_id = intval($post_category_id);
+                            amelia_cpt_sync_debug_log('ART Logic: Converted CPT post ' . $source_value . ' to category_id ' . $amelia_category_id);
+                        }
+                    }
+                }
+                
+                // Set result or null if no conversion worked
+                $buckets['request']['category_id'] = $amelia_category_id;
+                
+                if (!$amelia_category_id) {
+                    amelia_cpt_sync_debug_log('ART Logic: Could not convert category source value ' . $source_value . ' - tried taxonomy and CPT');
                 }
             }
         } elseif ($category_source === 'direct' && isset($buckets['request']['category_id'])) {
             // Mode: Direct - Form value is already Amelia category ID
             $buckets['request']['category_id'] = absint($buckets['request']['category_id']);
-            amelia_cpt_sync_debug_log('ART Logic: Direct mode - Using category_id ' . $buckets['request']['category_id'] . ' directly');
-        } elseif ($category_source === 'disabled') {
-            // Mode: Disabled - Don't capture category
-            unset($buckets['request']['category_id']);
-            amelia_cpt_sync_debug_log('ART Logic: Category disabled - will be set by admin in detail view');
+            amelia_cpt_sync_debug_log('ART Logic: Direct mode - Using category_id ' . $buckets['request']['category_id'] . ' as-is');
         }
         
         // Duration calculation

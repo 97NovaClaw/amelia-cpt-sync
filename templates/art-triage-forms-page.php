@@ -334,37 +334,20 @@ if ($action === 'delete' && !empty($form_id) && check_admin_referer('art_delete_
                                 <label>
                                     <input type="radio" 
                                            name="logic[category_id_source]" 
-                                           value="cpt" 
-                                           <?php checked($logic['category_id_source'] ?? 'cpt', 'cpt'); ?>>
-                                    From CPT Post Meta (if using CPT for service)
-                                </label><br>
-                                <label>
-                                    <input type="radio" 
-                                           name="logic[category_id_source]" 
-                                           value="taxonomy_term" 
-                                           <?php checked($logic['category_id_source'] ?? 'cpt', 'taxonomy_term'); ?>>
-                                    From WordPress Taxonomy Term (reads Amelia category ID from term meta)
+                                           value="convert" 
+                                           <?php checked($logic['category_id_source'] ?? 'convert', 'convert'); ?>>
+                                    Convert to Amelia Category ID (from CPT meta or taxonomy term meta)
                                 </label><br>
                                 <label>
                                     <input type="radio" 
                                            name="logic[category_id_source]" 
                                            value="direct" 
-                                           <?php checked($logic['category_id_source'] ?? 'cpt', 'direct'); ?>>
-                                    Direct Amelia Category ID (from form field)
-                                </label><br>
-                                <label>
-                                    <input type="radio" 
-                                           name="logic[category_id_source]" 
-                                           value="disabled" 
-                                           <?php checked($logic['category_id_source'] ?? 'cpt', 'disabled'); ?>>
-                                    Disabled (don't capture category)
+                                           <?php checked($logic['category_id_source'] ?? 'convert', 'direct'); ?>>
+                                    Direct Amelia Category ID (use form value as-is)
                                 </label>
                                 <p class="description">
-                                    How to interpret the category field from your form.<br>
-                                    <strong>CPT:</strong> If form has a CPT post dropdown, category auto-reads from post meta.<br>
-                                    <strong>Taxonomy Term:</strong> If form has a category dropdown (WordPress term), reads Amelia category ID from term meta.<br>
-                                    <strong>Direct:</strong> Form field contains the Amelia category ID directly.<br>
-                                    <strong>Disabled:</strong> Category will be set in the detail view by admin.
+                                    <strong>Convert:</strong> Form field is a WordPress entity (CPT post ID or taxonomy term ID). Plugin will look up the Amelia category ID from meta.<br>
+                                    <strong>Direct:</strong> Form field already contains the Amelia category ID number.
                                 </p>
                             </td>
                         </tr>
