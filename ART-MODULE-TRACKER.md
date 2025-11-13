@@ -752,12 +752,19 @@ if (version_compare($current_version, '1.1.0', '<')) {
 - Colors match Tailwind mockup exactly (#1A84EE primary, #F7F8FC background)
 - Font weights: 900 for title, 600 for names, 500 for chips
 
-**UX Enhancements**:
-- ✅ Per-page dropdown with 5 options (5, 15, 25, 50, 100)
-- ✅ Preference saves via AJAX (no form submission needed)
+**UX Enhancements (v2.0.3)**:
+- ✅ Per-page dropdown with 5 options (5, 15, 25, 50, 100) - Default: 25
+- ✅ Preference saves via AJAX to user meta (persists per user)
 - ✅ Page reloads to page 1 when per-page changes
 - ✅ Service name JOIN with vehicles CPT via _amelia_service_id meta
 - ✅ Smart fallback: service_name → service_id → "—"
+- ✅ Service filter dropdown (shows all unique services with names)
+- ✅ **TWO date filters**: Submitted (created_at) AND Start Date (start_datetime)
+- ✅ Phone number displays under customer (if available)
+- ✅ Search includes service names
+- ✅ Clear Filters button (red, shows when filters active)
+- ✅ Fixed search icon overlap (!important padding)
+- ✅ Fixed pagination height (proper ul/li styling)
 
 ### 2024-11-11: Phase 2 Complete + Validation Fixed
 - ✅ **Form Config Manager** - Multi-form CRUD system like popup manager

@@ -21,8 +21,10 @@ $request_manager = new Amelia_CPT_Sync_ART_Request_Manager();
 $current_status = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : '';
 $search_term = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
 $service_filter = isset($_GET['service_filter']) ? absint($_GET['service_filter']) : '';
-$date_from = isset($_GET['date_from']) ? sanitize_text_field($_GET['date_from']) : '';
-$date_to = isset($_GET['date_to']) ? sanitize_text_field($_GET['date_to']) : '';
+$submitted_from = isset($_GET['submitted_from']) ? sanitize_text_field($_GET['submitted_from']) : '';
+$submitted_to = isset($_GET['submitted_to']) ? sanitize_text_field($_GET['submitted_to']) : '';
+$start_from = isset($_GET['start_from']) ? sanitize_text_field($_GET['start_from']) : '';
+$start_to = isset($_GET['start_to']) ? sanitize_text_field($_GET['start_to']) : '';
 $current_page = isset($_GET['paged']) ? absint($_GET['paged']) : 1;
 
 // Get user's per-page preference (stored in user meta)
@@ -37,8 +39,10 @@ $results = $request_manager->get_requests(array(
     'status' => $current_status,
     'search' => $search_term,
     'service_id' => $service_filter,
-    'date_from' => $date_from,
-    'date_to' => $date_to,
+    'submitted_from' => $submitted_from,
+    'submitted_to' => $submitted_to,
+    'start_from' => $start_from,
+    'start_to' => $start_to,
     'paged' => $current_page,
     'per_page' => $per_page,
     'orderby' => 'created_at',
@@ -121,11 +125,17 @@ $status_colors = array(
                         <?php if (!empty($search_term)): ?>
                             <input type="hidden" name="s" value="<?php echo esc_attr($search_term); ?>">
                         <?php endif; ?>
-                        <?php if (!empty($date_from)): ?>
-                            <input type="hidden" name="date_from" value="<?php echo esc_attr($date_from); ?>">
+                        <?php if (!empty($submitted_from)): ?>
+                            <input type="hidden" name="submitted_from" value="<?php echo esc_attr($submitted_from); ?>">
                         <?php endif; ?>
-                        <?php if (!empty($date_to)): ?>
-                            <input type="hidden" name="date_to" value="<?php echo esc_attr($date_to); ?>">
+                        <?php if (!empty($submitted_to)): ?>
+                            <input type="hidden" name="submitted_to" value="<?php echo esc_attr($submitted_to); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($start_from)): ?>
+                            <input type="hidden" name="start_from" value="<?php echo esc_attr($start_from); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($start_to)): ?>
+                            <input type="hidden" name="start_to" value="<?php echo esc_attr($start_to); ?>">
                         <?php endif; ?>
                         
                         <select name="service_filter" class="art-filter-select" onchange="this.form.submit()">
@@ -146,9 +156,9 @@ $status_colors = array(
                     </form>
                 </div>
                 
-                <!-- Date Range Filter -->
+                <!-- Submitted Date Filter -->
                 <div class="art-date-filter">
-                    <form method="get" action="" class="art-filter-form">
+                    <form method="get" action="" class="art-filter-form" id="submitted-date-form">
                         <input type="hidden" name="page" value="art-workbench">
                         <?php if (!empty($current_status)): ?>
                             <input type="hidden" name="status_filter" value="<?php echo esc_attr($current_status); ?>">
@@ -159,27 +169,73 @@ $status_colors = array(
                         <?php if (!empty($service_filter)): ?>
                             <input type="hidden" name="service_filter" value="<?php echo esc_attr($service_filter); ?>">
                         <?php endif; ?>
+                        <?php if (!empty($start_from)): ?>
+                            <input type="hidden" name="start_from" value="<?php echo esc_attr($start_from); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($start_to)): ?>
+                            <input type="hidden" name="start_to" value="<?php echo esc_attr($start_to); ?>">
+                        <?php endif; ?>
                         
-                        <div class="date-inputs">
-                            <input type="date" 
-                                   name="date_from" 
-                                   value="<?php echo esc_attr($date_from); ?>"
-                                   placeholder="From date"
-                                   class="art-date-input"
-                                   onchange="this.form.submit()">
-                            <span class="date-separator">—</span>
-                            <input type="date" 
-                                   name="date_to" 
-                                   value="<?php echo esc_attr($date_to); ?>"
-                                   placeholder="To date"
-                                   class="art-date-input"
-                                   onchange="this.form.submit()">
+                        <div class="date-filter-group">
+                            <label class="date-filter-label"><?php _e('Submitted:', 'amelia-cpt-sync'); ?></label>
+                            <div class="date-inputs">
+                                <input type="date" 
+                                       name="submitted_from" 
+                                       value="<?php echo esc_attr($submitted_from); ?>"
+                                       class="art-date-input"
+                                       onchange="this.form.submit()">
+                                <span class="date-separator">—</span>
+                                <input type="date" 
+                                       name="submitted_to" 
+                                       value="<?php echo esc_attr($submitted_to); ?>"
+                                       class="art-date-input"
+                                       onchange="this.form.submit()">
+                            </div>
                         </div>
                     </form>
                 </div>
                 
-                <?php if (!empty($service_filter) || !empty($date_from) || !empty($date_to)): ?>
-                    <a href="<?php echo esc_url(remove_query_arg(array('service_filter', 'date_from', 'date_to', 'paged'))); ?>" 
+                <!-- Requested Start Date Filter -->
+                <div class="art-date-filter">
+                    <form method="get" action="" class="art-filter-form" id="start-date-form">
+                        <input type="hidden" name="page" value="art-workbench">
+                        <?php if (!empty($current_status)): ?>
+                            <input type="hidden" name="status_filter" value="<?php echo esc_attr($current_status); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($search_term)): ?>
+                            <input type="hidden" name="s" value="<?php echo esc_attr($search_term); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($service_filter)): ?>
+                            <input type="hidden" name="service_filter" value="<?php echo esc_attr($service_filter); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($submitted_from)): ?>
+                            <input type="hidden" name="submitted_from" value="<?php echo esc_attr($submitted_from); ?>">
+                        <?php endif; ?>
+                        <?php if (!empty($submitted_to)): ?>
+                            <input type="hidden" name="submitted_to" value="<?php echo esc_attr($submitted_to); ?>">
+                        <?php endif; ?>
+                        
+                        <div class="date-filter-group">
+                            <label class="date-filter-label"><?php _e('Start Date:', 'amelia-cpt-sync'); ?></label>
+                            <div class="date-inputs">
+                                <input type="date" 
+                                       name="start_from" 
+                                       value="<?php echo esc_attr($start_from); ?>"
+                                       class="art-date-input"
+                                       onchange="this.form.submit()">
+                                <span class="date-separator">—</span>
+                                <input type="date" 
+                                       name="start_to" 
+                                       value="<?php echo esc_attr($start_to); ?>"
+                                       class="art-date-input"
+                                       onchange="this.form.submit()">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                
+                <?php if (!empty($service_filter) || !empty($submitted_from) || !empty($submitted_to) || !empty($start_from) || !empty($start_to)): ?>
+                    <a href="<?php echo esc_url(remove_query_arg(array('service_filter', 'submitted_from', 'submitted_to', 'start_from', 'start_to', 'paged'))); ?>" 
                        class="art-clear-filters">
                         <?php _e('Clear Filters', 'amelia-cpt-sync'); ?>
                     </a>
@@ -196,11 +252,17 @@ $status_colors = array(
                     <?php if (!empty($service_filter)): ?>
                         <input type="hidden" name="service_filter" value="<?php echo esc_attr($service_filter); ?>">
                     <?php endif; ?>
-                    <?php if (!empty($date_from)): ?>
-                        <input type="hidden" name="date_from" value="<?php echo esc_attr($date_from); ?>">
+                    <?php if (!empty($submitted_from)): ?>
+                        <input type="hidden" name="submitted_from" value="<?php echo esc_attr($submitted_from); ?>">
                     <?php endif; ?>
-                    <?php if (!empty($date_to)): ?>
-                        <input type="hidden" name="date_to" value="<?php echo esc_attr($date_to); ?>">
+                    <?php if (!empty($submitted_to)): ?>
+                        <input type="hidden" name="submitted_to" value="<?php echo esc_attr($submitted_to); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($start_from)): ?>
+                        <input type="hidden" name="start_from" value="<?php echo esc_attr($start_from); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($start_to)): ?>
+                        <input type="hidden" name="start_to" value="<?php echo esc_attr($start_to); ?>">
                     <?php endif; ?>
                     
                     <div class="art-search-input-wrap">
@@ -294,8 +356,13 @@ $status_colors = array(
                                     <?php echo esc_html($customer_name); ?>
                                 </a>
                                 <?php if (!empty($request->customer_email)): ?>
-                                    <p class="customer-email">
+                                    <p class="customer-contact">
                                         <?php echo esc_html($request->customer_email); ?>
+                                    </p>
+                                <?php endif; ?>
+                                <?php if (!empty($request->customer_phone)): ?>
+                                    <p class="customer-contact">
+                                        <?php echo esc_html($request->customer_phone); ?>
                                     </p>
                                 <?php endif; ?>
                             </div>
@@ -652,10 +719,11 @@ $status_colors = array(
     text-decoration-color: #1A84EE;
 }
 
-.customer-email {
+.customer-contact {
     font-size: 13px;
     color: #64748b;
     margin: 0;
+    line-height: 1.4;
 }
 
 /* === SERVICE & DATA === */
@@ -889,6 +957,20 @@ $status_colors = array(
 }
 
 /* === DATE INPUTS === */
+.date-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.date-filter-label {
+    font-size: 13px;
+    color: #475569;
+    font-weight: 600;
+    white-space: nowrap;
+    margin: 0;
+}
+
 .date-inputs {
     display: flex;
     align-items: center;
@@ -905,6 +987,7 @@ $status_colors = array(
     color: #1E293B;
     cursor: pointer;
     transition: all 0.2s;
+    width: 140px;
 }
 
 .art-date-input:hover {

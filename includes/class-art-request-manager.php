@@ -29,8 +29,10 @@ class Amelia_CPT_Sync_ART_Request_Manager {
             'status' => '',           // Filter by status (status_key in DB)
             'search' => '',           // Search term (customer name, email)
             'service_id' => '',       // Filter by service ID
-            'date_from' => '',        // Filter by submitted date (from)
-            'date_to' => '',          // Filter by submitted date (to)
+            'submitted_from' => '',   // Filter by submitted date (created_at from)
+            'submitted_to' => '',     // Filter by submitted date (created_at to)
+            'start_from' => '',       // Filter by requested start date (start_datetime from)
+            'start_to' => '',         // Filter by requested start date (start_datetime to)
             'form_id' => '',          // Filter by form config
             'orderby' => 'created_at',  // Column to order by
             'order' => 'DESC',        // ASC or DESC
@@ -57,12 +59,20 @@ class Amelia_CPT_Sync_ART_Request_Manager {
             $where[] = $wpdb->prepare("{$requests_table}.service_id = %d", $args['service_id']);
         }
         
-        // Date range filter (submitted date)
-        if (!empty($args['date_from'])) {
-            $where[] = $wpdb->prepare("{$requests_table}.created_at >= %s", $args['date_from'] . ' 00:00:00');
+        // Submitted date range filter (when form was submitted)
+        if (!empty($args['submitted_from'])) {
+            $where[] = $wpdb->prepare("{$requests_table}.created_at >= %s", $args['submitted_from'] . ' 00:00:00');
         }
-        if (!empty($args['date_to'])) {
-            $where[] = $wpdb->prepare("{$requests_table}.created_at <= %s", $args['date_to'] . ' 23:59:59');
+        if (!empty($args['submitted_to'])) {
+            $where[] = $wpdb->prepare("{$requests_table}.created_at <= %s", $args['submitted_to'] . ' 23:59:59');
+        }
+        
+        // Requested start date range filter (when customer wants service)
+        if (!empty($args['start_from'])) {
+            $where[] = $wpdb->prepare("{$requests_table}.start_datetime >= %s", $args['start_from'] . ' 00:00:00');
+        }
+        if (!empty($args['start_to'])) {
+            $where[] = $wpdb->prepare("{$requests_table}.start_datetime <= %s", $args['start_to'] . ' 23:59:59');
         }
         
         // Form filter (Note: Database doesn't have form_config_id column yet - will add in migration)
