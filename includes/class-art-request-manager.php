@@ -110,9 +110,10 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         $count_sql = "SELECT COUNT(*) FROM {$requests_table} {$join} WHERE {$where_clause}";
         $total_items = $wpdb->get_var($count_sql);
         
-        // Get CPT slug from main plugin settings (for service name lookup)
+        // Get CPT slug and configured meta field names from main plugin settings
         $main_settings = get_option('amelia_cpt_sync_settings', array());
-        $cpt_slug = $main_settings['cpt_slug'] ?? 'vehicles';  // Default to vehicles
+        $cpt_slug = $main_settings['cpt_slug'] ?? 'vehicles';
+        $service_meta_key = $main_settings['field_mappings']['service_id'] ?? '_amelia_service_id';
         
         // Get results with service name from CPT (if available)
         $sql = "SELECT 
@@ -125,13 +126,13 @@ class Amelia_CPT_Sync_ART_Request_Manager {
                     cpt.ID as service_cpt_id
                 FROM {$requests_table}
                 {$join}
-                LEFT JOIN {$wpdb->postmeta} pm ON {$requests_table}.service_id = pm.meta_value AND pm.meta_key = '_amelia_service_id'
+                LEFT JOIN {$wpdb->postmeta} pm ON {$requests_table}.service_id = pm.meta_value AND pm.meta_key = %s
                 LEFT JOIN {$wpdb->posts} cpt ON pm.post_id = cpt.ID AND cpt.post_type = %s AND cpt.post_status = 'publish'
                 WHERE {$where_clause}
                 ORDER BY {$requests_table}.{$orderby} {$order}
                 LIMIT {$per_page} OFFSET {$offset}";
         
-        $results = $wpdb->get_results($wpdb->prepare($sql, $cpt_slug));
+        $results = $wpdb->get_results($wpdb->prepare($sql, $service_meta_key, $cpt_slug));
         
         return array(
             'items' => $results,
@@ -353,20 +354,21 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         
         $requests_table = $wpdb->prefix . 'art_requests';
         
-        // Get CPT slug
+        // Get CPT slug and configured meta field name
         $main_settings = get_option('amelia_cpt_sync_settings', array());
         $cpt_slug = $main_settings['cpt_slug'] ?? 'vehicles';
+        $service_meta_key = $main_settings['field_mappings']['service_id'] ?? '_amelia_service_id';
         
         $sql = "SELECT DISTINCT
                     r.service_id,
                     cpt.post_title as service_name
                 FROM {$requests_table} r
-                LEFT JOIN {$wpdb->postmeta} pm ON r.service_id = pm.meta_value AND pm.meta_key = '_amelia_service_id'
+                LEFT JOIN {$wpdb->postmeta} pm ON r.service_id = pm.meta_value AND pm.meta_key = %s
                 LEFT JOIN {$wpdb->posts} cpt ON pm.post_id = cpt.ID AND cpt.post_type = %s AND cpt.post_status = 'publish'
                 WHERE r.service_id IS NOT NULL AND r.service_id > 0
                 ORDER BY cpt.post_title ASC, r.service_id ASC";
         
-        return $wpdb->get_results($wpdb->prepare($sql, $cpt_slug));
+        return $wpdb->get_results($wpdb->prepare($sql, $service_meta_key, $cpt_slug));
     }
     
     /**
