@@ -744,11 +744,20 @@ if (version_compare($current_version, '1.1.0', '<')) {
 
 **Key Decisions**:
 - Workbench is primary page (moved to top of menu)
-- 20 items per page default
-- Service shown as ID (will enhance with names in Phase 5 via API)
+- **25 items per page default** (user can change: 5, 15, 25, 50, 100)
+- Service names fetched from vehicles CPT (fallback to ID if not found)
+- Per-page preference stored in **user meta** (persists per logged-in user)
+- AJAX updates preference and reloads page smoothly
 - "View Details" links to Phase 4 page (not built yet)
 - Colors match Tailwind mockup exactly (#1A84EE primary, #F7F8FC background)
 - Font weights: 900 for title, 600 for names, 500 for chips
+
+**UX Enhancements**:
+- ✅ Per-page dropdown with 5 options (5, 15, 25, 50, 100)
+- ✅ Preference saves via AJAX (no form submission needed)
+- ✅ Page reloads to page 1 when per-page changes
+- ✅ Service name JOIN with vehicles CPT via _amelia_service_id meta
+- ✅ Smart fallback: service_name → service_id → "—"
 
 ### 2024-11-11: Phase 2 Complete + Validation Fixed
 - ✅ **Form Config Manager** - Multi-form CRUD system like popup manager

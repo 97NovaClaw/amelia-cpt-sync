@@ -29,6 +29,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         add_action('admin_init', array($this, 'register_settings'));
         add_action('wp_ajax_art_save_settings', array($this, 'ajax_save_settings'));
         add_action('wp_ajax_art_clear_cache', array($this, 'ajax_clear_cache'));
+        add_action('wp_ajax_art_save_per_page', array($this, 'ajax_save_per_page'));
     }
     
     /**
@@ -188,6 +189,35 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         amelia_cpt_sync_debug_log('ART Settings: Cleared all API caches');
         
         wp_send_json_success(array('message' => 'Cache cleared successfully'));
+    }
+    
+    /**
+     * AJAX handler for saving per-page preference
+     */
+    public function ajax_save_per_page() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $per_page = isset($_POST['per_page']) ? absint($_POST['per_page']) : 25;
+        
+        // Validate value
+        if (!in_array($per_page, array(5, 15, 25, 50, 100))) {
+            wp_send_json_error(array('message' => 'Invalid per_page value'));
+        }
+        
+        // Save to user meta (per-user preference)
+        $user_id = get_current_user_id();
+        update_user_meta($user_id, 'art_workbench_per_page', $per_page);
+        
+        amelia_cpt_sync_debug_log('ART Workbench: User ' . $user_id . ' set per_page to ' . $per_page);
+        
+        wp_send_json_success(array(
+            'message' => 'Preference saved',
+            'per_page' => $per_page
+        ));
     }
     
     /**

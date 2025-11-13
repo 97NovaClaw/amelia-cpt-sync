@@ -83,20 +83,28 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         $count_sql = "SELECT COUNT(*) FROM {$requests_table} {$join} WHERE {$where_clause}";
         $total_items = $wpdb->get_var($count_sql);
         
-        // Get results
+        // Get CPT slug from main plugin settings (for service name lookup)
+        $main_settings = get_option('amelia_cpt_sync_settings', array());
+        $cpt_slug = $main_settings['cpt_slug'] ?? 'vehicles';  // Default to vehicles
+        
+        // Get results with service name from CPT (if available)
         $sql = "SELECT 
                     {$requests_table}.*,
                     {$customers_table}.first_name as customer_first_name,
                     {$customers_table}.last_name as customer_last_name,
                     {$customers_table}.email as customer_email,
-                    {$customers_table}.phone as customer_phone
+                    {$customers_table}.phone as customer_phone,
+                    cpt.post_title as service_name,
+                    cpt.ID as service_cpt_id
                 FROM {$requests_table}
                 {$join}
+                LEFT JOIN {$wpdb->postmeta} pm ON {$requests_table}.service_id = pm.meta_value AND pm.meta_key = '_amelia_service_id'
+                LEFT JOIN {$wpdb->posts} cpt ON pm.post_id = cpt.ID AND cpt.post_type = %s AND cpt.post_status = 'publish'
                 WHERE {$where_clause}
                 ORDER BY {$requests_table}.{$orderby} {$order}
                 LIMIT {$per_page} OFFSET {$offset}";
         
-        $results = $wpdb->get_results($sql);
+        $results = $wpdb->get_results($wpdb->prepare($sql, $cpt_slug));
         
         return array(
             'items' => $results,

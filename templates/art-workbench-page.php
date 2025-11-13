@@ -22,12 +22,19 @@ $current_status = isset($_GET['status_filter']) ? sanitize_text_field($_GET['sta
 $search_term = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
 $current_page = isset($_GET['paged']) ? absint($_GET['paged']) : 1;
 
+// Get user's per-page preference (stored in user meta)
+$user_id = get_current_user_id();
+$per_page = get_user_meta($user_id, 'art_workbench_per_page', true);
+if (empty($per_page) || !in_array($per_page, array(5, 15, 25, 50, 100))) {
+    $per_page = 25;  // Default to 25
+}
+
 // Get requests with filters
 $results = $request_manager->get_requests(array(
     'status' => $current_status,
     'search' => $search_term,
     'paged' => $current_page,
-    'per_page' => 20,
+    'per_page' => $per_page,
     'orderby' => 'created_at',
     'order' => 'DESC'
 ));
@@ -77,30 +84,48 @@ $status_colors = array(
             <?php endforeach; ?>
         </div>
         
-        <!-- Search Bar -->
-        <div class="art-search-container">
-            <form method="get" action="" class="art-search-form">
-                <input type="hidden" name="page" value="art-workbench">
-                <?php if (!empty($current_status)): ?>
-                    <input type="hidden" name="status_filter" value="<?php echo esc_attr($current_status); ?>">
-                <?php endif; ?>
-                
-                <div class="art-search-input-wrap">
-                    <span class="dashicons dashicons-search art-search-icon"></span>
-                    <input type="search" 
-                           name="s" 
-                           value="<?php echo esc_attr($search_term); ?>" 
-                           placeholder="Search requests..." 
-                           class="art-search-input">
-                    <?php if (!empty($search_term)): ?>
-                        <a href="<?php echo esc_url(remove_query_arg(array('s', 'paged'))); ?>" 
-                           class="art-clear-search" 
-                           title="Clear search">
-                            <span class="dashicons dashicons-no-alt"></span>
-                        </a>
+        <!-- Toolbar: Search + Per Page -->
+        <div class="art-toolbar">
+            <!-- Per Page Selector -->
+            <div class="art-per-page">
+                <label for="art-per-page-select" class="per-page-label">
+                    <?php _e('Show:', 'amelia-cpt-sync'); ?>
+                </label>
+                <select id="art-per-page-select" class="art-per-page-select">
+                    <?php foreach (array(5, 15, 25, 50, 100) as $option): ?>
+                        <option value="<?php echo $option; ?>" <?php selected($per_page, $option); ?>>
+                            <?php echo $option; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <span class="per-page-suffix"><?php _e('per page', 'amelia-cpt-sync'); ?></span>
+            </div>
+            
+            <!-- Search Bar -->
+            <div class="art-search-container">
+                <form method="get" action="" class="art-search-form">
+                    <input type="hidden" name="page" value="art-workbench">
+                    <?php if (!empty($current_status)): ?>
+                        <input type="hidden" name="status_filter" value="<?php echo esc_attr($current_status); ?>">
                     <?php endif; ?>
-                </div>
-            </form>
+                    
+                    <div class="art-search-input-wrap">
+                        <span class="dashicons dashicons-search art-search-icon"></span>
+                        <input type="search" 
+                               name="s" 
+                               value="<?php echo esc_attr($search_term); ?>" 
+                               placeholder="Search requests..." 
+                               class="art-search-input">
+                        <?php if (!empty($search_term)): ?>
+                            <a href="<?php echo esc_url(remove_query_arg(array('s', 'paged'))); ?>" 
+                               class="art-clear-search" 
+                               title="Clear search">
+                                <span class="dashicons dashicons-no-alt"></span>
+                            </a>
+                        <?php endif; ?>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
     
@@ -182,7 +207,9 @@ $status_colors = array(
                             </div>
                         </td>
                         <td class="col-service">
-                            <?php if (!empty($request->service_id)): ?>
+                            <?php if (!empty($request->service_name)): ?>
+                                <span class="service-name"><?php echo esc_html($request->service_name); ?></span>
+                            <?php elseif (!empty($request->service_id)): ?>
                                 <span class="service-id">Service #<?php echo esc_html($request->service_id); ?></span>
                             <?php else: ?>
                                 <span class="no-data">—</span>
@@ -537,9 +564,16 @@ $status_colors = array(
 }
 
 /* === SERVICE & DATA === */
-.service-id {
-    color: #475569;
+.service-name {
+    color: #1E293B;
     font-size: 14px;
+    font-weight: 500;
+}
+
+.service-id {
+    color: #64748b;
+    font-size: 13px;
+    font-family: 'Courier New', monospace;
 }
 
 .no-data {
@@ -644,6 +678,62 @@ $status_colors = array(
     height: 18px;
 }
 
+/* === TOOLBAR === */
+.art-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.art-per-page {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.per-page-label {
+    font-size: 14px;
+    color: #475569;
+    font-weight: 500;
+    margin: 0;
+}
+
+.art-per-page-select {
+    height: 36px;
+    padding: 0 32px 0 12px;
+    background: #fff;
+    border: 1px solid #E0E5F1;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #1E293B;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+    background-position: right 8px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+}
+
+.art-per-page-select:hover {
+    border-color: #CBD5E1;
+    background-color: #F8FAFC;
+}
+
+.art-per-page-select:focus {
+    outline: none;
+    border-color: #1A84EE;
+    box-shadow: 0 0 0 3px rgba(26, 132, 238, 0.1);
+}
+
+.per-page-suffix {
+    font-size: 14px;
+    color: #64748b;
+}
+
 /* === RESPONSIVE (matching mockup's container queries) === */
 @media (max-width: 900px) {
     .col-service {
@@ -654,6 +744,11 @@ $status_colors = array(
 @media (max-width: 768px) {
     .col-requested-start {
         display: none;
+    }
+    
+    .art-toolbar {
+        flex-direction: column;
+        align-items: stretch;
     }
 }
 
@@ -677,4 +772,30 @@ $status_colors = array(
     }
 }
 </style>
+
+<!-- JavaScript for AJAX per-page update -->
+<script>
+jQuery(document).ready(function($) {
+    // Handle per-page change
+    $('#art-per-page-select').on('change', function() {
+        var perPage = $(this).val();
+        
+        // Save preference via AJAX
+        $.post(ajaxurl, {
+            action: 'art_save_per_page',
+            nonce: '<?php echo wp_create_nonce('art_nonce'); ?>',
+            per_page: perPage
+        }, function(response) {
+            if (response.success) {
+                // Reload page with paged=1 to show first page of new per_page
+                var url = new URL(window.location.href);
+                url.searchParams.set('paged', '1');
+                window.location.href = url.toString();
+            } else {
+                console.error('ART: Failed to save per_page preference', response);
+            }
+        });
+    });
+});
+</script>
 
