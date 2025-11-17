@@ -192,6 +192,7 @@ class Amelia_CPT_Sync_ART_Form_Config_Manager {
                 'service_id_source' => 'cpt',
                 'category_id_source' => 'convert',
                 'duration_mode' => 'manual',
+                'duration_format' => 'seconds',
                 'price_mode' => 'manual',
                 'location_mode' => 'disabled',
                 'persons_mode' => 'disabled',

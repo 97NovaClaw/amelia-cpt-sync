@@ -80,6 +80,7 @@ if (isset($_POST['art_save_form_config']) && check_admin_referer('art_form_confi
         $config_data['logic']['service_id_source'] = sanitize_key($_POST['logic']['service_id_source'] ?? 'cpt');
         $config_data['logic']['category_id_source'] = sanitize_key($_POST['logic']['category_id_source'] ?? 'cpt');
         $config_data['logic']['duration_mode'] = sanitize_key($_POST['logic']['duration_mode'] ?? 'manual');
+        $config_data['logic']['duration_format'] = sanitize_key($_POST['logic']['duration_format'] ?? 'seconds');
         $config_data['logic']['price_mode'] = sanitize_key($_POST['logic']['price_mode'] ?? 'manual');
         $config_data['logic']['location_mode'] = sanitize_key($_POST['logic']['location_mode'] ?? 'disabled');
         $config_data['logic']['persons_mode'] = sanitize_key($_POST['logic']['persons_mode'] ?? 'disabled');
@@ -359,18 +360,102 @@ if ($action === 'delete' && !empty($form_id) && check_admin_referer('art_delete_
                                     <input type="radio" 
                                            name="logic[duration_mode]" 
                                            value="start_end" 
+                                           class="duration-mode-radio"
                                            <?php checked($logic['duration_mode'] ?? 'manual', 'start_end'); ?>>
                                     Calculate from Start + End Times
                                 </label><br>
                                 <label>
                                     <input type="radio" 
                                            name="logic[duration_mode]" 
+                                           value="start_duration" 
+                                           class="duration-mode-radio"
+                                           <?php checked($logic['duration_mode'] ?? 'manual', 'start_duration'); ?>>
+                                    Start Time + Duration (calculate end)
+                                </label><br>
+                                <label>
+                                    <input type="radio" 
+                                           name="logic[duration_mode]" 
+                                           value="duration_only" 
+                                           class="duration-mode-radio"
+                                           <?php checked($logic['duration_mode'] ?? 'manual', 'duration_only'); ?>>
+                                    Pre-defined Duration Only (admin fills times)
+                                </label><br>
+                                <label>
+                                    <input type="radio" 
+                                           name="logic[duration_mode]" 
+                                           value="start_only" 
+                                           class="duration-mode-radio"
+                                           <?php checked($logic['duration_mode'] ?? 'manual', 'start_only'); ?>>
+                                    Start Time Only (admin fills end)
+                                </label><br>
+                                <label>
+                                    <input type="radio" 
+                                           name="logic[duration_mode]" 
                                            value="manual" 
+                                           class="duration-mode-radio"
                                            <?php checked($logic['duration_mode'] ?? 'manual', 'manual'); ?>>
-                                    Manual Entry (admin fills in workbench)
+                                    Manual Entry (admin fills all in workbench)
                                 </label>
+                                <p class="description">
+                                    <strong>Start + End:</strong> Form has separate start and end datetime fields.<br>
+                                    <strong>Start + Duration:</strong> Form has start time and duration fields (duration can be hours, minutes, seconds, or HH:MM).<br>
+                                    <strong>Duration Only:</strong> Form only captures duration (e.g., "10 hour limo rental").<br>
+                                    <strong>Start Only:</strong> Form only captures when service should start.<br>
+                                    <strong>Manual:</strong> No time/duration from form, admin fills everything.
+                                </p>
                             </td>
                         </tr>
+                        
+                        <tr id="duration-format-row" style="<?php echo in_array($logic['duration_mode'] ?? 'manual', ['start_duration', 'duration_only']) ? '' : 'display:none;'; ?>">
+                            <th scope="row">Duration Format</th>
+                            <td>
+                                <label>
+                                    <input type="radio" 
+                                           name="logic[duration_format]" 
+                                           value="seconds" 
+                                           <?php checked($logic['duration_format'] ?? 'seconds', 'seconds'); ?>>
+                                    Seconds (e.g., 3600 = 1 hour)
+                                </label><br>
+                                <label>
+                                    <input type="radio" 
+                                           name="logic[duration_format]" 
+                                           value="minutes" 
+                                           <?php checked($logic['duration_format'] ?? 'seconds', 'minutes'); ?>>
+                                    Minutes (e.g., 60 = 1 hour)
+                                </label><br>
+                                <label>
+                                    <input type="radio" 
+                                           name="logic[duration_format]" 
+                                           value="hours" 
+                                           <?php checked($logic['duration_format'] ?? 'seconds', 'hours'); ?>>
+                                    Hours as decimal (e.g., 1.5 = 1.5 hours)
+                                </label><br>
+                                <label>
+                                    <input type="radio" 
+                                           name="logic[duration_format]" 
+                                           value="hhmm" 
+                                           <?php checked($logic['duration_format'] ?? 'seconds', 'hhmm'); ?>>
+                                    HH:MM format (e.g., 01:30 = 1.5 hours)
+                                </label>
+                                <p class="description">
+                                    How does your form submit duration? Examples for 1.5 hours:<br>
+                                    <code>Seconds: 5400</code> | <code>Minutes: 90</code> | <code>Hours: 1.5</code> | <code>HH:MM: 01:30</code>
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <script>
+                        jQuery(document).ready(function($) {
+                            $('.duration-mode-radio').on('change', function() {
+                                var mode = $(this).val();
+                                if (mode === 'start_duration' || mode === 'duration_only') {
+                                    $('#duration-format-row').show();
+                                } else {
+                                    $('#duration-format-row').hide();
+                                }
+                            });
+                        });
+                        </script>
                         
                         <tr>
                             <th scope="row">Price Mode</th>

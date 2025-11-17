@@ -109,7 +109,9 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                 'enable_caching' => true,
                 'cache_duration' => 60,
                 'show_location_field' => true,
-                'show_persons_field' => true
+                'show_persons_field' => true,
+                'duration_interval_minutes' => 30,
+                'duration_max_hours' => 12
             ),
             'forms' => array()
         );
@@ -137,7 +139,9 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                 'enable_caching' => !empty($input['global']['enable_caching']),
                 'cache_duration' => absint($input['global']['cache_duration']),
                 'show_location_field' => !empty($input['global']['show_location_field']),
-                'show_persons_field' => !empty($input['global']['show_persons_field'])
+                'show_persons_field' => !empty($input['global']['show_persons_field']),
+                'duration_interval_minutes' => absint($input['global']['duration_interval_minutes']),
+                'duration_max_hours' => absint($input['global']['duration_max_hours'])
             );
         }
         
@@ -166,6 +170,8 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $cache_duration = absint($_POST['cache_duration'] ?? 60);
         $show_location_field = !empty($_POST['show_location_field']);
         $show_persons_field = !empty($_POST['show_persons_field']);
+        $duration_interval = absint($_POST['duration_interval_minutes'] ?? 30);
+        $duration_max = absint($_POST['duration_max_hours'] ?? 12);
         
         $settings = $this->get_settings();
         
@@ -176,6 +182,8 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $settings['global']['cache_duration'] = $cache_duration;
         $settings['global']['show_location_field'] = $show_location_field;
         $settings['global']['show_persons_field'] = $show_persons_field;
+        $settings['global']['duration_interval_minutes'] = $duration_interval;
+        $settings['global']['duration_max_hours'] = $duration_max;
         
         $result = update_option($this->option_name, $settings);
         
@@ -427,6 +435,45 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                             </p>
                         </td>
                     </tr>
+                    
+                    <tr>
+                        <th scope="row">Duration Settings</th>
+                        <td>
+                            <label>
+                                Dropdown Interval:
+                                <input 
+                                    type="number" 
+                                    name="duration_interval_minutes" 
+                                    id="art-duration-interval"
+                                    value="<?php echo esc_attr($global['duration_interval_minutes'] ?? 30); ?>" 
+                                    min="5" 
+                                    max="240"
+                                    style="width: 80px;"
+                                />
+                                minutes
+                            </label>
+                            <p class="description">
+                                Duration dropdown increments (e.g., 30 = shows 0:30, 1:00, 1:30, 2:00...)
+                            </p>
+                            
+                            <label>
+                                Maximum Duration:
+                                <input 
+                                    type="number" 
+                                    name="duration_max_hours" 
+                                    id="art-duration-max"
+                                    value="<?php echo esc_attr($global['duration_max_hours'] ?? 12); ?>" 
+                                    min="1" 
+                                    max="48"
+                                    style="width: 80px;"
+                                />
+                                hours
+                            </label>
+                            <p class="description">
+                                Last option in duration dropdown (e.g., 12 = stops at 12:00)
+                            </p>
+                        </td>
+                    </tr>
                 </table>
                 
                 <p class="submit">
@@ -533,7 +580,9 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                         enable_caching: $('#art-enable-caching').is(':checked') ? 1 : 0,
                         cache_duration: $('#art-cache-duration').val(),
                         show_location_field: $('input[name="show_location_field"]').is(':checked') ? 1 : 0,
-                        show_persons_field: $('input[name="show_persons_field"]').is(':checked') ? 1 : 0
+                        show_persons_field: $('input[name="show_persons_field"]').is(':checked') ? 1 : 0,
+                        duration_interval_minutes: $('#art-duration-interval').val(),
+                        duration_max_hours: $('#art-duration-max').val()
                     },
                     success: function(response) {
                         spinner.removeClass('is-active');

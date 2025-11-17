@@ -44,6 +44,22 @@ $global_settings = $art_settings['global'] ?? array();
 $show_location = $global_settings['show_location_field'] ?? true;
 $show_persons = $global_settings['show_persons_field'] ?? true;
 
+// Get duration settings
+$duration_interval_minutes = $global_settings['duration_interval_minutes'] ?? 30;
+$duration_max_hours = $global_settings['duration_max_hours'] ?? 12;
+
+// Generate duration dropdown options
+$duration_options = array();
+$max_seconds = $duration_max_hours * 3600;
+for ($seconds = $duration_interval_minutes * 60; $seconds <= $max_seconds; $seconds += ($duration_interval_minutes * 60)) {
+    $hours = floor($seconds / 3600);
+    $minutes = floor(($seconds % 3600) / 60);
+    $duration_options[] = array(
+        'seconds' => $seconds,
+        'display' => sprintf('%02d:%02d', $hours, $minutes)
+    );
+}
+
 // Format dates for display
 $submitted_date = get_date_from_gmt($request->created_at);
 $submitted_display = date_i18n('M j, Y \a\t g:i A', strtotime($submitted_date));
@@ -332,21 +348,21 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                     <p class="field-note"><?php _e('Or use duration selector below', 'amelia-cpt-sync'); ?></p>
                                 </div>
                                 
-                                <!-- Duration Selector (Phase 4.5 - Placeholder) -->
+                                <!-- Duration Selector (Dynamic from settings) -->
                                 <div class="form-field">
                                     <label for="pillar-duration-selector">
                                         <?php _e('Duration (HH:MM)', 'amelia-cpt-sync'); ?>
                                     </label>
-                                    <select id="pillar-duration-selector" class="form-select">
+                                    <select id="pillar-duration-selector" class="form-select art-duration-select">
                                         <option value=""><?php _e('Select duration...', 'amelia-cpt-sync'); ?></option>
-                                        <option value="1800">00:30</option>
-                                        <option value="3600">01:00</option>
-                                        <option value="5400">01:30</option>
-                                        <option value="7200">02:00</option>
-                                        <option value="10800">03:00</option>
-                                        <!-- Phase 4.5: Populate from settings -->
+                                        <?php foreach ($duration_options as $option): ?>
+                                            <option value="<?php echo esc_attr($option['seconds']); ?>"
+                                                    <?php selected($request->duration_seconds, $option['seconds']); ?>>
+                                                <?php echo esc_html($option['display']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
                                     </select>
-                                    <p class="field-note"><?php _e('Selecting duration calculates end time', 'amelia-cpt-sync'); ?></p>
+                                    <p class="field-note"><?php _e('Selecting duration calculates end time, or enter custom HH:MM', 'amelia-cpt-sync'); ?></p>
                                     <input type="hidden" 
                                            id="pillar-duration-seconds" 
                                            name="duration_seconds" 
@@ -1283,6 +1299,55 @@ jQuery(document).ready(function($) {
     // Event: Duration dropdown changes → Calculate end time
     $('#pillar-duration-selector').on('change', calculateEndFromDuration);
     
+    // === ENQUEUE SELECT2 FOR CUSTOM DURATION ENTRY ===
+    if (!$('link[href*="select2"]').length) {
+        $('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">').appendTo('head');
+        $.getScript('https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js', function() {
+            initDurationSelect2();
+        });
+    } else {
+        initDurationSelect2();
+    }
+    
+    function initDurationSelect2() {
+        $('#pillar-duration-selector').select2({
+            tags: true,  // Allow custom entry
+            placeholder: 'Select or enter duration (HH:MM)',
+            allowClear: true,
+            createTag: function(params) {
+                var term = $.trim(params.term);
+                
+                // Validate HH:MM format
+                if (/^\d{1,2}:\d{2}$/.test(term)) {
+                    var parts = term.split(':');
+                    var hours = parseInt(parts[0]);
+                    var mins = parseInt(parts[1]);
+                    
+                    if (mins >= 60) {
+                        return null;  // Invalid minutes
+                    }
+                    
+                    var seconds = (hours * 3600) + (mins * 60);
+                    
+                    return {
+                        id: seconds,
+                        text: term,
+                        newTag: true
+                    };
+                }
+                
+                return null;  // Invalid format
+            }
+        });
+        
+        // When custom tag selected, trigger calculation
+        $('#pillar-duration-selector').on('select2:select', function(e) {
+            if (e.params.data.newTag) {
+                calculateEndFromDuration();
+            }
+        });
+    }
+    
     // === CUSTOMER MATCH CHECK ===
     $('#check-customer-match').on('click', function() {
         var email = $(this).data('email');
@@ -1353,6 +1418,19 @@ jQuery(document).ready(function($) {
             if (response.success) {
                 showNotice('Booking details saved successfully', 'success');
                 $('.save-indicator').text('✓ Saved').show().fadeOut(3000);
+                
+                // Update hidden field and dropdown to reflect saved value
+                var savedDuration = formData.duration_seconds;
+                $('#pillar-duration-seconds').val(savedDuration);
+                
+                // Update dropdown selection if exact match exists
+                var matchingOption = $('#pillar-duration-selector option[value="' + savedDuration + '"]');
+                if (matchingOption.length) {
+                    $('#pillar-duration-selector').val(savedDuration);
+                }
+                
+                // Update duration display
+                $('#duration-display').text(formatDuration(savedDuration));
             } else {
                 showNotice('Error: ' + (response.data.message || 'Unknown error'), 'error');
             }

@@ -38,6 +38,7 @@ $destinations['Request Fields'] = array(
     'request.persons',
     'request.start_datetime',
     'request.end_datetime',
+    'request.duration_seconds',
     'request.final_price'
 );
 
