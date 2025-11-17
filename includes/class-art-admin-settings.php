@@ -107,7 +107,9 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                 'api_base_url' => site_url() . '/wp-admin/admin-ajax.php?action=wpamelia_api&call=/api/v1',
                 'debug_enabled' => false,
                 'enable_caching' => true,
-                'cache_duration' => 60
+                'cache_duration' => 60,
+                'show_location_field' => true,
+                'show_persons_field' => true
             ),
             'forms' => array()
         );
@@ -133,7 +135,9 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                 'api_base_url' => esc_url_raw($input['global']['api_base_url']),
                 'debug_enabled' => !empty($input['global']['debug_enabled']),
                 'enable_caching' => !empty($input['global']['enable_caching']),
-                'cache_duration' => absint($input['global']['cache_duration'])
+                'cache_duration' => absint($input['global']['cache_duration']),
+                'show_location_field' => !empty($input['global']['show_location_field']),
+                'show_persons_field' => !empty($input['global']['show_persons_field'])
             );
         }
         
@@ -386,6 +390,36 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                             minutes
                             <p class="description">
                                 How long to cache API responses. Default: 60 minutes (1 hour).
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <th scope="row">Detail View Display</th>
+                        <td>
+                            <label>
+                                <input 
+                                    type="checkbox" 
+                                    name="show_location_field" 
+                                    value="1" 
+                                    <?php checked($global['show_location_field'] ?? true); ?>
+                                />
+                                Show Location Field in detail view
+                            </label>
+                            <br>
+                            <label>
+                                <input 
+                                    type="checkbox" 
+                                    name="show_persons_field" 
+                                    value="1" 
+                                    <?php checked($global['show_persons_field'] ?? true); ?>
+                                />
+                                Show Persons Field in detail view
+                            </label>
+                            <p class="description">
+                                Control which fields appear when editing triage requests.<br>
+                                Data is still captured and saved if forms submit these fields.<br>
+                                Hiding fields improves UI clarity for businesses that don't need them.
                             </p>
                         </td>
                     </tr>

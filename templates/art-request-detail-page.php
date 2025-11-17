@@ -38,6 +38,12 @@ $taxonomy_slug = $main_settings['taxonomy_slug'] ?? '';
 $service_meta_key = $main_settings['field_mappings']['service_id'] ?? '_amelia_service_id';
 $category_meta_key = $main_settings['taxonomy_meta']['category_id'] ?? 'category_id';
 
+// Get ART settings for display options
+$art_settings = get_option('amelia_cpt_sync_art_settings', array());
+$global_settings = $art_settings['global'] ?? array();
+$show_location = $global_settings['show_location_field'] ?? true;
+$show_persons = $global_settings['show_persons_field'] ?? true;
+
 // Format dates for display
 $submitted_date = get_date_from_gmt($request->created_at);
 $submitted_display = date_i18n('M j, Y \a\t g:i A', strtotime($submitted_date));
@@ -224,31 +230,35 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                     </select>
                                 </div>
                                 
-                                <!-- Location (Placeholder - will populate via API) -->
-                                <div class="form-field">
-                                    <label for="pillar-location">
-                                        <?php _e('Location', 'amelia-cpt-sync'); ?>
-                                    </label>
-                                    <select id="pillar-location" name="location_id" class="form-select">
-                                        <option value=""><?php _e('Loading...', 'amelia-cpt-sync'); ?></option>
-                                    </select>
-                                    <p class="field-note"><?php _e('Optional - leave blank if not needed', 'amelia-cpt-sync'); ?></p>
-                                </div>
+                                <!-- Location (Conditional display) -->
+                                <?php if ($show_location): ?>
+                                    <div class="form-field">
+                                        <label for="pillar-location">
+                                            <?php _e('Location', 'amelia-cpt-sync'); ?>
+                                        </label>
+                                        <select id="pillar-location" name="location_id" class="form-select">
+                                            <option value=""><?php _e('Loading...', 'amelia-cpt-sync'); ?></option>
+                                        </select>
+                                        <p class="field-note"><?php _e('Optional - leave blank if not needed', 'amelia-cpt-sync'); ?></p>
+                                    </div>
+                                <?php endif; ?>
                                 
-                                <!-- Persons -->
-                                <div class="form-field">
-                                    <label for="pillar-persons">
-                                        <?php _e('Persons', 'amelia-cpt-sync'); ?>
-                                    </label>
-                                    <select id="pillar-persons" name="persons" class="form-select">
-                                        <?php for ($i = 1; $i <= 10; $i++): ?>
-                                            <option value="<?php echo $i; ?>" 
-                                                    <?php selected($request->persons, $i); ?>>
-                                                <?php echo $i; ?> <?php echo $i === 1 ? __('Person', 'amelia-cpt-sync') : __('Persons', 'amelia-cpt-sync'); ?>
-                                            </option>
-                                        <?php endfor; ?>
-                                    </select>
-                                </div>
+                                <!-- Persons (Conditional display) -->
+                                <?php if ($show_persons): ?>
+                                    <div class="form-field">
+                                        <label for="pillar-persons">
+                                            <?php _e('Persons', 'amelia-cpt-sync'); ?>
+                                        </label>
+                                        <select id="pillar-persons" name="persons" class="form-select">
+                                            <?php for ($i = 1; $i <= 10; $i++): ?>
+                                                <option value="<?php echo $i; ?>" 
+                                                        <?php selected($request->persons, $i); ?>>
+                                                    <?php echo $i; ?> <?php echo $i === 1 ? __('Person', 'amelia-cpt-sync') : __('Persons', 'amelia-cpt-sync'); ?>
+                                                </option>
+                                            <?php endfor; ?>
+                                        </select>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -656,7 +666,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 
 .pillar-grid-3 {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 16px;
 }
 
@@ -1156,8 +1166,8 @@ jQuery(document).ready(function($) {
             request_id: artDetailData.requestId,
             category_id: $('#pillar-category').val(),
             service_id: $('#pillar-service').val(),
-            location_id: $('#pillar-location').val(),
-            persons: $('#pillar-persons').val(),
+            location_id: $('#pillar-location').length ? $('#pillar-location').val() : null,
+            persons: $('#pillar-persons').length ? $('#pillar-persons').val() : 1,
             start_datetime: $('#pillar-start').val(),
             end_datetime: $('#pillar-end').val(),
             duration_seconds: $('#pillar-duration-seconds').val(),
@@ -1186,6 +1196,11 @@ jQuery(document).ready(function($) {
     
     // === LOAD LOCATIONS FROM API ===
     function loadLocations() {
+        // Only load if location field is visible
+        if ($('#pillar-location').length === 0) {
+            return;  // Field not in DOM (hidden by settings)
+        }
+        
         $.post(ajaxurl, {
             action: 'art_get_locations',
             nonce: artDetailData.nonce
@@ -1209,7 +1224,7 @@ jQuery(document).ready(function($) {
         });
     }
     
-    // Load locations on page load
+    // Load locations on page load (only if field exists)
     loadLocations();
     
     // === SPINNING ANIMATION FOR DASHICONS ===
