@@ -263,10 +263,47 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                         </div>
                     </div>
                     
-                    <!-- Card 2: Time & Duration -->
+                    <!-- Card 2: Intake Details -->
+                    <?php if (!empty($request->intake_fields)): ?>
+                        <div class="art-card">
+                            <div class="card-header">
+                                <h3><?php _e('Intake Details', 'amelia-cpt-sync'); ?></h3>
+                                <span class="badge-info"><?php echo count($request->intake_fields); ?> <?php _e('fields', 'amelia-cpt-sync'); ?></span>
+                            </div>
+                            <div class="card-body">
+                                <div class="intake-fields-list">
+                                    <?php foreach ($request->intake_fields as $field): 
+                                        $field_value = $field->field_value;
+                                        $is_long_text = strlen($field_value) > 100;
+                                    ?>
+                                        <div class="intake-field-item <?php echo $is_long_text ? 'long-text' : ''; ?>">
+                                            <dt class="intake-label"><?php echo esc_html($field->field_label); ?></dt>
+                                            <dd class="intake-value">
+                                                <?php 
+                                                // Format based on content
+                                                // Preserve paragraphs, line breaks, and basic HTML
+                                                echo wp_kses_post(wpautop($field_value)); 
+                                                ?>
+                                            </dd>
+                                            
+                                            <?php 
+                                            // TODO: Gallery support - check if field_value contains attachment IDs
+                                            // If field type is 'media-field' or contains comma-separated IDs
+                                            // Display as thumbnail grid
+                                            ?>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                    
+                    <!-- Card 3: Time & Duration -->
                     <div class="art-card">
                         <div class="card-header">
                             <h3><?php _e('Time & Duration', 'amelia-cpt-sync'); ?></h3>
+                            <!-- TODO Phase 5: Service default duration display -->
+                            <!-- <span class="service-duration">[↻] Service default: 2 hours</span> -->
                         </div>
                         <div class="card-body">
                             <div class="pillar-grid-3">
@@ -282,7 +319,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                            value="<?php echo esc_attr($start_datetime_value); ?>">
                                 </div>
                                 
-                                <!-- End Time -->
+                                <!-- End Time OR Duration Selector -->
                                 <div class="form-field">
                                     <label for="pillar-end">
                                         <?php _e('End Time', 'amelia-cpt-sync'); ?>
@@ -292,28 +329,43 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                            name="end_datetime" 
                                            class="form-input"
                                            value="<?php echo esc_attr($end_datetime_value); ?>">
+                                    <p class="field-note"><?php _e('Or use duration selector below', 'amelia-cpt-sync'); ?></p>
                                 </div>
                                 
-                                <!-- Duration (Auto-calculated, read-only) -->
+                                <!-- Duration Selector (Phase 4.5 - Placeholder) -->
                                 <div class="form-field">
-                                    <label for="pillar-duration-display">
-                                        <?php _e('Duration', 'amelia-cpt-sync'); ?>
+                                    <label for="pillar-duration-selector">
+                                        <?php _e('Duration (HH:MM)', 'amelia-cpt-sync'); ?>
                                     </label>
-                                    <input type="text" 
-                                           id="pillar-duration-display" 
-                                           class="form-input" 
-                                           value="<?php echo esc_attr($duration_display); ?>" 
-                                           disabled>
+                                    <select id="pillar-duration-selector" class="form-select">
+                                        <option value=""><?php _e('Select duration...', 'amelia-cpt-sync'); ?></option>
+                                        <option value="1800">00:30</option>
+                                        <option value="3600">01:00</option>
+                                        <option value="5400">01:30</option>
+                                        <option value="7200">02:00</option>
+                                        <option value="10800">03:00</option>
+                                        <!-- Phase 4.5: Populate from settings -->
+                                    </select>
+                                    <p class="field-note"><?php _e('Selecting duration calculates end time', 'amelia-cpt-sync'); ?></p>
                                     <input type="hidden" 
                                            id="pillar-duration-seconds" 
                                            name="duration_seconds" 
                                            value="<?php echo esc_attr($request->duration_seconds); ?>">
                                 </div>
                             </div>
+                            
+                            <!-- Duration Display (calculated) -->
+                            <div class="duration-summary">
+                                <span class="duration-icon">⏱️</span>
+                                <span class="duration-text">
+                                    <?php _e('Calculated Duration:', 'amelia-cpt-sync'); ?> 
+                                    <strong id="duration-display"><?php echo esc_html($duration_display ?: 'Not set'); ?></strong>
+                                </span>
+                            </div>
                         </div>
                     </div>
                     
-                    <!-- Card 3: Quote -->
+                    <!-- Card 4: Quote -->
                     <div class="art-card">
                         <div class="card-header">
                             <h3><?php _e('Quote', 'amelia-cpt-sync'); ?></h3>
@@ -420,7 +472,11 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             <?php if (!empty($request->customer_phone)): ?>
                                 <div class="info-row">
                                     <dt><?php _e('Phone', 'amelia-cpt-sync'); ?></dt>
-                                    <dd><?php echo esc_html($request->customer_phone); ?></dd>
+                                    <dd>
+                                        <a href="tel:<?php echo esc_attr($request->customer_phone); ?>">
+                                            <?php echo esc_html($request->customer_phone); ?>
+                                        </a>
+                                    </dd>
                                 </div>
                             <?php endif; ?>
                             
@@ -444,24 +500,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                     </div>
                 </div>
                 
-                <!-- Intake Details Card -->
-                <?php if (!empty($request->intake_fields)): ?>
-                    <div class="art-card">
-                        <div class="card-header">
-                            <h3><?php _e('Intake Details', 'amelia-cpt-sync'); ?></h3>
-                        </div>
-                        <div class="card-body">
-                            <dl class="info-list">
-                                <?php foreach ($request->intake_fields as $field): ?>
-                                    <div class="info-row">
-                                        <dt><?php echo esc_html($field->field_label); ?></dt>
-                                        <dd><?php echo wp_kses_post(nl2br($field->field_value)); ?></dd>
-                                    </div>
-                                <?php endforeach; ?>
-                            </dl>
-                        </div>
-                    </div>
-                <?php endif; ?>
+                <!-- Intake details moved to main column -->
             </div>
         </div>
     </div>
@@ -646,6 +685,17 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     text-transform: uppercase;
 }
 
+.badge-info {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    background: #DBEAFE;
+    color: #2563EB;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
 .card-body {
     padding: 20px;
 }
@@ -779,6 +829,81 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 
 .email-value a:hover {
     text-decoration: underline;
+}
+
+/* === INTAKE FIELDS === */
+.intake-fields-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.intake-field-item {
+    padding-bottom: 20px;
+    border-bottom: 1px solid #F1F5F9;
+}
+
+.intake-field-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.intake-field-item.long-text {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.intake-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #475569;
+    margin: 0;
+}
+
+.intake-field-item.long-text .intake-label {
+    margin-bottom: 4px;
+}
+
+.intake-value {
+    font-size: 14px;
+    color: #1E293B;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.intake-value p {
+    margin: 0 0 12px;
+}
+
+.intake-value p:last-child {
+    margin-bottom: 0;
+}
+
+/* === DURATION SUMMARY === */
+.duration-summary {
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: #F8FAFC;
+    border: 1px solid #E0E5F1;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.duration-icon {
+    font-size: 18px;
+}
+
+.duration-text {
+    font-size: 14px;
+    color: #64748b;
+}
+
+.duration-text strong {
+    color: #1A84EE;
+    font-weight: 700;
 }
 
 /* === CUSTOMER MATCH === */
@@ -1079,8 +1204,26 @@ jQuery(document).ready(function($) {
         }
     });
     
-    // === DURATION AUTO-CALCULATE ===
-    function calculateDuration() {
+    // === DURATION CALCULATION (Bidirectional) ===
+    
+    // Helper: Format seconds to HH:MM display
+    function formatDuration(seconds) {
+        if (!seconds || seconds <= 0) return 'Not set';
+        
+        var hours = Math.floor(seconds / 3600);
+        var minutes = Math.floor((seconds % 3600) / 60);
+        
+        if (hours > 0 && minutes > 0) {
+            return hours + 'h ' + minutes + 'm';
+        } else if (hours > 0) {
+            return hours + 'h';
+        } else {
+            return minutes + ' minutes';
+        }
+    }
+    
+    // Calculate duration from start + end times
+    function calculateDurationFromTimes() {
         var start = $('#pillar-start').val();
         var end = $('#pillar-end').val();
         
@@ -1091,27 +1234,54 @@ jQuery(document).ready(function($) {
             
             if (diffMs > 0) {
                 var diffSeconds = Math.floor(diffMs / 1000);
-                var diffMinutes = Math.floor(diffSeconds / 60);
-                var hours = Math.floor(diffMinutes / 60);
-                var remainingMins = diffMinutes % 60;
                 
-                var displayText = '';
-                if (hours > 0) {
-                    displayText = hours + 'h ' + remainingMins + 'm';
-                } else {
-                    displayText = diffMinutes + ' minutes';
-                }
-                
-                $('#pillar-duration-display').val(displayText);
                 $('#pillar-duration-seconds').val(diffSeconds);
+                $('#duration-display').text(formatDuration(diffSeconds));
+                
+                // Try to select matching duration in dropdown
+                var exactMatch = $('#pillar-duration-selector option[value="' + diffSeconds + '"]');
+                if (exactMatch.length) {
+                    $('#pillar-duration-selector').val(diffSeconds);
+                } else {
+                    $('#pillar-duration-selector').val('');  // Custom duration
+                }
             } else {
-                $('#pillar-duration-display').val('Invalid range');
+                $('#duration-display').text('Invalid range');
                 $('#pillar-duration-seconds').val(0);
             }
+        } else if (!end && $('#pillar-duration-seconds').val()) {
+            // Start set but no end - show duration from hidden field
+            $('#duration-display').text(formatDuration($('#pillar-duration-seconds').val()));
         }
     }
     
-    $('#pillar-start, #pillar-end').on('change', calculateDuration);
+    // Calculate end time from start + duration
+    function calculateEndFromDuration() {
+        var start = $('#pillar-start').val();
+        var durationSeconds = parseInt($('#pillar-duration-selector').val());
+        
+        if (start && durationSeconds > 0) {
+            var startDate = new Date(start);
+            var endDate = new Date(startDate.getTime() + (durationSeconds * 1000));
+            
+            // Format for datetime-local input
+            var endFormatted = endDate.getFullYear() + '-' +
+                String(endDate.getMonth() + 1).padStart(2, '0') + '-' +
+                String(endDate.getDate()).padStart(2, '0') + 'T' +
+                String(endDate.getHours()).padStart(2, '0') + ':' +
+                String(endDate.getMinutes()).padStart(2, '0');
+            
+            $('#pillar-end').val(endFormatted);
+            $('#pillar-duration-seconds').val(durationSeconds);
+            $('#duration-display').text(formatDuration(durationSeconds));
+        }
+    }
+    
+    // Event: Start or End time changes → Calculate duration
+    $('#pillar-start, #pillar-end').on('change', calculateDurationFromTimes);
+    
+    // Event: Duration dropdown changes → Calculate end time
+    $('#pillar-duration-selector').on('change', calculateEndFromDuration);
     
     // === CUSTOMER MATCH CHECK ===
     $('#check-customer-match').on('click', function() {
