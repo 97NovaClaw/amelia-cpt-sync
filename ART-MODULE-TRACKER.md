@@ -765,7 +765,51 @@ JOIN with wp_terms via configured meta key
 - `includes/class-art-form-config-manager.php` - Default config
 - `amelia-cpt-sync.php` - v2.1.2
 
-**Phase 4 Plan Created**: `dev-resources/PHASE-4-PLAN.md`
+**Phase 4 Plan Created**: `dev-resources/PHASE-4-PLAN.md`  
+**Extension Guide Created**: `dev-resources/EXTENDING-ART-PILLARS.md` (850+ lines)
+
+### 2024-11-11 (Latest): Phase 4 Complete - Detail View with Smart Logic!
+- ✅ **Detail Page Template** - Full 3-panel layout with Tailwind styling
+- ✅ **Sticky Header** - Status and follow-up date (both auto-save via AJAX)
+- ✅ **Panel 1: Customer & Intake** - Read-only display with customer match check
+- ✅ **Panel 2: Editable Pillars** - Category, service, location, dates, price
+- ✅ **Panel 3: Placeholder** - Disabled UI for Phase 5 (availability/booking)
+- ✅ **Light API Manager** - Locations and customer search endpoints
+- ✅ **5 AJAX Handlers** - Status, follow-up, pillars save, customer match, locations
+- ✅ **Smart Category Logic** - Service auto-populates category (parent-child relationship)
+- ✅ **Cascading Dropdowns** - Category filters services, service updates category
+- ✅ **Duration Auto-Calculate** - Real-time calculation from start/end dates
+- ✅ **Responsive Design** - 3-column → 1-column on mobile, sidebar moves to top
+
+**Smart Category-Service Relationship**:
+- Form has service only → Category auto-populates from CPT ✅
+- Form has category only → Service NULL (admin picks from filtered dropdown) ✅
+- Form has both → Service's category wins (more specific) ✅
+- Detail view → Category and service stay in sync via JavaScript ✅
+
+**Files Created**:
+- `templates/art-request-detail-page.php` (1,222 lines)
+- `includes/class-art-api-manager.php` (167 lines)
+- `dev-resources/EXTENDING-ART-PILLARS.md` (850+ lines)
+
+**Files Modified**:
+- `includes/class-art-hook-handler.php` - Smart category auto-population
+- `includes/class-art-admin-settings.php` - 5 AJAX handlers
+- `amelia-cpt-sync.php` - Include API Manager, v2.2.1
+
+**What Works**:
+- ✅ Complete detail view renders
+- ✅ All data pre-fills from form submission
+- ✅ Status changes save immediately (AJAX)
+- ✅ Follow-up date saves immediately (AJAX)
+- ✅ Pillar changes save via "Save Draft" (AJAX)
+- ✅ Locations load from Amelia API (cached)
+- ✅ Customer match check calls API
+- ✅ Category-service relationship maintained automatically
+- ✅ Duration calculates in real-time
+- ✅ Responsive layout works
+
+**Phase Status**: 4 of 6 complete (67%)
 
 ### 2024-11-11: Phase 3 Polish - Advanced Filtering & UX
 - ✅ **Service Names from CPT** - JOIN with vehicles CPT to show actual names
@@ -898,14 +942,14 @@ JOIN with wp_terms via configured meta key
 ---
 
 **Last Updated**: 2024-11-11  
-**Current Phase**: Phase 3 Complete ✅ - Ready for Phase 4  
-**Current Version**: v2.0.3  
-**Next Review**: Before starting Phase 4  
+**Current Phase**: Phase 4 Complete ✅ - Ready for Phase 5  
+**Current Version**: v2.2.1  
+**Next Review**: Before starting Phase 5  
 
 **Quick Stats**:
-- ✅ Phases Complete: 3 of 6 (50%)
-- ✅ Files Created: 10+ core classes
+- ✅ Phases Complete: 4 of 6 (67%)
+- ✅ Files Created: 15+ core classes & templates
 - ✅ Live Requests: 12 test submissions
-- ✅ Features Working: Form capture, validation, workbench, filtering
-- 🔜 Next Up: Detail view & booking engine
+- ✅ Features Working: Form capture, validation, workbench, filtering, detail view, AJAX editing
+- 🔜 Next Up: Full API integration (availability check & booking)
 

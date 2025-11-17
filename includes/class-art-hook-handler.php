@@ -409,7 +409,38 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
         // Remove temporary field
         unset($buckets['request']['service_id_source']);
         
-        // Category ID transformation
+        // Auto-populate category from service (if service known but category isn't)
+        // Service is more specific, so it's the source of truth for category
+        if (isset($buckets['request']['service_id']) && $buckets['request']['service_id'] > 0) {
+            // Find the CPT post that has this service_id
+            $settings = get_option('amelia_cpt_sync_settings', array());
+            $cpt_slug = $settings['cpt_slug'] ?? 'vehicles';
+            $service_meta_key = $settings['field_mappings']['service_id'] ?? '_amelia_service_id';
+            
+            $cpt_posts = get_posts(array(
+                'post_type' => $cpt_slug,
+                'meta_key' => $service_meta_key,
+                'meta_value' => $buckets['request']['service_id'],
+                'posts_per_page' => 1,
+                'fields' => 'ids'
+            ));
+            
+            if (!empty($cpt_posts)) {
+                $cpt_id = $cpt_posts[0];
+                
+                // Read category from the same CPT post
+                $category_meta_key = $settings['field_mappings']['category_id'] ?? 'category_id';
+                $category_from_service = get_post_meta($cpt_id, $category_meta_key, true);
+                
+                if ($category_from_service) {
+                    // Override any existing category (service is more specific)
+                    $buckets['request']['category_id'] = intval($category_from_service);
+                    amelia_cpt_sync_debug_log('ART Logic: Auto-populated category_id ' . $category_from_service . ' from service\'s CPT post');
+                }
+            }
+        }
+        
+        // Category ID transformation (for category-only forms)
         $category_source = $logic['category_id_source'] ?? 'convert';
         
         if ($category_source === 'convert' && isset($buckets['request']['category_id'])) {
