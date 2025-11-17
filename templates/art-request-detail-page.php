@@ -39,7 +39,7 @@ $service_meta_key = $main_settings['field_mappings']['service_id'] ?? '_amelia_s
 $category_meta_key = $main_settings['taxonomy_meta']['category_id'] ?? 'category_id';
 
 // Get ART settings for display options
-$art_settings = get_option('amelia_cpt_sync_art_settings', array());
+$art_settings = get_option('art_settings', array());
 $global_settings = $art_settings['global'] ?? array();
 $show_location = $global_settings['show_location_field'] ?? true;
 $show_persons = $global_settings['show_persons_field'] ?? true;

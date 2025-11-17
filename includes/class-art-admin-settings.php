@@ -164,6 +164,8 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $debug_enabled = !empty($_POST['debug_enabled']);
         $enable_caching = !empty($_POST['enable_caching']);
         $cache_duration = absint($_POST['cache_duration'] ?? 60);
+        $show_location_field = !empty($_POST['show_location_field']);
+        $show_persons_field = !empty($_POST['show_persons_field']);
         
         $settings = $this->get_settings();
         
@@ -172,6 +174,8 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $settings['global']['debug_enabled'] = $debug_enabled;
         $settings['global']['enable_caching'] = $enable_caching;
         $settings['global']['cache_duration'] = $cache_duration;
+        $settings['global']['show_location_field'] = $show_location_field;
+        $settings['global']['show_persons_field'] = $show_persons_field;
         
         $result = update_option($this->option_name, $settings);
         
@@ -527,7 +531,9 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                         api_base_url: $('#art-api-base-url').val(),
                         debug_enabled: $('#art-debug-enabled').is(':checked') ? 1 : 0,
                         enable_caching: $('#art-enable-caching').is(':checked') ? 1 : 0,
-                        cache_duration: $('#art-cache-duration').val()
+                        cache_duration: $('#art-cache-duration').val(),
+                        show_location_field: $('input[name="show_location_field"]').is(':checked') ? 1 : 0,
+                        show_persons_field: $('input[name="show_persons_field"]').is(':checked') ? 1 : 0
                     },
                     success: function(response) {
                         spinner.removeClass('is-active');
