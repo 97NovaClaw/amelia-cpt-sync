@@ -238,17 +238,21 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
             }
         }
         
-        // Validate customer.email
+        // Validate customer.email (follows critical field pattern like all others)
         if (isset($buckets['customer']['email'])) {
             $email = sanitize_email($buckets['customer']['email']);
             
-            if (!is_email($email)) {
+            if (empty($email) || !is_email($email)) {
                 $is_critical = in_array('customer.email', $critical_fields);
                 
                 if ($validation_mode === 'require_pass_through' && $is_critical) {
-                    $errors[] = 'Invalid email address';
+                    // Strict mode + marked critical = FAIL
+                    $field_label = $destination_to_label['customer.email'] ?? 'Email';
+                    $errors[] = 'Valid email is required: ' . $field_label;
+                    amelia_cpt_sync_debug_log('ART Validation: CRITICAL - Invalid/empty email (marked as critical)');
                 } else {
-                    amelia_cpt_sync_debug_log('ART Validation: Invalid email, skipping field');
+                    // Not critical OR forgiving mode = Skip
+                    amelia_cpt_sync_debug_log('ART Validation: Invalid/empty email, skipping field (not critical or forgiving mode)');
                     unset($buckets['customer']['email']);
                 }
             } else {
@@ -409,41 +413,12 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
         // Remove temporary field
         unset($buckets['request']['service_id_source']);
         
-        // Auto-populate category from service (if service known but category isn't)
-        // Service is more specific, so it's the source of truth for category
-        if (isset($buckets['request']['service_id']) && $buckets['request']['service_id'] > 0) {
-            // Find the CPT post that has this service_id
-            $settings = get_option('amelia_cpt_sync_settings', array());
-            $cpt_slug = $settings['cpt_slug'] ?? 'vehicles';
-            $service_meta_key = $settings['field_mappings']['service_id'] ?? '_amelia_service_id';
-            
-            $cpt_posts = get_posts(array(
-                'post_type' => $cpt_slug,
-                'meta_key' => $service_meta_key,
-                'meta_value' => $buckets['request']['service_id'],
-                'posts_per_page' => 1,
-                'fields' => 'ids'
-            ));
-            
-            if (!empty($cpt_posts)) {
-                $cpt_id = $cpt_posts[0];
-                
-                // Read category from the same CPT post
-                $category_meta_key = $settings['field_mappings']['category_id'] ?? 'category_id';
-                $category_from_service = get_post_meta($cpt_id, $category_meta_key, true);
-                
-                if ($category_from_service) {
-                    // Override any existing category (service is more specific)
-                    $buckets['request']['category_id'] = intval($category_from_service);
-                    amelia_cpt_sync_debug_log('ART Logic: Auto-populated category_id ' . $category_from_service . ' from service\'s CPT post');
-                }
-            }
-        }
-        
-        // Category ID transformation (for category-only forms)
+        // Category ID transformation (BEFORE auto-population from service)
         $category_source = $logic['category_id_source'] ?? 'convert';
+        $category_was_auto_populated = false;
         
-        if ($category_source === 'convert' && isset($buckets['request']['category_id'])) {
+        // Only convert if category came from form AND wasn't auto-populated
+        if ($category_source === 'convert' && isset($buckets['request']['category_id']) && !empty($buckets['request']['category_id'])) {
             // Mode: Convert - Form value is a taxonomy term ID, convert to Amelia category ID
             $term_id = absint($buckets['request']['category_id']);
             
@@ -467,6 +442,38 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
             // Mode: Direct - Form value is already Amelia category ID
             $buckets['request']['category_id'] = absint($buckets['request']['category_id']);
             amelia_cpt_sync_debug_log('ART Logic: Direct mode - Using category_id ' . $buckets['request']['category_id'] . ' as-is');
+        }
+        
+        // Auto-populate category from service (if service known but category isn't set yet)
+        // Service is more specific, so it's the source of truth for category
+        if (isset($buckets['request']['service_id']) && $buckets['request']['service_id'] > 0 && empty($buckets['request']['category_id'])) {
+            // Find the CPT post that has this service_id
+            $settings = get_option('amelia_cpt_sync_settings', array());
+            $cpt_slug = $settings['cpt_slug'] ?? 'vehicles';
+            $service_meta_key = $settings['field_mappings']['service_id'] ?? '_amelia_service_id';
+            
+            $cpt_posts = get_posts(array(
+                'post_type' => $cpt_slug,
+                'meta_key' => $service_meta_key,
+                'meta_value' => $buckets['request']['service_id'],
+                'posts_per_page' => 1,
+                'fields' => 'ids'
+            ));
+            
+            if (!empty($cpt_posts)) {
+                $cpt_id = $cpt_posts[0];
+                
+                // Read category from the same CPT post
+                $category_meta_key = $settings['field_mappings']['category_id'] ?? 'category_id';
+                $category_from_service = get_post_meta($cpt_id, $category_meta_key, true);
+                
+                if ($category_from_service) {
+                    // Auto-populate (service wins)
+                    $buckets['request']['category_id'] = intval($category_from_service);
+                    $category_was_auto_populated = true;
+                    amelia_cpt_sync_debug_log('ART Logic: Auto-populated category_id ' . $category_from_service . ' from service\'s CPT post');
+                }
+            }
         }
         
         // Duration calculation
