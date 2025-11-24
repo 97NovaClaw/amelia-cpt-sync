@@ -196,6 +196,7 @@ class Amelia_CPT_Sync_ART_Form_Config_Manager {
                 'price_mode' => 'manual',
                 'location_mode' => 'disabled',
                 'persons_mode' => 'disabled',
+                'name_field_mode' => 'separate',
                 'validation_mode' => 'pass_through_fails'
             ),
             'critical_fields' => array(),

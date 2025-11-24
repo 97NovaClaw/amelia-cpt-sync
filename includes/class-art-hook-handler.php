@@ -102,6 +102,9 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
         
         amelia_cpt_sync_debug_log('ART: Parsed buckets: ' . print_r($buckets, true));
         
+        // Apply name field splitting if needed (before validation)
+        $buckets = $this->process_name_fields($buckets, $form_config);
+        
         // Validate data
         $validated = $this->validate_data($buckets, $form_config);
         
@@ -187,6 +190,39 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
         amelia_cpt_sync_debug_log('ART: Parsed ' . count($buckets['customer']) . ' customer fields, ' . 
                                    count($buckets['request']) . ' request fields, ' . 
                                    count($buckets['intake']) . ' intake fields');
+        
+        return $buckets;
+    }
+    
+    /**
+     * Process name fields based on configuration
+     * Handles single field splitting or first-name-only scenarios
+     *
+     * @param array $buckets Data buckets
+     * @param array $form_config Form configuration
+     * @return array Modified buckets
+     */
+    private function process_name_fields($buckets, $form_config) {
+        $name_mode = $form_config['logic']['name_field_mode'] ?? 'separate';
+        
+        if ($name_mode === 'single_split' && isset($buckets['customer']['first_name'])) {
+            // Mode: Single field - split on first space
+            $full_name = trim($buckets['customer']['first_name']);
+            
+            if (!empty($full_name)) {
+                $parts = explode(' ', $full_name, 2);  // Split on FIRST space only
+                
+                $buckets['customer']['first_name'] = $parts[0];  // First word
+                $buckets['customer']['last_name'] = isset($parts[1]) ? $parts[1] : '';  // Rest (or empty)
+                
+                amelia_cpt_sync_debug_log('ART Name Split: "' . $full_name . '" → first: "' . $parts[0] . '", last: "' . ($parts[1] ?? '') . '"');
+            }
+        } elseif ($name_mode === 'first_only') {
+            // Mode: First name only - ensure last_name is empty
+            $buckets['customer']['last_name'] = '';
+            amelia_cpt_sync_debug_log('ART Name: First name only mode - last_name set to empty');
+        }
+        // 'separate' mode: Do nothing, use as-is
         
         return $buckets;
     }

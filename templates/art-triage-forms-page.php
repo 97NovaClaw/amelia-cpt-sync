@@ -84,6 +84,7 @@ if (isset($_POST['art_save_form_config']) && check_admin_referer('art_form_confi
         $config_data['logic']['price_mode'] = sanitize_key($_POST['logic']['price_mode'] ?? 'manual');
         $config_data['logic']['location_mode'] = sanitize_key($_POST['logic']['location_mode'] ?? 'disabled');
         $config_data['logic']['persons_mode'] = sanitize_key($_POST['logic']['persons_mode'] ?? 'disabled');
+        $config_data['logic']['name_field_mode'] = sanitize_key($_POST['logic']['name_field_mode'] ?? 'separate');
         $config_data['logic']['validation_mode'] = sanitize_key($_POST['logic']['validation_mode'] ?? 'pass_through_fails');
         
         if (isset($_POST['logic']['default_location_id'])) {
@@ -514,6 +515,38 @@ if ($action === 'delete' && !empty($form_id) && check_admin_referer('art_delete_
                                            <?php checked($logic['persons_mode'] ?? 'disabled', 'form'); ?>>
                                     From Form Field
                                 </label>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row">Name Field Mode</th>
+                            <td>
+                                <label>
+                                    <input type="radio" 
+                                           name="logic[name_field_mode]" 
+                                           value="separate" 
+                                           <?php checked($logic['name_field_mode'] ?? 'separate', 'separate'); ?>>
+                                    Separate Fields (form has first_name AND last_name fields)
+                                </label><br>
+                                <label>
+                                    <input type="radio" 
+                                           name="logic[name_field_mode]" 
+                                           value="single_split" 
+                                           <?php checked($logic['name_field_mode'] ?? 'separate', 'single_split'); ?>>
+                                    Single Field - Split on Space (e.g., "John Smith" → first: John, last: Smith)
+                                </label><br>
+                                <label>
+                                    <input type="radio" 
+                                           name="logic[name_field_mode]" 
+                                           value="first_only" 
+                                           <?php checked($logic['name_field_mode'] ?? 'separate', 'first_only'); ?>>
+                                    First Name Only (no last name in form)
+                                </label>
+                                <p class="description">
+                                    <strong>Separate:</strong> Map form's first_name → customer.first_name, last_name → customer.last_name<br>
+                                    <strong>Single Split:</strong> Map full name → customer.first_name, splits on first space (John Smith → John | Smith)<br>
+                                    <strong>First Only:</strong> Only map first_name, last_name will be empty
+                                </p>
                             </td>
                         </tr>
                         
