@@ -435,12 +435,30 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                 <?php _e('Check available time slots in Amelia based on the service, duration, and location above.', 'amelia-cpt-sync'); ?>
                             </p>
                             
-                            <button type="button" id="btn-check-availability" class="btn-secondary">
-                                <span class="dashicons dashicons-calendar-alt"></span>
-                                <?php _e('Check Availability', 'amelia-cpt-sync'); ?>
-                            </button>
+                            <div class="availability-actions" style="display: flex; gap: 10px; align-items: center;">
+                                <button type="button" id="btn-check-availability" class="btn-secondary">
+                                    <span class="dashicons dashicons-calendar-alt"></span>
+                                    <?php _e('Check Availability', 'amelia-cpt-sync'); ?>
+                                </button>
+                                
+                                <button type="button" id="btn-toggle-calendar" class="btn-link" style="text-decoration: none;">
+                                    <span class="dashicons dashicons-visibility"></span>
+                                    <?php _e('View Calendar', 'amelia-cpt-sync'); ?>
+                                </button>
+                            </div>
                             
                             <div id="availability-status" style="margin-top: 12px; display: none;"></div>
+                        </div>
+
+                        <!-- Visual Calendar Iframe (Hidden by default) -->
+                        <div id="calendar-visual-container" style="display: none; margin-top: 20px; border: 1px solid #E0E5F1; border-radius: 6px; overflow: hidden;">
+                            <div style="padding: 10px; background: #f0f0f1; border-bottom: 1px solid #E0E5F1; display: flex; justify-content: space-between; align-items: center;">
+                                <strong><?php _e('Amelia Calendar Reference', 'amelia-cpt-sync'); ?></strong>
+                                <button type="button" id="btn-close-calendar" class="button-link-delete" style="text-decoration: none;">
+                                    <span class="dashicons dashicons-no"></span> <?php _e('Close', 'amelia-cpt-sync'); ?>
+                                </button>
+                            </div>
+                            <iframe id="amelia-calendar-frame" src="" width="100%" height="600px" style="border: 0;"></iframe>
                         </div>
                         
                         <!-- Step 2: Available Slots Display (hidden until check completes) -->
@@ -1151,6 +1169,24 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     justify-content: flex-end;
 }
 
+/* === CALENDAR IFRAME === */
+#calendar-visual-container iframe {
+    border: none;
+    background: #fff;
+}
+
+#calendar-visual-container .button-link-delete {
+    color: #d63638;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#calendar-visual-container .button-link-delete:hover {
+    color: #b32d2e;
+    background: none;
+}
+
 /* === RESPONSIVE === */
 @media (max-width: 1200px) {
     .art-grid-container {
@@ -1815,6 +1851,63 @@ jQuery(document).ready(function($) {
         $('#slot-details').hide();
         $('#btn-create-booking').prop('disabled', true);
         availabilityData = null;
+    });
+    
+    // ========================================================================
+    // VISUAL CALENDAR (IFRAME)
+    // ========================================================================
+    
+    $('#btn-toggle-calendar').on('click', function(e) {
+        e.preventDefault();
+        var container = $('#calendar-visual-container');
+        var iframe = $('#amelia-calendar-frame');
+        
+        if (container.is(':visible')) {
+            container.slideUp();
+        } else {
+            // Load iframe if empty
+            if (!iframe.attr('src')) {
+                // URL to Amelia Calendar page
+                var calendarUrl = '<?php echo admin_url('admin.php?page=wpamelia-calendar'); ?>';
+                iframe.attr('src', calendarUrl);
+                
+                // Show loading state
+                iframe.css('opacity', '0.5');
+            }
+            container.slideDown();
+        }
+    });
+    
+    $('#btn-close-calendar').on('click', function() {
+        $('#calendar-visual-container').slideUp();
+    });
+    
+    // Inject CSS into iframe when loaded to hide WP admin UI
+    $('#amelia-calendar-frame').on('load', function() {
+        var frame = $(this);
+        frame.css('opacity', '1');
+        
+        try {
+            var frameDoc = frame[0].contentWindow.document;
+            var css = `
+                #adminmenumain, #wpadminbar, #wpfooter, .am-header { display: none !important; }
+                html.wp-toolbar { padding-top: 0 !important; }
+                #wpcontent { margin-left: 0 !important; padding: 0 !important; }
+                .am-wrap { margin: 0 !important; padding: 10px !important; }
+            `;
+            
+            var style = frameDoc.createElement('style');
+            style.type = 'text/css';
+            if (style.styleSheet) {
+                style.styleSheet.cssText = css;
+            } else {
+                style.appendChild(frameDoc.createTextNode(css));
+            }
+            frameDoc.head.appendChild(style);
+            
+        } catch (e) {
+            console.log('ART: Could not inject CSS into calendar iframe (likely cross-origin restriction if domains differ)');
+        }
     });
     
     // === SPINNING ANIMATION FOR DASHICONS ===
