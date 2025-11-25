@@ -1070,6 +1070,44 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     font-style: italic;
 }
 
+/* === TOOLTIP (Phase 5) === */
+.art-slot-tooltip {
+    position: absolute;
+    background: #1E293B;
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    z-index: 1000;
+    white-space: nowrap;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    pointer-events: auto; /* Allow clicking links inside */
+}
+
+.art-slot-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #1E293B transparent transparent transparent;
+}
+
+.art-provider-link {
+    display: block;
+    color: #fff;
+    text-decoration: none;
+    padding: 2px 0;
+    cursor: pointer;
+}
+
+.art-provider-link:hover {
+    color: #60A5FA;
+    text-decoration: underline;
+}
+
 /* === PRICE INPUT === */
 .price-input-wrap {
     position: relative;
@@ -1882,19 +1920,29 @@ jQuery(document).ready(function($) {
                 
                 availabilityData = slots;
                 
-                // Group slots by date
+                // Group slots by date AND time
                 var slotsByDate = {};
                 var uniqueProviders = {}; // Track unique providers
                 
                 $.each(slots, function(i, slot) {
                     if (!slotsByDate[slot.date]) {
-                        slotsByDate[slot.date] = [];
+                        slotsByDate[slot.date] = {}; // Use object to group by time
                     }
-                    slotsByDate[slot.date].push(slot);
+                    
+                    if (!slotsByDate[slot.date][slot.time]) {
+                        slotsByDate[slot.date][slot.time] = [];
+                    }
+                    
+                    slotsByDate[slot.date][slot.time].push(slot);
                     
                     // Track provider ID (using ID as name for now until we have name lookup)
                     if (slot.provider_id) {
-                        uniqueProviders[slot.provider_id] = 'Provider #' + slot.provider_id;
+                        // Try to find name from preloaded provider map
+                        var providerName = 'Provider #' + slot.provider_id;
+                        if (artDetailData.providers && artDetailData.providers[slot.provider_id]) {
+                            providerName = artDetailData.providers[slot.provider_id];
+                        }
+                        uniqueProviders[slot.provider_id] = providerName;
                     }
                 });
                 
@@ -1916,17 +1964,28 @@ jQuery(document).ready(function($) {
                     var firstDate = null;
                     
                     $.each(sortedDates, function(i, dateStr) {
-                        // Filter slots for this date
-                        var dateSlots = slotsByDate[dateStr];
-                        var filteredSlots = dateSlots;
+                        // Calculate total visible slots for this date based on filter
+                        var dateTimes = slotsByDate[dateStr];
+                        var filteredTimes = {};
+                        var totalFilteredSlots = 0;
                         
-                        if (providerFilter !== 'all') {
-                            filteredSlots = dateSlots.filter(function(slot) {
-                                return slot.provider_id == providerFilter;
-                            });
-                        }
+                        $.each(dateTimes, function(time, providerSlots) {
+                            if (providerFilter === 'all') {
+                                filteredTimes[time] = providerSlots;
+                                totalFilteredSlots++; // Count unique times, not providers
+                            } else {
+                                // Check if this time has the specific provider
+                                var matchingSlots = providerSlots.filter(function(s) {
+                                    return s.provider_id == providerFilter;
+                                });
+                                if (matchingSlots.length > 0) {
+                                    filteredTimes[time] = matchingSlots;
+                                    totalFilteredSlots++;
+                                }
+                            }
+                        });
                         
-                        if (filteredSlots.length > 0) {
+                        if (totalFilteredSlots > 0) {
                             visibleCount++;
                             if (!firstDate) firstDate = dateStr;
                             
@@ -1935,12 +1994,12 @@ jQuery(document).ready(function($) {
                             
                             var btnHtml = '<button type="button" class="art-picker-date-btn" data-date="' + dateStr + '">' + 
                                           formattedDate + 
-                                          ' <span style="float:right; color:#94A3B8; font-size:11px;">' + filteredSlots.length + '</span>' +
+                                          ' <span style="float:right; color:#94A3B8; font-size:11px;">' + totalFilteredSlots + '</span>' +
                                           '</button>';
                             
-                            // Store filtered slots on the button for easier access
+                            // Store filtered times on the button
                             var btn = $(btnHtml);
-                            btn.data('slots', filteredSlots);
+                            btn.data('times', filteredTimes);
                             datesList.append(btn);
                         }
                     });
@@ -1972,12 +2031,12 @@ jQuery(document).ready(function($) {
                 $('#picker-dates-list').off('click').on('click', '.art-picker-date-btn', function() {
                     var btn = $(this);
                     var selectedDate = btn.data('date');
-                    var dateSlots = btn.data('slots'); // Use the filtered slots we stored!
+                    var dateTimes = btn.data('times'); // Use the filtered times map
                     
                     $('.art-picker-date-btn').removeClass('active');
                     btn.addClass('active');
                     
-                    renderTimes(selectedDate, dateSlots);
+                    renderTimes(selectedDate, dateTimes);
                     
                     // Enable Custom Time Input
                     $('#custom-time-input').prop('disabled', false);
@@ -1985,9 +2044,9 @@ jQuery(document).ready(function($) {
                 });
                 
                 // Show results
-                $('#slot-count-badge').text(slots.length + ' available');
+                $('#slot-count-badge').text(slots.length + ' available'); // Total raw slots
                 $('#availability-status').html(
-                    '<p style="color: #28A745;"><strong>✓</strong> Found ' + slots.length + ' available slots</p>'
+                    '<p style="color: #28A745;"><strong>✓</strong> Found availability</p>'
                 );
                 $('#availability-results').slideDown();
                 
@@ -2006,9 +2065,9 @@ jQuery(document).ready(function($) {
     });
     
     /**
-     * Render Time Slots for a specific date
+     * Render Time Slots for a specific date (Consolidated)
      */
-    function renderTimes(dateStr, slots) {
+    function renderTimes(dateStr, timesMap) {
         var timesGrid = $('#picker-times-grid');
         var header = $('#picker-times-header');
         
@@ -2019,24 +2078,69 @@ jQuery(document).ready(function($) {
         var formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
         header.text(formattedDate);
         
-        $.each(slots, function(i, slot) {
+        // Sort times
+        var sortedTimes = Object.keys(timesMap).sort();
+        
+        $.each(sortedTimes, function(i, time) {
+            var providerSlots = timesMap[time]; // Array of slots for this time
+            
             // Format time (e.g., "09:00" -> "9:00 AM")
-            // Note: slot.time is "HH:mm" or "HH:mm:ss"
-            var timeParts = slot.time.split(':');
+            var timeParts = time.split(':');
             var hour = parseInt(timeParts[0]);
             var min = timeParts[1];
             var ampm = hour >= 12 ? 'PM' : 'AM';
             var hour12 = hour % 12;
-            hour12 = hour12 ? hour12 : 12; // the hour '0' should be '12'
+            hour12 = hour12 ? hour12 : 12;
             var timeDisplay = hour12 + ':' + min + ' ' + ampm;
             
+            // Create button
             var btn = $('<button type="button" class="art-time-btn">' + timeDisplay + '</button>');
             
-            // Handle Time Click
+            // Add tooltip if multiple providers or specific provider info needed
+            var providerListHtml = '<div class="art-slot-tooltip" style="display:none;"><strong>Available Providers:</strong><br>';
+            $.each(providerSlots, function(j, slot) {
+                var pName = (artDetailData.providers && artDetailData.providers[slot.provider_id]) ? 
+                            artDetailData.providers[slot.provider_id] : 'Provider #' + slot.provider_id;
+                
+                providerListHtml += '<span class="art-provider-link" data-pid="' + slot.provider_id + '">' + pName + '</span>';
+            });
+            providerListHtml += '</div>';
+            
+            var tooltip = $(providerListHtml);
+            btn.append(tooltip);
+            
+            // Hover events for tooltip
+            btn.hover(
+                function() { $(this).find('.art-slot-tooltip').show(); },
+                function() { $(this).find('.art-slot-tooltip').hide(); }
+            );
+            
+            // Click specific provider in tooltip (Drill down)
+            tooltip.find('.art-provider-link').on('click', function(e) {
+                e.stopPropagation(); // Prevent button click
+                var pid = $(this).data('pid');
+                
+                // Set filter
+                $('#filter-provider').val(pid).trigger('change');
+                
+                // Re-select this date/time (need to wait for re-render)
+                // This is tricky because re-render wipes the grid. 
+                // For now, just setting filter is good feedback.
+            });
+            
+            // Handle Main Time Click (Auto-select first provider if multiple, or filtered one)
             btn.on('click', function() {
                 $('.art-time-btn').removeClass('active');
                 $(this).addClass('active');
-                selectSlot(slot, timeDisplay);
+                
+                // If multiple providers, pick the first one (or could force user to pick via tooltip?)
+                // Defaulting to first available is standard behavior
+                var selectedSlot = providerSlots[0]; 
+                
+                // Update summary to mention other providers if available
+                var note = providerSlots.length > 1 ? ' (and ' + (providerSlots.length - 1) + ' others)' : '';
+                
+                selectSlot(selectedSlot, timeDisplay + note);
             });
             
             timesGrid.append(btn);
@@ -2278,6 +2382,24 @@ jQuery(document).ready(function($) {
             console.log('ART: Could not inject CSS into calendar iframe (likely cross-origin restriction if domains differ)');
         }
     });
+    
+    // ========================================================================
+    // INITIALIZATION
+    // ========================================================================
+    
+    // Fetch providers on load for the map
+    function fetchProviders() {
+        $.post(ajaxurl, {
+            action: 'art_get_providers',
+            nonce: artDetailData.nonce
+        }, function(response) {
+            if (response.success) {
+                // Store the map: ID -> Name
+                artDetailData.providers = response.data.provider_map;
+            }
+        });
+    }
+    fetchProviders();
     
     // === SPINNING ANIMATION FOR DASHICONS ===
     $('<style>.dashicons.spin { animation: spin 1s linear infinite; } @keyframes spin { 100% { transform: rotate(360deg); } }</style>').appendTo('head');

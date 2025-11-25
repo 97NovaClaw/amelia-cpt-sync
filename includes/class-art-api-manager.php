@@ -126,6 +126,39 @@ class Amelia_CPT_Sync_ART_API_Manager {
     }
     
     /**
+     * Get providers (employees) from Amelia (Phase 5)
+     *
+     * @return array|WP_Error Array of providers or error
+     */
+    public function get_providers() {
+        $cache_key = 'art_amelia_providers';
+        
+        // Try cache first
+        $cached = get_transient($cache_key);
+        if ($cached !== false) {
+            amelia_cpt_sync_debug_log('ART API: Using cached providers');
+            return $cached;
+        }
+        
+        // Call API
+        $response = $this->request('/users/providers', 'GET');
+        
+        if (is_wp_error($response)) {
+            return $response;
+        }
+        
+        // Note: Amelia API returns 'users' for this endpoint, containing provider objects
+        $providers = $response['data']['users'] ?? array();
+        
+        amelia_cpt_sync_debug_log('ART API: Fetched ' . count($providers) . ' providers');
+        
+        // Cache for 1 hour
+        set_transient($cache_key, $providers, HOUR_IN_SECONDS);
+        
+        return $providers;
+    }
+    
+    /**
      * Find customer in Amelia by email (Phase 4)
      *
      * @param string $email Customer email
