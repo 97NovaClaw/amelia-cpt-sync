@@ -254,7 +254,7 @@ class Amelia_CPT_Sync_ART_API_Manager {
         $query_parts[] = 'excludeAppointmentId=null';
         
         $query_string = implode('&', $query_parts);
-        $endpoint = '/slots?' . $query_string;
+        $endpoint = '/slots&' . $query_string;  // Use & not ? (already in a query string!)
         
         amelia_cpt_sync_debug_log('ART API: Getting slots for service #' . $params['serviceId']);
         
