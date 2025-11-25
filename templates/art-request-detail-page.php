@@ -464,23 +464,35 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                         <!-- Step 2: Available Slots Display (hidden until check completes) -->
                         <div id="availability-results" style="display: none; margin-top: 20px;">
                             <h4 style="margin-bottom: 12px; color: #2C3E50;">
-                                <?php _e('Available Slots', 'amelia-cpt-sync'); ?>
+                                <?php _e('Select Date & Time', 'amelia-cpt-sync'); ?>
                                 <span id="slot-count-badge" class="badge-info" style="margin-left: 8px;"></span>
                             </h4>
                             
-                            <div class="pillar-grid-2">
-                                <div class="form-field">
-                                    <label for="selected-slot"><?php _e('Select Date & Time', 'amelia-cpt-sync'); ?></label>
-                                    <select id="selected-slot" class="form-select">
-                                        <option value=""><?php _e('-- Choose Time Slot --', 'amelia-cpt-sync'); ?></option>
-                                    </select>
+                            <!-- Date & Time Picker Container -->
+                            <div class="art-picker-container">
+                                <!-- Left: Dates -->
+                                <div class="art-picker-dates" id="picker-dates-list">
+                                    <!-- Dates will be injected here -->
+                                    <div style="padding: 20px; text-align: center; color: #94A3B8;">
+                                        Loading dates...
+                                    </div>
                                 </div>
-                                <div class="form-field">
-                                    <label for="selected-provider"><?php _e('Provider (Auto-selected)', 'amelia-cpt-sync'); ?></label>
-                                    <input type="text" id="selected-provider" class="form-input" readonly>
-                                    <input type="hidden" id="selected-provider-id">
+                                
+                                <!-- Right: Times -->
+                                <div class="art-picker-times">
+                                    <div class="art-picker-times-header" id="picker-times-header">
+                                        Select a date to see times
+                                    </div>
+                                    <div class="art-time-grid" id="picker-times-grid">
+                                        <!-- Times will be injected here -->
+                                    </div>
                                 </div>
                             </div>
+                            
+                            <!-- Hidden inputs to store selection for booking logic -->
+                            <input type="hidden" id="selected-slot-datetime" value="">
+                            <input type="hidden" id="selected-provider-id" value="">
+                            <input type="hidden" id="selected-location-id" value="">
                             
                             <div id="slot-details" style="margin-top: 16px; padding: 12px; background: #E8F4F8; border-left: 4px solid #1A84EE; border-radius: 4px; display: none;">
                                 <strong><?php _e('Booking Summary:', 'amelia-cpt-sync'); ?></strong>
@@ -810,6 +822,122 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     border-radius: 12px;
     font-size: 12px;
     font-weight: 600;
+}
+
+/* === DATE & TIME PICKER (Phase 5) === */
+.art-picker-container {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 0;
+    border: 1px solid #E0E5F1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    margin-top: 16px;
+}
+
+.art-picker-dates {
+    background: #F8FAFC;
+    border-right: 1px solid #E0E5F1;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.art-picker-date-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 12px 16px;
+    border: none;
+    border-bottom: 1px solid #F1F5F9;
+    background: transparent;
+    color: #64748B;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.art-picker-date-btn:hover {
+    background: #fff;
+    color: #1A84EE;
+}
+
+.art-picker-date-btn.active {
+    background: #fff;
+    color: #1A84EE;
+    border-left: 3px solid #1A84EE;
+    font-weight: 600;
+    padding-left: 13px; /* Compensate for border */
+}
+
+.art-picker-times {
+    padding: 20px;
+    background: #fff;
+}
+
+.art-picker-times-header {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1E293B;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #F1F5F9;
+}
+
+.art-time-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 10px;
+}
+
+.art-time-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    background: #fff;
+    color: #1A84EE;
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.art-time-btn:hover {
+    border-color: #1A84EE;
+    background: #EFF6FF;
+}
+
+.art-time-btn.active {
+    background: #1A84EE;
+    color: #fff;
+    border-color: #1A84EE;
+    box-shadow: 0 2px 4px rgba(26, 132, 238, 0.2);
+}
+
+/* Hide scrollbar for clean look */
+.art-picker-dates::-webkit-scrollbar {
+    width: 6px;
+}
+.art-picker-dates::-webkit-scrollbar-track {
+    background: #F8FAFC;
+}
+.art-picker-dates::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 3px;
+}
+
+@media (max-width: 768px) {
+    .art-picker-container {
+        grid-template-columns: 1fr;
+    }
+    .art-picker-dates {
+        border-right: none;
+        border-bottom: 1px solid #E0E5F1;
+        max-height: 150px;
+    }
 }
 
 .card-body {
@@ -1651,7 +1779,7 @@ jQuery(document).ready(function($) {
     var availabilityData = null;  // Store slots from API
     
     /**
-     * Check Availability Button
+     * Check Availability Button (Updated for Picker UI)
      */
     $('#btn-check-availability').on('click', function() {
         var btn = $(this);
@@ -1662,7 +1790,6 @@ jQuery(document).ready(function($) {
         var durationSeconds = $('#pillar-duration-selector').val() || $('#pillar-duration-hidden').val();
         var persons = $('#pillar-persons').val() || 1;
         var locationId = $('#pillar-location').val() || 0;
-        var startDate = $('#pillar-start').val();
         
         if (!serviceId) {
             showNotice('Please select a service first', 'error');
@@ -1701,26 +1828,53 @@ jQuery(document).ready(function($) {
                 
                 availabilityData = slots;
                 
-                // Populate slot dropdown
-                var slotSelect = $('#selected-slot');
-                slotSelect.html('<option value="">-- Choose Time Slot --</option>');
-                
+                // Group slots by date
+                var slotsByDate = {};
                 $.each(slots, function(i, slot) {
-                    var displayText = slot.date + ' at ' + slot.time;
-                    var slotData = JSON.stringify(slot);
-                    slotSelect.append(
-                        '<option value="' + i + '" data-slot=\'' + slotData + '\'>' + 
-                        displayText + 
-                        '</option>'
-                    );
+                    if (!slotsByDate[slot.date]) {
+                        slotsByDate[slot.date] = [];
+                    }
+                    slotsByDate[slot.date].push(slot);
                 });
                 
-                // Update count badge
-                $('#slot-count-badge').text(slots.length + ' available');
+                // Render Dates
+                var datesList = $('#picker-dates-list');
+                datesList.empty();
+                
+                // Sort dates
+                var sortedDates = Object.keys(slotsByDate).sort();
+                
+                $.each(sortedDates, function(i, dateStr) {
+                    // Format date nicely (e.g., "Nov 27, 2025")
+                    var dateObj = new Date(dateStr);
+                    var formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' });
+                    
+                    var btnHtml = '<button type="button" class="art-picker-date-btn" data-date="' + dateStr + '">' + 
+                                  formattedDate + 
+                                  ' <span style="float:right; color:#94A3B8; font-size:11px;">' + slotsByDate[dateStr].length + '</span>' +
+                                  '</button>';
+                    datesList.append(btnHtml);
+                });
+                
+                // Handle Date Click
+                datesList.find('.art-picker-date-btn').on('click', function() {
+                    var selectedDate = $(this).data('date');
+                    
+                    // Visuals
+                    $('.art-picker-date-btn').removeClass('active');
+                    $(this).addClass('active');
+                    
+                    // Render Times
+                    renderTimes(selectedDate, slotsByDate[selectedDate]);
+                });
+                
+                // Auto-select first date
+                datesList.find('.art-picker-date-btn').first().trigger('click');
                 
                 // Show results
+                $('#slot-count-badge').text(slots.length + ' available');
                 $('#availability-status').html(
-                    '<p style="color: #28A745;"><strong>✓</strong> Found ' + slots.length + ' available slot' + (slots.length > 1 ? 's' : '') + '</p>'
+                    '<p style="color: #28A745;"><strong>✓</strong> Found ' + slots.length + ' available slots</p>'
                 );
                 $('#availability-results').slideDown();
                 
@@ -1739,29 +1893,58 @@ jQuery(document).ready(function($) {
     });
     
     /**
-     * Slot Selection Handler
+     * Render Time Slots for a specific date
      */
-    $('#selected-slot').on('change', function() {
-        var selectedIndex = $(this).val();
+    function renderTimes(dateStr, slots) {
+        var timesGrid = $('#picker-times-grid');
+        var header = $('#picker-times-header');
         
-        if (!selectedIndex || !availabilityData) {
-            $('#slot-details').hide();
-            $('#btn-create-booking').prop('disabled', true);
-            return;
-        }
+        timesGrid.empty();
         
-        var slot = availabilityData[selectedIndex];
+        // Format header date
+        var dateObj = new Date(dateStr);
+        var formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        header.text(formattedDate);
         
-        // Update provider field
-        $('#selected-provider').val('Provider #' + slot.provider_id);
+        $.each(slots, function(i, slot) {
+            // Format time (e.g., "09:00" -> "9:00 AM")
+            // Note: slot.time is "HH:mm" or "HH:mm:ss"
+            var timeParts = slot.time.split(':');
+            var hour = parseInt(timeParts[0]);
+            var min = timeParts[1];
+            var ampm = hour >= 12 ? 'PM' : 'AM';
+            var hour12 = hour % 12;
+            hour12 = hour12 ? hour12 : 12; // the hour '0' should be '12'
+            var timeDisplay = hour12 + ':' + min + ' ' + ampm;
+            
+            var btn = $('<button type="button" class="art-time-btn">' + timeDisplay + '</button>');
+            
+            // Handle Time Click
+            btn.on('click', function() {
+                $('.art-time-btn').removeClass('active');
+                $(this).addClass('active');
+                selectSlot(slot, timeDisplay);
+            });
+            
+            timesGrid.append(btn);
+        });
+    }
+    
+    /**
+     * Handle Final Slot Selection
+     */
+    function selectSlot(slot, timeDisplay) {
+        // Store data
+        $('#selected-slot-datetime').val(slot.datetime);
         $('#selected-provider-id').val(slot.provider_id);
+        $('#selected-location-id').val(slot.location_id);
         
         // Build summary
         var summary = 
             '<div style="color: #2C3E50;">' +
-            '<strong>Date & Time:</strong> ' + slot.date + ' at ' + slot.time + '<br>' +
+            '<strong>Date & Time:</strong> ' + slot.date + ' at ' + timeDisplay + '<br>' +
             '<strong>Provider:</strong> Provider #' + slot.provider_id + '<br>' +
-            '<strong>Location:</strong> Location #' + slot.location_id +
+            '<strong>Location:</strong> Location #' + (slot.location_id || 'Default') +
             '</div>';
         
         $('#slot-summary').html(summary);
@@ -1769,23 +1952,23 @@ jQuery(document).ready(function($) {
         
         // Enable booking button
         $('#btn-create-booking').prop('disabled', false);
-    });
+    }
     
     /**
-     * Create Booking Button
+     * Create Booking Button (Updated to use hidden inputs)
      */
     $('#btn-create-booking').on('click', function() {
         var btn = $(this);
-        var selectedIndex = $('#selected-slot').val();
         
-        if (!selectedIndex || !availabilityData) {
+        var slotDatetime = $('#selected-slot-datetime').val();
+        var providerId = $('#selected-provider-id').val();
+        
+        if (!slotDatetime || !providerId) {
             showNotice('Please select a time slot first', 'error');
             return;
         }
         
-        var slot = availabilityData[selectedIndex];
-        
-        if (!confirm('Create Amelia booking for ' + slot.datetime + '?')) {
+        if (!confirm('Create Amelia booking for ' + slotDatetime + '?')) {
             return;
         }
         
@@ -1799,8 +1982,8 @@ jQuery(document).ready(function($) {
             action: 'art_create_booking',
             nonce: artDetailData.nonce,
             request_id: artDetailData.requestId,
-            provider_id: slot.provider_id,
-            slot_datetime: slot.datetime
+            provider_id: providerId,
+            slot_datetime: slotDatetime
         }, function(response) {
             btn.prop('disabled', false);
             btn.html(originalText);
@@ -1809,13 +1992,13 @@ jQuery(document).ready(function($) {
                 // Hide availability section
                 $('#availability-results').hide();
                 $('#availability-check-section').hide();
+                $('#calendar-visual-container').hide(); // Hide calendar too
                 
                 // Show success message
                 var details = 
                     '<strong>Booking ID:</strong> #' + response.data.booking_id + '<br>' +
                     '<strong>Appointment ID:</strong> #' + response.data.appointment_id + '<br>' +
-                    '<strong>Time:</strong> ' + slot.datetime + '<br>' +
-                    '<strong>Provider:</strong> #' + slot.provider_id;
+                    '<strong>Time:</strong> ' + slotDatetime;
                 
                 if (response.data.amelia_customer_id) {
                     details += '<br><strong>Amelia Customer ID:</strong> #' + response.data.amelia_customer_id;
@@ -1840,14 +2023,18 @@ jQuery(document).ready(function($) {
     });
     
     /**
-     * Cancel/Clear Availability Results
+     * Cancel/Clear Availability Results (Updated)
      */
     $('#btn-cancel-availability').on('click', function() {
         $('#availability-results').slideUp();
         $('#availability-status').empty().hide();
-        $('#selected-slot').html('<option value="">-- Choose Time Slot --</option>');
-        $('#selected-provider').val('');
+        
+        // Reset picker
+        $('#picker-dates-list').empty();
+        $('#picker-times-grid').empty();
+        $('#selected-slot-datetime').val('');
         $('#selected-provider-id').val('');
+        
         $('#slot-details').hide();
         $('#btn-create-booking').prop('disabled', true);
         availabilityData = null;
