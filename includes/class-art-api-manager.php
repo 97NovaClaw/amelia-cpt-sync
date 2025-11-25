@@ -83,7 +83,8 @@ class Amelia_CPT_Sync_ART_API_Manager {
         
         if ($code < 200 || $code > 299) {
             $error_message = isset($data['message']) ? $data['message'] : 'HTTP ' . $code;
-            amelia_cpt_sync_debug_log('ART API Error Response: ' . print_r($data, true));
+            amelia_cpt_sync_debug_log('ART API Error Response (' . $code . '): ' . print_r($data, true));
+            amelia_cpt_sync_debug_log('ART API Raw Response Body: ' . substr($body_response, 0, 500));
             return new WP_Error('api_error', $error_message, array('code' => $code));
         }
         
@@ -212,22 +213,47 @@ class Amelia_CPT_Sync_ART_API_Manager {
             }
         }
         
-        // Build query string
-        $query_params = array(
-            'serviceId' => absint($params['serviceId']),
-            'serviceDuration' => absint($params['serviceDuration']),
-            'persons' => absint($params['persons']),
-            'locationId' => absint($params['locationId'] ?? 0),
-            'startDateTime' => sanitize_text_field($params['startDateTime'] ?? ''),
-            'extras' => '[]'  // No extras for now
-        );
+        // Build query string in EXACT format from Amelia API docs
+        // Example: /slots?locationId=2&serviceId=3&serviceDuration=1800&providerIds=3&persons=1&startDateTime=2023-09-25&extras=[]&excludeAppointmentId=null
         
-        // Optional: provider IDs
-        if (!empty($params['providerIds'])) {
-            $query_params['providerIds'] = absint($params['providerIds']);
+        $query_parts = array();
+        
+        // Location (optional - only add if > 0)
+        if (!empty($params['locationId']) && $params['locationId'] > 0) {
+            $query_parts[] = 'locationId=' . absint($params['locationId']);
         }
         
-        $query_string = http_build_query($query_params);
+        // Service ID (required)
+        $query_parts[] = 'serviceId=' . absint($params['serviceId']);
+        
+        // Service Duration in seconds (required)
+        $query_parts[] = 'serviceDuration=' . absint($params['serviceDuration']);
+        
+        // Provider IDs (optional - single ID, not array despite parameter name)
+        if (!empty($params['providerIds']) && $params['providerIds'] > 0) {
+            $query_parts[] = 'providerIds=' . absint($params['providerIds']);
+        }
+        
+        // Persons (required)
+        $query_parts[] = 'persons=' . absint($params['persons']);
+        
+        // Start date - DATE ONLY format "YYYY-MM-DD" (not "YYYY-MM-DD HH:mm"!)
+        if (!empty($params['startDateTime'])) {
+            // Extract just date if full datetime provided
+            $date_only = substr($params['startDateTime'], 0, 10);
+            $query_parts[] = 'startDateTime=' . $date_only;
+        } else {
+            // Default to today if not specified
+            $query_parts[] = 'startDateTime=' . gmdate('Y-m-d');
+        }
+        
+        // Extras (literal [], not URL-encoded %5B%5D)
+        $query_parts[] = 'extras=[]';
+        
+        // Exclude appointment ID (always include, use null)
+        $query_parts[] = 'excludeAppointmentId=null';
+        
+        $query_string = implode('&', $query_parts);
         $endpoint = '/slots?' . $query_string;
         
         amelia_cpt_sync_debug_log('ART API: Getting slots for service #' . $params['serviceId']);
@@ -235,12 +261,18 @@ class Amelia_CPT_Sync_ART_API_Manager {
         $response = $this->request($endpoint, 'GET');
         
         if (is_wp_error($response)) {
+            amelia_cpt_sync_debug_log('ART API Slots Error: ' . $response->get_error_message());
             return $response;
         }
         
         $slots = $response['data']['slots'] ?? array();
         
         amelia_cpt_sync_debug_log('ART API: Retrieved slots for ' . count($slots) . ' dates');
+        
+        // Log if no slots found (might be scheduling issue, not API error)
+        if (empty($slots)) {
+            amelia_cpt_sync_debug_log('ART API: No slots available (check employee working hours, service assignment, and date range)');
+        }
         
         return array(
             'slots' => $slots,
@@ -251,6 +283,7 @@ class Amelia_CPT_Sync_ART_API_Manager {
     
     /**
      * Create an Amelia booking (Phase 5)
+     * Format based on Amelia API documentation
      *
      * @param array $booking_data Booking data
      * @return array|WP_Error Booking response or error
@@ -269,20 +302,24 @@ class Amelia_CPT_Sync_ART_API_Manager {
             return new WP_Error('invalid_bookings', 'Bookings must be a non-empty array');
         }
         
-        // Default values
-        $booking_payload = array_merge(array(
+        // Build payload in EXACT format from Amelia API docs
+        $booking_payload = array(
             'type' => 'appointment',
-            'notifyParticipants' => 1,
-            'internalNotes' => '',
-            'recurring' => array(),
+            'bookings' => $booking_data['bookings'],  // Already formatted by caller
             'payment' => array(
                 'gateway' => 'onSite',
                 'currency' => 'USD',
-                'data' => array()
-            )
-        ), $booking_data);
+                'data' => (object) array()  // Empty object, not array
+            ),
+            'bookingStart' => $booking_data['bookingStart'],  // "YYYY-MM-DD HH:mm" format
+            'notifyParticipants' => 1,
+            'locationId' => absint($booking_data['locationId']),
+            'providerId' => absint($booking_data['providerId']),
+            'serviceId' => absint($booking_data['serviceId'])
+        );
         
         amelia_cpt_sync_debug_log('ART API: Creating booking for service #' . $booking_data['serviceId'] . ' at ' . $booking_data['bookingStart']);
+        amelia_cpt_sync_debug_log('ART API: Booking payload: ' . json_encode($booking_payload, JSON_PRETTY_PRINT));
         
         $response = $this->request('/bookings', 'POST', $booking_payload);
         

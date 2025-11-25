@@ -966,14 +966,18 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             wp_send_json_error(array('message' => 'Duration is required to check availability'));
         }
         
-        // Build params for slots API
+        // Build params for slots API (matching Amelia API docs format)
         $params = array(
             'serviceId' => $request->service_id,
             'serviceDuration' => $request->duration_seconds,
             'persons' => $request->persons ?? 1,
-            'locationId' => $request->location_id ?? 0,
             'startDateTime' => !empty($request->start_datetime) ? gmdate('Y-m-d', strtotime($request->start_datetime)) : gmdate('Y-m-d')
         );
+        
+        // Only add locationId if it's set and > 0 (omit if null/0)
+        if (!empty($request->location_id) && $request->location_id > 0) {
+            $params['locationId'] = $request->location_id;
+        }
         
         $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
         $result = $api_manager->get_slots($params);
@@ -1072,41 +1076,47 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             wp_send_json_error(array('message' => 'Please select a time slot'));
         }
         
-        // Build booking data
-        $booking_data = array(
-            'type' => 'appointment',
-            'bookingStart' => gmdate('Y-m-d H:i', strtotime($selected_slot_datetime)),
-            'serviceId' => $request->service_id,
-            'providerId' => $selected_provider_id,
-            'locationId' => $request->location_id,
-            'notifyParticipants' => 1,
-            'bookings' => array(
-                array(
-                    'customerId' => $customer->amelia_customer_id ?? null,
-                    'customer' => array(
-                        'id' => $customer->amelia_customer_id ?? null,
-                        'firstName' => $customer->first_name,
-                        'lastName' => $customer->last_name,
-                        'email' => $customer->email,
-                        'phone' => $customer->phone ?? ''
-                    ),
-                    'persons' => $request->persons ?? 1,
-                    'duration' => $request->duration_seconds,
-                    'extras' => array(),
-                    'customFields' => array()
-                )
+        // Build booking data in EXACT format from Amelia API docs
+        $booking_object = array(
+            'extras' => array(),
+            'customFields' => (object) array(),  // Empty object, not array
+            'deposit' => false,
+            'locale' => 'en_US',
+            'utcOffset' => null,
+            'persons' => absint($request->persons ?? 1),
+            'customerId' => $customer->amelia_customer_id ?? null,
+            'customer' => array(
+                'id' => $customer->amelia_customer_id ?? null,
+                'firstName' => $customer->first_name,
+                'lastName' => $customer->last_name,
+                'email' => $customer->email,
+                'phone' => $customer->phone ?? '',
+                'countryPhoneIso' => '',
+                'externalId' => null
             ),
-            'payment' => array(
-                'gateway' => 'onSite',
-                'currency' => 'USD',
-                'data' => array()
-            )
+            'duration' => absint($request->duration_seconds)
         );
         
         // Add price if available
         if ($request->final_price !== null) {
-            $booking_data['bookings'][0]['price'] = floatval($request->final_price);
+            $booking_object['price'] = floatval($request->final_price);
         }
+        
+        // Build complete booking payload
+        $booking_data = array(
+            'type' => 'appointment',
+            'bookings' => array($booking_object),
+            'payment' => array(
+                'gateway' => 'onSite',
+                'currency' => 'USD',
+                'data' => (object) array()
+            ),
+            'bookingStart' => gmdate('Y-m-d H:i', strtotime($selected_slot_datetime)),  // "YYYY-MM-DD HH:mm"
+            'notifyParticipants' => 1,
+            'locationId' => absint($request->location_id),
+            'providerId' => $selected_provider_id,
+            'serviceId' => absint($request->service_id)
+        );
         
         $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
         $result = $api_manager->create_booking($booking_data);
