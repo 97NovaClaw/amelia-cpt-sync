@@ -498,6 +498,27 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                         <!-- Times will be injected here -->
                                     </div>
                                 </div>
+                                
+                                <!-- Custom: Manual Entry -->
+                                <div class="art-picker-custom">
+                                    <div class="art-picker-custom-header">
+                                        <?php _e('Custom Time', 'amelia-cpt-sync'); ?>
+                                    </div>
+                                    <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
+                                        <div>
+                                            <label for="custom-time-input" style="font-size: 12px; color: #64748b; display: block; margin-bottom: 6px;">
+                                                <?php _e('Enter Time', 'amelia-cpt-sync'); ?>
+                                            </label>
+                                            <input type="time" id="custom-time-input" class="form-input" style="width: 100%;" disabled>
+                                        </div>
+                                        <button type="button" id="btn-use-custom-time" class="btn-secondary btn-small" style="width: 100%;" disabled>
+                                            <?php _e('Use Custom Time', 'amelia-cpt-sync'); ?>
+                                        </button>
+                                        <p class="field-note" style="margin-top: auto;">
+                                            <?php _e('Note: Custom times override API availability checks.', 'amelia-cpt-sync'); ?>
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                             
                             <!-- Hidden inputs to store selection for booking logic -->
@@ -838,7 +859,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 /* === DATE & TIME PICKER (Phase 5) === */
 .art-picker-container {
     display: grid;
-    grid-template-columns: 200px 1fr;
+    grid-template-columns: 200px 1fr 220px; /* 3 Columns */
     gap: 0;
     border: 1px solid #E0E5F1;
     border-radius: 8px;
@@ -850,7 +871,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 .art-picker-dates {
     background: #F8FAFC;
     border-right: 1px solid #E0E5F1;
-    max-height: 300px;
+    max-height: 350px;
     overflow-y: auto;
 }
 
@@ -884,20 +905,32 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 .art-picker-times {
     padding: 20px;
     background: #fff;
+    max-height: 350px;
+    overflow-y: auto;
 }
 
-.art-picker-times-header {
+.art-picker-custom {
+    padding: 20px;
+    background: #F8FAFC;
+    border-left: 1px solid #E0E5F1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.art-picker-times-header,
+.art-picker-custom-header {
     font-size: 14px;
     font-weight: 600;
     color: #1E293B;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
     padding-bottom: 8px;
-    border-bottom: 1px solid #F1F5F9;
+    border-bottom: 1px solid #E2E8F0;
 }
 
 .art-time-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
     gap: 10px;
 }
 
@@ -929,25 +962,35 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 }
 
 /* Hide scrollbar for clean look */
-.art-picker-dates::-webkit-scrollbar {
+.art-picker-dates::-webkit-scrollbar,
+.art-picker-times::-webkit-scrollbar {
     width: 6px;
 }
-.art-picker-dates::-webkit-scrollbar-track {
+.art-picker-dates::-webkit-scrollbar-track,
+.art-picker-times::-webkit-scrollbar-track {
     background: #F8FAFC;
 }
-.art-picker-dates::-webkit-scrollbar-thumb {
+.art-picker-dates::-webkit-scrollbar-thumb,
+.art-picker-times::-webkit-scrollbar-thumb {
     background: #CBD5E1;
     border-radius: 3px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1000px) {
     .art-picker-container {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr; /* Stack on smaller screens */
     }
     .art-picker-dates {
         border-right: none;
         border-bottom: 1px solid #E0E5F1;
-        max-height: 150px;
+        max-height: 200px;
+    }
+    .art-picker-times {
+        max-height: 300px;
+    }
+    .art-picker-custom {
+        border-left: none;
+        border-top: 1px solid #E0E5F1;
     }
 }
 
@@ -1935,6 +1978,10 @@ jQuery(document).ready(function($) {
                     btn.addClass('active');
                     
                     renderTimes(selectedDate, dateSlots);
+                    
+                    // Enable Custom Time Input
+                    $('#custom-time-input').prop('disabled', false);
+                    $('#btn-use-custom-time').prop('disabled', false);
                 });
                 
                 // Show results
@@ -2101,10 +2148,68 @@ jQuery(document).ready(function($) {
         $('#selected-slot-datetime').val('');
         $('#selected-provider-id').val('');
         
+        // Reset custom input
+        $('#custom-time-input').val('').prop('disabled', true);
+        $('#btn-use-custom-time').prop('disabled', true);
+        
         $('#slot-details').hide();
         $('#btn-create-booking').prop('disabled', true);
         availabilityData = null;
     });
+    
+    // ========================================================================
+    // CUSTOM TIME OVERRIDE
+    // ========================================================================
+    
+    // When "Use Custom Time" is clicked
+    $('#btn-use-custom-time').on('click', function() {
+        // Get date
+        var activeDateBtn = $('#picker-dates-list .art-picker-date-btn.active');
+        if (!activeDateBtn.length) { 
+            showNotice('Please select a date first', 'error');
+            return;
+        }
+        var dateStr = activeDateBtn.data('date'); // "YYYY-MM-DD"
+        
+        // Get time
+        var timeStr = $('#custom-time-input').val(); // "HH:mm"
+        if (!timeStr) { 
+            showNotice('Please enter a time', 'error');
+            return;
+        }
+        
+        // Get Provider
+        var providerId = $('#filter-provider').val();
+        if (providerId === 'all') {
+            showNotice('Please filter by a specific employee to use Custom Time', 'error');
+            return;
+        }
+        
+        // Format time for display
+        var timeParts = timeStr.split(':');
+        var hour = parseInt(timeParts[0]);
+        var min = timeParts[1];
+        var ampm = hour >= 12 ? 'PM' : 'AM';
+        var hour12 = hour % 12;
+        hour12 = hour12 ? hour12 : 12;
+        var timeDisplay = hour12 + ':' + min + ' ' + ampm + ' (Custom)';
+        
+        // Construct custom slot object
+        var slot = {
+            date: dateStr,
+            time: timeStr,
+            datetime: dateStr + ' ' + timeStr,
+            provider_id: providerId,
+            location_id: $('#pillar-location').val() || 0 // Use location from pillars
+        };
+        
+        // Update UI
+        $('.art-time-btn').removeClass('active'); // Deselect grid
+        selectSlot(slot, timeDisplay);
+    });
+    
+    // Enable custom time when date is selected (Updated renderFilteredDates)
+    // We'll attach this logic inside the date click handler below
     
     // ========================================================================
     // VISUAL CALENDAR (IFRAME)
