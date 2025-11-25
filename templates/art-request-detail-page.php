@@ -429,6 +429,17 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                     </div>
                     <div class="card-body">
                         
+                        <!-- Visual Calendar Iframe (Auto-loaded) -->
+                        <div id="calendar-visual-container" style="margin-bottom: 20px; border: 1px solid #E0E5F1; border-radius: 6px; overflow: hidden;">
+                            <div style="padding: 10px; background: #f0f0f1; border-bottom: 1px solid #E0E5F1; display: flex; justify-content: space-between; align-items: center;">
+                                <strong><?php _e('Amelia Calendar Reference', 'amelia-cpt-sync'); ?></strong>
+                                <button type="button" id="btn-close-calendar" class="button-link-delete" style="text-decoration: none;">
+                                    <span class="dashicons dashicons-no"></span> <?php _e('Hide', 'amelia-cpt-sync'); ?>
+                                </button>
+                            </div>
+                            <iframe id="amelia-calendar-frame" src="<?php echo admin_url('admin.php?page=wpamelia-calendar'); ?>" width="100%" height="600px" style="border: 0;"></iframe>
+                        </div>
+
                         <!-- Step 1: Check Availability Button -->
                         <div id="availability-check-section">
                             <p class="help-text">
@@ -436,29 +447,18 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             </p>
                             
                             <div class="availability-actions" style="display: flex; gap: 10px; align-items: center;">
-                                <button type="button" id="btn-check-availability" class="btn-secondary">
+                                <button type="button" id="btn-check-availability" class="btn-primary">
                                     <span class="dashicons dashicons-calendar-alt"></span>
                                     <?php _e('Check Availability', 'amelia-cpt-sync'); ?>
                                 </button>
                                 
-                                <button type="button" id="btn-toggle-calendar" class="btn-link" style="text-decoration: none;">
+                                <button type="button" id="btn-toggle-calendar" class="btn-secondary" style="display: none;">
                                     <span class="dashicons dashicons-visibility"></span>
-                                    <?php _e('View Calendar', 'amelia-cpt-sync'); ?>
+                                    <?php _e('Show Calendar', 'amelia-cpt-sync'); ?>
                                 </button>
                             </div>
                             
                             <div id="availability-status" style="margin-top: 12px; display: none;"></div>
-                        </div>
-
-                        <!-- Visual Calendar Iframe (Hidden by default) -->
-                        <div id="calendar-visual-container" style="display: none; margin-top: 20px; border: 1px solid #E0E5F1; border-radius: 6px; overflow: hidden;">
-                            <div style="padding: 10px; background: #f0f0f1; border-bottom: 1px solid #E0E5F1; display: flex; justify-content: space-between; align-items: center;">
-                                <strong><?php _e('Amelia Calendar Reference', 'amelia-cpt-sync'); ?></strong>
-                                <button type="button" id="btn-close-calendar" class="button-link-delete" style="text-decoration: none;">
-                                    <span class="dashicons dashicons-no"></span> <?php _e('Close', 'amelia-cpt-sync'); ?>
-                                </button>
-                            </div>
-                            <iframe id="amelia-calendar-frame" src="" width="100%" height="600px" style="border: 0;"></iframe>
                         </div>
                         
                         <!-- Step 2: Available Slots Display (hidden until check completes) -->
@@ -1857,43 +1857,54 @@ jQuery(document).ready(function($) {
     // VISUAL CALENDAR (IFRAME)
     // ========================================================================
     
+    function toggleCalendar(show) {
+        if (show) {
+            $('#calendar-visual-container').slideDown();
+            $('#btn-toggle-calendar').hide();
+        } else {
+            $('#calendar-visual-container').slideUp();
+            $('#btn-toggle-calendar').show();
+        }
+    }
+    
     $('#btn-toggle-calendar').on('click', function(e) {
         e.preventDefault();
-        var container = $('#calendar-visual-container');
-        var iframe = $('#amelia-calendar-frame');
-        
-        if (container.is(':visible')) {
-            container.slideUp();
-        } else {
-            // Load iframe if empty
-            if (!iframe.attr('src')) {
-                // URL to Amelia Calendar page
-                var calendarUrl = '<?php echo admin_url('admin.php?page=wpamelia-calendar'); ?>';
-                iframe.attr('src', calendarUrl);
-                
-                // Show loading state
-                iframe.css('opacity', '0.5');
-            }
-            container.slideDown();
-        }
+        toggleCalendar(true);
     });
     
-    $('#btn-close-calendar').on('click', function() {
-        $('#calendar-visual-container').slideUp();
+    $('#btn-close-calendar').on('click', function(e) {
+        e.preventDefault();
+        toggleCalendar(false);
     });
     
-    // Inject CSS into iframe when loaded to hide WP admin UI
+    // Auto-show calendar on load (it's already visible in HTML, just ensuring state)
+    $('#btn-toggle-calendar').hide();
+    
+    // Inject CSS into iframe when loaded to hide WP admin UI and Amelia headers
     $('#amelia-calendar-frame').on('load', function() {
         var frame = $(this);
         frame.css('opacity', '1');
         
         try {
             var frameDoc = frame[0].contentWindow.document;
+            
+            // CSS to hide WP Admin UI + Amelia Header/Logo/Add Button
             var css = `
-                #adminmenumain, #wpadminbar, #wpfooter, .am-header { display: none !important; }
+                /* Hide WP Admin UI */
+                #adminmenumain, #wpadminbar, #wpfooter { display: none !important; }
                 html.wp-toolbar { padding-top: 0 !important; }
                 #wpcontent { margin-left: 0 !important; padding: 0 !important; }
+                
+                /* Hide Amelia Header & Logo */
+                .am-header, .am-logo, .am-page-title { display: none !important; }
+                .el-col.el-col-6 { visibility: hidden !important; height: 0 !important; } /* Hides logo column structure */
+                
+                /* Hide "New Appointment" Button */
+                #am-button-new, .am-button-new, #am-plus-symbol { display: none !important; }
+                
+                /* Clean up layout */
                 .am-wrap { margin: 0 !important; padding: 10px !important; }
+                .am-body { padding-top: 0 !important; }
             `;
             
             var style = frameDoc.createElement('style');
