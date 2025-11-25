@@ -195,6 +195,57 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
     }
     
     /**
+     * Convert duration from various formats to seconds
+     *
+     * @param mixed $raw_value The raw duration value from form
+     * @param string $format Format: 'seconds', 'minutes', 'hours', 'hhmm'
+     * @return int Duration in seconds
+     */
+    private function convert_duration_to_seconds($raw_value, $format) {
+        $duration_seconds = 0;
+        
+        switch ($format) {
+            case 'seconds':
+                $duration_seconds = absint($raw_value);
+                amelia_cpt_sync_debug_log('ART Duration: ' . $raw_value . ' seconds → ' . $duration_seconds . ' seconds (no conversion)');
+                break;
+            
+            case 'minutes':
+                $duration_seconds = absint($raw_value) * 60;
+                amelia_cpt_sync_debug_log('ART Duration: ' . $raw_value . ' minutes → ' . $duration_seconds . ' seconds');
+                break;
+            
+            case 'hours':
+                $duration_seconds = intval(floatval($raw_value) * 3600);
+                amelia_cpt_sync_debug_log('ART Duration: ' . $raw_value . ' hours → ' . $duration_seconds . ' seconds');
+                break;
+            
+            case 'hhmm':
+                // Parse HH:MM format (e.g., "01:30" or "1:30")
+                if (strpos($raw_value, ':') !== false) {
+                    $parts = explode(':', $raw_value, 2);
+                    $hours = absint($parts[0]);
+                    $minutes = absint($parts[1] ?? 0);
+                    $duration_seconds = ($hours * 3600) + ($minutes * 60);
+                    amelia_cpt_sync_debug_log('ART Duration: ' . $raw_value . ' (HH:MM) → ' . $duration_seconds . ' seconds (h:' . $hours . ', m:' . $minutes . ')');
+                } else {
+                    // Fallback: treat as hours if no colon
+                    $duration_seconds = intval(floatval($raw_value) * 3600);
+                    amelia_cpt_sync_debug_log('ART Duration: ' . $raw_value . ' (invalid HH:MM, treating as hours) → ' . $duration_seconds . ' seconds');
+                }
+                break;
+            
+            default:
+                // Default to seconds
+                $duration_seconds = absint($raw_value);
+                amelia_cpt_sync_debug_log('ART Duration: Unknown format "' . $format . '", treating as seconds: ' . $duration_seconds);
+                break;
+        }
+        
+        return $duration_seconds;
+    }
+    
+    /**
      * Process name fields based on configuration
      * Handles single field splitting or first-name-only scenarios
      *
@@ -512,23 +563,80 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
             }
         }
         
-        // Duration calculation
-        if ($logic['duration_mode'] === 'start_end' && 
-            !empty($buckets['request']['start_datetime']) && 
-            !empty($buckets['request']['end_datetime'])) {
-            
-            $start = strtotime($buckets['request']['start_datetime']);
-            $end = strtotime($buckets['request']['end_datetime']);
-            
-            if ($start && $end && $end > $start) {
-                $buckets['request']['duration_seconds'] = $end - $start;
-                amelia_cpt_sync_debug_log('ART Logic: Calculated duration: ' . $buckets['request']['duration_seconds'] . ' seconds');
-            } else {
+        // Duration handling (multiple modes)
+        $duration_mode = $logic['duration_mode'] ?? 'manual';
+        
+        switch ($duration_mode) {
+            case 'start_end':
+                // Mode: Calculate duration from start and end times
+                if (!empty($buckets['request']['start_datetime']) && !empty($buckets['request']['end_datetime'])) {
+                    $start = strtotime($buckets['request']['start_datetime']);
+                    $end = strtotime($buckets['request']['end_datetime']);
+                    
+                    if ($start && $end && $end > $start) {
+                        $buckets['request']['duration_seconds'] = $end - $start;
+                        amelia_cpt_sync_debug_log('ART Logic: Calculated duration from start+end: ' . $buckets['request']['duration_seconds'] . ' seconds');
+                    } else {
+                        $buckets['request']['duration_seconds'] = 0;
+                    }
+                } else {
+                    $buckets['request']['duration_seconds'] = 0;
+                }
+                break;
+                
+            case 'start_duration':
+                // Mode: Form has start time + duration, calculate end time
+                if (isset($buckets['request']['duration_seconds'])) {
+                    // Convert duration to seconds based on format
+                    $duration_seconds = $this->convert_duration_to_seconds(
+                        $buckets['request']['duration_seconds'],
+                        $logic['duration_format'] ?? 'seconds'
+                    );
+                    $buckets['request']['duration_seconds'] = $duration_seconds;
+                    amelia_cpt_sync_debug_log('ART Logic: Converted duration to ' . $duration_seconds . ' seconds');
+                    
+                    // Calculate end_datetime from start + duration
+                    if (!empty($buckets['request']['start_datetime']) && $duration_seconds > 0) {
+                        $start_timestamp = strtotime($buckets['request']['start_datetime']);
+                        if ($start_timestamp) {
+                            $end_timestamp = $start_timestamp + $duration_seconds;
+                            $buckets['request']['end_datetime'] = gmdate('Y-m-d H:i:s', $end_timestamp);
+                            amelia_cpt_sync_debug_log('ART Logic: Calculated end_datetime: ' . $buckets['request']['end_datetime']);
+                        }
+                    }
+                } else {
+                    $buckets['request']['duration_seconds'] = 0;
+                }
+                break;
+                
+            case 'duration_only':
+                // Mode: Form only has duration, admin fills start/end in workbench
+                if (isset($buckets['request']['duration_seconds'])) {
+                    $duration_seconds = $this->convert_duration_to_seconds(
+                        $buckets['request']['duration_seconds'],
+                        $logic['duration_format'] ?? 'seconds'
+                    );
+                    $buckets['request']['duration_seconds'] = $duration_seconds;
+                    amelia_cpt_sync_debug_log('ART Logic: Duration-only mode, converted to ' . $duration_seconds . ' seconds');
+                } else {
+                    $buckets['request']['duration_seconds'] = 0;
+                }
+                // start_datetime and end_datetime remain NULL (admin fills later)
+                break;
+                
+            case 'start_only':
+                // Mode: Form only has start time, admin fills end/duration in workbench
+                // Duration will be calculated in detail view when admin sets end time
                 $buckets['request']['duration_seconds'] = 0;
-            }
-        } else {
-            // Manual or other modes - admin fills in workbench
-            $buckets['request']['duration_seconds'] = 0;
+                amelia_cpt_sync_debug_log('ART Logic: Start-only mode, duration will be set in workbench');
+                break;
+                
+            case 'manual':
+            default:
+                // Mode: Admin fills everything in workbench
+                $buckets['request']['duration_seconds'] = 0;
+                amelia_cpt_sync_debug_log('ART Logic: Manual mode, admin fills all time/duration fields');
+                break;
         }
         
         // Location handling
