@@ -31,9 +31,10 @@ class Amelia_CPT_Sync_ART_API_Manager {
      * Constructor
      */
     public function __construct() {
-        $settings = get_option('amelia_cpt_sync_art_settings', array());
-        $this->api_base_url = $settings['api_base_url'] ?? '';
-        $this->api_key = $settings['api_key'] ?? '';
+        $settings = get_option('art_settings', array());
+        $global = $settings['global'] ?? array();
+        $this->api_base_url = $global['api_base_url'] ?? '';
+        $this->api_key = $global['api_key'] ?? '';
     }
     
     /**
