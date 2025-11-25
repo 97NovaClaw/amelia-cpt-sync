@@ -463,6 +463,17 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                         
                         <!-- Step 2: Available Slots Display (hidden until check completes) -->
                         <div id="availability-results" style="display: none; margin-top: 20px;">
+                            
+                            <!-- Provider Filter (Phase 5 Enhancement) -->
+                            <div class="provider-filter-section" style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #E0E5F1;">
+                                <label for="filter-provider" style="font-weight: 600; color: #2C3E50; display: block; margin-bottom: 8px;">
+                                    <?php _e('Filter by Employee:', 'amelia-cpt-sync'); ?>
+                                </label>
+                                <select id="filter-provider" class="form-select" style="max-width: 300px;">
+                                    <option value="all"><?php _e('All Available Employees', 'amelia-cpt-sync'); ?></option>
+                                </select>
+                            </div>
+
                             <h4 style="margin-bottom: 12px; color: #2C3E50;">
                                 <?php _e('Select Date & Time', 'amelia-cpt-sync'); ?>
                                 <span id="slot-count-badge" class="badge-info" style="margin-left: 8px;"></span>
@@ -1830,46 +1841,101 @@ jQuery(document).ready(function($) {
                 
                 // Group slots by date
                 var slotsByDate = {};
+                var uniqueProviders = {}; // Track unique providers
+                
                 $.each(slots, function(i, slot) {
                     if (!slotsByDate[slot.date]) {
                         slotsByDate[slot.date] = [];
                     }
                     slotsByDate[slot.date].push(slot);
+                    
+                    // Track provider ID (using ID as name for now until we have name lookup)
+                    if (slot.provider_id) {
+                        uniqueProviders[slot.provider_id] = 'Provider #' + slot.provider_id;
+                    }
                 });
                 
-                // Render Dates
-                var datesList = $('#picker-dates-list');
-                datesList.empty();
+                // Populate Provider Filter
+                var providerSelect = $('#filter-provider');
+                providerSelect.html('<option value="all">' + '<?php _e('All Available Employees', 'amelia-cpt-sync'); ?>' + '</option>');
                 
-                // Sort dates
-                var sortedDates = Object.keys(slotsByDate).sort();
-                
-                $.each(sortedDates, function(i, dateStr) {
-                    // Format date nicely (e.g., "Nov 27, 2025")
-                    var dateObj = new Date(dateStr);
-                    var formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' });
-                    
-                    var btnHtml = '<button type="button" class="art-picker-date-btn" data-date="' + dateStr + '">' + 
-                                  formattedDate + 
-                                  ' <span style="float:right; color:#94A3B8; font-size:11px;">' + slotsByDate[dateStr].length + '</span>' +
-                                  '</button>';
-                    datesList.append(btnHtml);
+                $.each(uniqueProviders, function(id, name) {
+                    providerSelect.append('<option value="' + id + '">' + name + '</option>');
                 });
                 
-                // Handle Date Click
-                datesList.find('.art-picker-date-btn').on('click', function() {
-                    var selectedDate = $(this).data('date');
+                // Helper to render dates (filtered)
+                function renderFilteredDates(providerFilter) {
+                    var datesList = $('#picker-dates-list');
+                    datesList.empty();
                     
-                    // Visuals
+                    var sortedDates = Object.keys(slotsByDate).sort();
+                    var visibleCount = 0;
+                    var firstDate = null;
+                    
+                    $.each(sortedDates, function(i, dateStr) {
+                        // Filter slots for this date
+                        var dateSlots = slotsByDate[dateStr];
+                        var filteredSlots = dateSlots;
+                        
+                        if (providerFilter !== 'all') {
+                            filteredSlots = dateSlots.filter(function(slot) {
+                                return slot.provider_id == providerFilter;
+                            });
+                        }
+                        
+                        if (filteredSlots.length > 0) {
+                            visibleCount++;
+                            if (!firstDate) firstDate = dateStr;
+                            
+                            var dateObj = new Date(dateStr);
+                            var formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' });
+                            
+                            var btnHtml = '<button type="button" class="art-picker-date-btn" data-date="' + dateStr + '">' + 
+                                          formattedDate + 
+                                          ' <span style="float:right; color:#94A3B8; font-size:11px;">' + filteredSlots.length + '</span>' +
+                                          '</button>';
+                            
+                            // Store filtered slots on the button for easier access
+                            var btn = $(btnHtml);
+                            btn.data('slots', filteredSlots);
+                            datesList.append(btn);
+                        }
+                    });
+                    
+                    if (visibleCount === 0) {
+                        datesList.html('<div style="padding: 20px; text-align: center; color: #94A3B8;">No slots for this employee.</div>');
+                        $('#picker-times-grid').empty();
+                        $('#picker-times-header').text('Select a date');
+                    } else {
+                        // Auto-select first available date
+                        datesList.find('.art-picker-date-btn').first().trigger('click');
+                    }
+                }
+                
+                // Initial Render
+                renderFilteredDates('all');
+                
+                // Filter Change Event
+                $('#filter-provider').off('change').on('change', function() {
+                    var selected = $(this).val();
+                    renderFilteredDates(selected);
+                    
+                    // Reset selection details
+                    $('#slot-details').hide();
+                    $('#btn-create-booking').prop('disabled', true);
+                });
+                
+                // Handle Date Click (Delegated)
+                $('#picker-dates-list').off('click').on('click', '.art-picker-date-btn', function() {
+                    var btn = $(this);
+                    var selectedDate = btn.data('date');
+                    var dateSlots = btn.data('slots'); // Use the filtered slots we stored!
+                    
                     $('.art-picker-date-btn').removeClass('active');
-                    $(this).addClass('active');
+                    btn.addClass('active');
                     
-                    // Render Times
-                    renderTimes(selectedDate, slotsByDate[selectedDate]);
+                    renderTimes(selectedDate, dateSlots);
                 });
-                
-                // Auto-select first date
-                datesList.find('.art-picker-date-btn').first().trigger('click');
                 
                 // Show results
                 $('#slot-count-badge').text(slots.length + ' available');
