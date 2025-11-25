@@ -318,8 +318,10 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                     <div class="art-card">
                         <div class="card-header">
                             <h3><?php _e('Time & Duration', 'amelia-cpt-sync'); ?></h3>
-                            <!-- TODO Phase 5: Service default duration display -->
-                            <!-- <span class="service-duration">[↻] Service default: 2 hours</span> -->
+                            <span id="service-duration-display" class="service-duration-badge" style="display: none;">
+                                <button type="button" class="refresh-icon" title="Refresh service duration">↻</button>
+                                <span class="duration-text"></span>
+                            </span>
                         </div>
                         <div class="card-body">
                             <div class="pillar-grid-3">
@@ -419,43 +421,78 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                     </div>
                 </form>
                 
-                <!-- Panel 3: Availability Engine (Placeholder) -->
-                <div class="art-card card-disabled">
+                <!-- Panel 3: Availability & Booking Engine -->
+                <div class="art-card">
                     <div class="card-header">
-                        <h3><?php _e('Availability Engine', 'amelia-cpt-sync'); ?></h3>
-                        <span class="badge-coming-soon"><?php _e('Coming in Phase 5', 'amelia-cpt-sync'); ?></span>
+                        <h3><?php _e('Availability & Booking', 'amelia-cpt-sync'); ?></h3>
+                        <span class="badge-phase5"><?php _e('Phase 5', 'amelia-cpt-sync'); ?></span>
                     </div>
                     <div class="card-body">
-                        <p class="placeholder-text">
-                            <?php _e('Availability checking and booking will be enabled in Phase 5.', 'amelia-cpt-sync'); ?>
-                        </p>
                         
-                        <button class="btn-secondary" disabled>
-                            <span class="dashicons dashicons-calendar-alt"></span>
-                            <?php _e('Check Availability', 'amelia-cpt-sync'); ?>
-                        </button>
+                        <!-- Step 1: Check Availability Button -->
+                        <div id="availability-check-section">
+                            <p class="help-text">
+                                <?php _e('Check available time slots in Amelia based on the service, duration, and location above.', 'amelia-cpt-sync'); ?>
+                            </p>
+                            
+                            <button type="button" id="btn-check-availability" class="btn-secondary">
+                                <span class="dashicons dashicons-calendar-alt"></span>
+                                <?php _e('Check Availability', 'amelia-cpt-sync'); ?>
+                            </button>
+                            
+                            <div id="availability-status" style="margin-top: 12px; display: none;"></div>
+                        </div>
                         
-                        <div class="placeholder-controls" style="opacity: 0.5; margin-top: 20px;">
+                        <!-- Step 2: Available Slots Display (hidden until check completes) -->
+                        <div id="availability-results" style="display: none; margin-top: 20px;">
+                            <h4 style="margin-bottom: 12px; color: #2C3E50;">
+                                <?php _e('Available Slots', 'amelia-cpt-sync'); ?>
+                                <span id="slot-count-badge" class="badge-info" style="margin-left: 8px;"></span>
+                            </h4>
+                            
                             <div class="pillar-grid-2">
                                 <div class="form-field">
-                                    <label><?php _e('Provider', 'amelia-cpt-sync'); ?></label>
-                                    <select class="form-select" disabled>
-                                        <option><?php _e('(Available after checking availability)', 'amelia-cpt-sync'); ?></option>
+                                    <label for="selected-slot"><?php _e('Select Date & Time', 'amelia-cpt-sync'); ?></label>
+                                    <select id="selected-slot" class="form-select">
+                                        <option value=""><?php _e('-- Choose Time Slot --', 'amelia-cpt-sync'); ?></option>
                                     </select>
                                 </div>
                                 <div class="form-field">
-                                    <label><?php _e('Time Slot', 'amelia-cpt-sync'); ?></label>
-                                    <select class="form-select" disabled>
-                                        <option><?php _e('(Available after checking availability)', 'amelia-cpt-sync'); ?></option>
-                                    </select>
+                                    <label for="selected-provider"><?php _e('Provider (Auto-selected)', 'amelia-cpt-sync'); ?></label>
+                                    <input type="text" id="selected-provider" class="form-input" readonly>
+                                    <input type="hidden" id="selected-provider-id">
                                 </div>
                             </div>
                             
-                            <div class="placeholder-actions">
-                                <button class="btn-secondary" disabled><?php _e('Tentatively Book', 'amelia-cpt-sync'); ?></button>
-                                <button class="btn-primary" disabled><?php _e('Book Now', 'amelia-cpt-sync'); ?></button>
+                            <div id="slot-details" style="margin-top: 16px; padding: 12px; background: #E8F4F8; border-left: 4px solid #1A84EE; border-radius: 4px; display: none;">
+                                <strong><?php _e('Booking Summary:', 'amelia-cpt-sync'); ?></strong>
+                                <div id="slot-summary" style="margin-top: 8px; line-height: 1.6;"></div>
+                            </div>
+                            
+                            <!-- Step 3: Create Booking Actions -->
+                            <div class="placeholder-actions" style="margin-top: 20px;">
+                                <button type="button" id="btn-create-booking" class="btn-primary" disabled>
+                                    <span class="dashicons dashicons-yes-alt"></span>
+                                    <?php _e('Create Amelia Booking', 'amelia-cpt-sync'); ?>
+                                </button>
+                                <button type="button" id="btn-cancel-availability" class="btn-link">
+                                    <?php _e('Clear Results', 'amelia-cpt-sync'); ?>
+                                </button>
                             </div>
                         </div>
+                        
+                        <!-- Booking Success Message -->
+                        <div id="booking-success" style="display: none; margin-top: 20px; padding: 16px; background: #D4EDDA; border: 1px solid #C3E6CB; border-radius: 6px; color: #155724;">
+                            <strong style="font-size: 16px;">
+                                <span class="dashicons dashicons-yes" style="color: #28A745;"></span>
+                                <?php _e('Booking Created Successfully!', 'amelia-cpt-sync'); ?>
+                            </strong>
+                            <div id="booking-details" style="margin-top: 12px; line-height: 1.8;"></div>
+                            <p style="margin-top: 12px; font-size: 13px; color: #0C5460;">
+                                <?php _e('The request status has been updated to "Booked". Refresh the page to see Amelia booking IDs.', 'amelia-cpt-sync'); ?>
+                            </p>
+                        </div>
+                        
                     </div>
                 </div>
             </div>
@@ -699,6 +736,51 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
+}
+
+.badge-phase5 {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    background: #D1FAE5;
+    color: #065F46;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.service-duration-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: #E0F2FE;
+    border: 1px solid #BAE6FD;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #0C4A6E;
+}
+
+.service-duration-badge .refresh-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: #0284C7;
+    padding: 0;
+    margin: 0;
+    line-height: 1;
+    transition: transform 0.2s;
+}
+
+.service-duration-badge .refresh-icon:hover {
+    transform: rotate(90deg);
+    color: #0369A1;
+}
+
+.service-duration-badge .duration-text {
+    font-weight: 600;
 }
 
 .badge-info {
@@ -1218,7 +1300,58 @@ jQuery(document).ready(function($) {
             // Auto-update category to match service
             $('#pillar-category').val(serviceCategoryId);
         }
+        
+        // Phase 5: Fetch and display service duration
+        fetchServiceDuration();
     });
+    
+    /**
+     * Fetch and display service default duration from Amelia API (Phase 5)
+     */
+    function fetchServiceDuration() {
+        var serviceId = $('#pillar-service').val();
+        var durationDisplay = $('#service-duration-display');
+        
+        if (!serviceId) {
+            durationDisplay.hide();
+            return;
+        }
+        
+        // Show loading state
+        durationDisplay.find('.duration-text').html('<span style="opacity: 0.6;">Loading...</span>');
+        durationDisplay.show();
+        
+        $.post(ajaxurl, {
+            action: 'art_get_service_duration',
+            nonce: artDetailData.nonce,
+            service_id: serviceId
+        }, function(response) {
+            if (response.success) {
+                durationDisplay.find('.duration-text').html(
+                    'Service default: <strong>' + response.data.duration_display + '</strong>'
+                );
+            } else {
+                durationDisplay.find('.duration-text').html(
+                    '<span style="color: #DC3545;">API Error</span>'
+                );
+            }
+        }).fail(function() {
+            durationDisplay.find('.duration-text').html(
+                '<span style="color: #DC3545;">Failed</span>'
+            );
+        });
+    }
+    
+    // Refresh button for service duration
+    $(document).on('click', '#service-duration-display .refresh-icon', function(e) {
+        e.preventDefault();
+        fetchServiceDuration();
+    });
+    
+    // Load service duration on page load if service is already selected
+    if (artDetailData.currentService) {
+        fetchServiceDuration();
+    }
     
     // === DURATION CALCULATION (Bidirectional) ===
     
@@ -1475,10 +1608,220 @@ jQuery(document).ready(function($) {
     // Load locations on page load (only if field exists)
     loadLocations();
     
+    // ========================================================================
+    // PHASE 5: AVAILABILITY & BOOKING
+    // ========================================================================
+    
+    var availabilityData = null;  // Store slots from API
+    
+    /**
+     * Check Availability Button
+     */
+    $('#btn-check-availability').on('click', function() {
+        var btn = $(this);
+        var icon = btn.find('.dashicons');
+        
+        // Validate required fields
+        var serviceId = $('#pillar-service').val();
+        var durationSeconds = $('#pillar-duration-selector').val() || $('#pillar-duration-hidden').val();
+        var persons = $('#pillar-persons').val() || 1;
+        var locationId = $('#pillar-location').val() || 0;
+        var startDate = $('#pillar-start').val();
+        
+        if (!serviceId) {
+            showNotice('Please select a service first', 'error');
+            return;
+        }
+        
+        if (!durationSeconds || durationSeconds <= 0) {
+            showNotice('Please set a duration first', 'error');
+            return;
+        }
+        
+        // Show loading state
+        btn.prop('disabled', true);
+        icon.addClass('spin');
+        $('#availability-status').html('<p style="color: #1A84EE;">Checking availability...</p>').show();
+        $('#availability-results').hide();
+        
+        // Call API
+        $.post(ajaxurl, {
+            action: 'art_check_availability',
+            nonce: artDetailData.nonce,
+            request_id: artDetailData.requestId
+        }, function(response) {
+            btn.prop('disabled', false);
+            icon.removeClass('spin');
+            
+            if (response.success) {
+                var slots = response.data.slots || [];
+                
+                if (slots.length === 0) {
+                    $('#availability-status').html(
+                        '<p style="color: #DC3545;">No available slots found. Try adjusting the service, duration, or location.</p>'
+                    );
+                    return;
+                }
+                
+                availabilityData = slots;
+                
+                // Populate slot dropdown
+                var slotSelect = $('#selected-slot');
+                slotSelect.html('<option value="">-- Choose Time Slot --</option>');
+                
+                $.each(slots, function(i, slot) {
+                    var displayText = slot.date + ' at ' + slot.time;
+                    var slotData = JSON.stringify(slot);
+                    slotSelect.append(
+                        '<option value="' + i + '" data-slot=\'' + slotData + '\'>' + 
+                        displayText + 
+                        '</option>'
+                    );
+                });
+                
+                // Update count badge
+                $('#slot-count-badge').text(slots.length + ' available');
+                
+                // Show results
+                $('#availability-status').html(
+                    '<p style="color: #28A745;"><strong>✓</strong> Found ' + slots.length + ' available slot' + (slots.length > 1 ? 's' : '') + '</p>'
+                );
+                $('#availability-results').slideDown();
+                
+            } else {
+                $('#availability-status').html(
+                    '<p style="color: #DC3545;">Error: ' + response.data.message + '</p>'
+                );
+            }
+        }).fail(function() {
+            btn.prop('disabled', false);
+            icon.removeClass('spin');
+            $('#availability-status').html(
+                '<p style="color: #DC3545;">Network error. Please try again.</p>'
+            );
+        });
+    });
+    
+    /**
+     * Slot Selection Handler
+     */
+    $('#selected-slot').on('change', function() {
+        var selectedIndex = $(this).val();
+        
+        if (!selectedIndex || !availabilityData) {
+            $('#slot-details').hide();
+            $('#btn-create-booking').prop('disabled', true);
+            return;
+        }
+        
+        var slot = availabilityData[selectedIndex];
+        
+        // Update provider field
+        $('#selected-provider').val('Provider #' + slot.provider_id);
+        $('#selected-provider-id').val(slot.provider_id);
+        
+        // Build summary
+        var summary = 
+            '<div style="color: #2C3E50;">' +
+            '<strong>Date & Time:</strong> ' + slot.date + ' at ' + slot.time + '<br>' +
+            '<strong>Provider:</strong> Provider #' + slot.provider_id + '<br>' +
+            '<strong>Location:</strong> Location #' + slot.location_id +
+            '</div>';
+        
+        $('#slot-summary').html(summary);
+        $('#slot-details').slideDown();
+        
+        // Enable booking button
+        $('#btn-create-booking').prop('disabled', false);
+    });
+    
+    /**
+     * Create Booking Button
+     */
+    $('#btn-create-booking').on('click', function() {
+        var btn = $(this);
+        var selectedIndex = $('#selected-slot').val();
+        
+        if (!selectedIndex || !availabilityData) {
+            showNotice('Please select a time slot first', 'error');
+            return;
+        }
+        
+        var slot = availabilityData[selectedIndex];
+        
+        if (!confirm('Create Amelia booking for ' + slot.datetime + '?')) {
+            return;
+        }
+        
+        // Show loading state
+        btn.prop('disabled', true);
+        var originalText = btn.html();
+        btn.html('<span class="dashicons dashicons-update spin"></span> Creating booking...');
+        
+        // Call booking API
+        $.post(ajaxurl, {
+            action: 'art_create_booking',
+            nonce: artDetailData.nonce,
+            request_id: artDetailData.requestId,
+            provider_id: slot.provider_id,
+            slot_datetime: slot.datetime
+        }, function(response) {
+            btn.prop('disabled', false);
+            btn.html(originalText);
+            
+            if (response.success) {
+                // Hide availability section
+                $('#availability-results').hide();
+                $('#availability-check-section').hide();
+                
+                // Show success message
+                var details = 
+                    '<strong>Booking ID:</strong> #' + response.data.booking_id + '<br>' +
+                    '<strong>Appointment ID:</strong> #' + response.data.appointment_id + '<br>' +
+                    '<strong>Time:</strong> ' + slot.datetime + '<br>' +
+                    '<strong>Provider:</strong> #' + slot.provider_id;
+                
+                if (response.data.amelia_customer_id) {
+                    details += '<br><strong>Amelia Customer ID:</strong> #' + response.data.amelia_customer_id;
+                }
+                
+                $('#booking-details').html(details);
+                $('#booking-success').slideDown();
+                
+                // Update status dropdown
+                $('#status-dropdown').val('booked').trigger('change');
+                
+                showNotice('Amelia booking created successfully!', 'success');
+                
+            } else {
+                showNotice('Booking failed: ' + response.data.message, 'error');
+            }
+        }).fail(function() {
+            btn.prop('disabled', false);
+            btn.html(originalText);
+            showNotice('Network error creating booking', 'error');
+        });
+    });
+    
+    /**
+     * Cancel/Clear Availability Results
+     */
+    $('#btn-cancel-availability').on('click', function() {
+        $('#availability-results').slideUp();
+        $('#availability-status').empty().hide();
+        $('#selected-slot').html('<option value="">-- Choose Time Slot --</option>');
+        $('#selected-provider').val('');
+        $('#selected-provider-id').val('');
+        $('#slot-details').hide();
+        $('#btn-create-booking').prop('disabled', true);
+        availabilityData = null;
+    });
+    
     // === SPINNING ANIMATION FOR DASHICONS ===
     $('<style>.dashicons.spin { animation: spin 1s linear infinite; } @keyframes spin { 100% { transform: rotate(360deg); } }</style>').appendTo('head');
 });
 </script>
+
 
 
 

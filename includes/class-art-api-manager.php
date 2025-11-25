@@ -1,10 +1,10 @@
 <?php
 /**
- * ART API Manager (Light Version for Phase 4)
+ * ART API Manager
  *
  * Handles communication with Amelia API
- * Phase 4: Locations and customer match only
- * Phase 5: Will add slots and booking methods
+ * Phase 4: Locations and customer match
+ * Phase 5: Slots, service details, booking creation
  *
  * @package AmeliaCPTSync
  * @subpackage ART
@@ -155,6 +155,149 @@ class Amelia_CPT_Sync_ART_API_Manager {
         
         amelia_cpt_sync_debug_log('ART API: No exact customer match found');
         return null;
+    }
+    
+    /**
+     * Get service details including duration (Phase 5)
+     *
+     * @param int $service_id Amelia service ID
+     * @return array|WP_Error Service data or error
+     */
+    public function get_service($service_id) {
+        if (!$service_id) {
+            return new WP_Error('invalid_service', 'Service ID is required');
+        }
+        
+        $cache_key = 'art_service_' . $service_id;
+        $cached = get_transient($cache_key);
+        
+        if ($cached !== false) {
+            amelia_cpt_sync_debug_log('ART API: Using cached service #' . $service_id);
+            return $cached;
+        }
+        
+        $response = $this->request('/services/' . $service_id, 'GET');
+        
+        if (is_wp_error($response)) {
+            return $response;
+        }
+        
+        $service = $response['data']['service'] ?? null;
+        
+        if (!$service) {
+            return new WP_Error('service_not_found', 'Service not found');
+        }
+        
+        amelia_cpt_sync_debug_log('ART API: Fetched service #' . $service_id . ' - ' . ($service['name'] ?? 'Unknown'));
+        
+        // Cache for 1 hour
+        set_transient($cache_key, $service, HOUR_IN_SECONDS);
+        
+        return $service;
+    }
+    
+    /**
+     * Get available time slots (Phase 5)
+     *
+     * @param array $params Slot parameters
+     * @return array|WP_Error Slots data or error
+     */
+    public function get_slots($params) {
+        // Required parameters
+        $required = array('serviceId', 'serviceDuration', 'persons');
+        foreach ($required as $key) {
+            if (empty($params[$key])) {
+                return new WP_Error('missing_param', 'Missing required parameter: ' . $key);
+            }
+        }
+        
+        // Build query string
+        $query_params = array(
+            'serviceId' => absint($params['serviceId']),
+            'serviceDuration' => absint($params['serviceDuration']),
+            'persons' => absint($params['persons']),
+            'locationId' => absint($params['locationId'] ?? 0),
+            'startDateTime' => sanitize_text_field($params['startDateTime'] ?? ''),
+            'extras' => '[]'  // No extras for now
+        );
+        
+        // Optional: provider IDs
+        if (!empty($params['providerIds'])) {
+            $query_params['providerIds'] = absint($params['providerIds']);
+        }
+        
+        $query_string = http_build_query($query_params);
+        $endpoint = '/slots?' . $query_string;
+        
+        amelia_cpt_sync_debug_log('ART API: Getting slots for service #' . $params['serviceId']);
+        
+        $response = $this->request($endpoint, 'GET');
+        
+        if (is_wp_error($response)) {
+            return $response;
+        }
+        
+        $slots = $response['data']['slots'] ?? array();
+        
+        amelia_cpt_sync_debug_log('ART API: Retrieved slots for ' . count($slots) . ' dates');
+        
+        return array(
+            'slots' => $slots,
+            'minimum' => $response['data']['minimum'] ?? '',
+            'maximum' => $response['data']['maximum'] ?? ''
+        );
+    }
+    
+    /**
+     * Create an Amelia booking (Phase 5)
+     *
+     * @param array $booking_data Booking data
+     * @return array|WP_Error Booking response or error
+     */
+    public function create_booking($booking_data) {
+        // Validate required fields
+        $required = array('bookingStart', 'serviceId', 'providerId', 'locationId', 'bookings');
+        foreach ($required as $key) {
+            if (!isset($booking_data[$key])) {
+                return new WP_Error('missing_field', 'Missing required booking field: ' . $key);
+            }
+        }
+        
+        // Ensure bookings array structure
+        if (empty($booking_data['bookings']) || !is_array($booking_data['bookings'])) {
+            return new WP_Error('invalid_bookings', 'Bookings must be a non-empty array');
+        }
+        
+        // Default values
+        $booking_payload = array_merge(array(
+            'type' => 'appointment',
+            'notifyParticipants' => 1,
+            'internalNotes' => '',
+            'recurring' => array(),
+            'payment' => array(
+                'gateway' => 'onSite',
+                'currency' => 'USD',
+                'data' => array()
+            )
+        ), $booking_data);
+        
+        amelia_cpt_sync_debug_log('ART API: Creating booking for service #' . $booking_data['serviceId'] . ' at ' . $booking_data['bookingStart']);
+        
+        $response = $this->request('/bookings', 'POST', $booking_payload);
+        
+        if (is_wp_error($response)) {
+            amelia_cpt_sync_debug_log('ART API: Booking creation failed - ' . $response->get_error_message());
+            return $response;
+        }
+        
+        $booking_id = $response['data']['booking']['id'] ?? null;
+        $appointment_id = $response['data']['appointment']['id'] ?? null;
+        
+        if ($booking_id) {
+            amelia_cpt_sync_debug_log('ART API: Successfully created booking #' . $booking_id . ' (appointment #' . $appointment_id . ')');
+        }
+        
+        return $response;
     }
 }
 

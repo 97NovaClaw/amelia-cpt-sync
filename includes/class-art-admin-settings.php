@@ -37,6 +37,11 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         add_action('wp_ajax_art_save_pillars', array($this, 'ajax_save_pillars'));
         add_action('wp_ajax_art_check_customer_match', array($this, 'ajax_check_customer_match'));
         add_action('wp_ajax_art_get_locations', array($this, 'ajax_get_locations'));
+        
+        // Phase 5: API integration
+        add_action('wp_ajax_art_get_service_duration', array($this, 'ajax_get_service_duration'));
+        add_action('wp_ajax_art_check_availability', array($this, 'ajax_check_availability'));
+        add_action('wp_ajax_art_create_booking', array($this, 'ajax_create_booking'));
     }
     
     /**
@@ -878,6 +883,275 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         } else {
             wp_send_json_success(array('locations' => $locations));
         }
+    }
+    
+    /**
+     * AJAX: Get service duration from Amelia API (Phase 5)
+     */
+    public function ajax_get_service_duration() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $service_id = absint($_POST['service_id'] ?? 0);
+        
+        if (!$service_id) {
+            wp_send_json_error(array('message' => 'Service ID is required'));
+        }
+        
+        $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
+        $service = $api_manager->get_service($service_id);
+        
+        if (is_wp_error($service)) {
+            wp_send_json_error(array('message' => $service->get_error_message()));
+        }
+        
+        $duration_seconds = $service['duration'] ?? 0;
+        
+        // Format duration for display
+        $hours = floor($duration_seconds / 3600);
+        $minutes = floor(($duration_seconds % 3600) / 60);
+        
+        if ($hours > 0 && $minutes > 0) {
+            $display = sprintf('%d hour%s %d min%s', $hours, ($hours > 1 ? 's' : ''), $minutes, ($minutes > 1 ? 's' : ''));
+        } elseif ($hours > 0) {
+            $display = sprintf('%d hour%s', $hours, ($hours > 1 ? 's' : ''));
+        } else {
+            $display = sprintf('%d min%s', $minutes, ($minutes > 1 ? 's' : ''));
+        }
+        
+        wp_send_json_success(array(
+            'duration_seconds' => $duration_seconds,
+            'duration_display' => $display,
+            'service_name' => $service['name'] ?? ''
+        ));
+    }
+    
+    /**
+     * AJAX: Check availability (Phase 5)
+     */
+    public function ajax_check_availability() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $request_id = absint($_POST['request_id'] ?? 0);
+        
+        if (!$request_id) {
+            wp_send_json_error(array('message' => 'Request ID is required'));
+        }
+        
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'art_requests';
+        
+        $request = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table_name WHERE id = %d",
+            $request_id
+        ));
+        
+        if (!$request) {
+            wp_send_json_error(array('message' => 'Request not found'));
+        }
+        
+        // Validate required fields for availability check
+        if (!$request->service_id) {
+            wp_send_json_error(array('message' => 'Service is required to check availability'));
+        }
+        
+        if (!$request->duration_seconds || $request->duration_seconds <= 0) {
+            wp_send_json_error(array('message' => 'Duration is required to check availability'));
+        }
+        
+        // Build params for slots API
+        $params = array(
+            'serviceId' => $request->service_id,
+            'serviceDuration' => $request->duration_seconds,
+            'persons' => $request->persons ?? 1,
+            'locationId' => $request->location_id ?? 0,
+            'startDateTime' => !empty($request->start_datetime) ? gmdate('Y-m-d', strtotime($request->start_datetime)) : gmdate('Y-m-d')
+        );
+        
+        $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
+        $result = $api_manager->get_slots($params);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(array('message' => $result->get_error_message()));
+        }
+        
+        // Process slots for frontend display
+        $formatted_slots = array();
+        
+        foreach ($result['slots'] as $date => $times) {
+            foreach ($times as $time => $providers) {
+                // providers is an array of [providerId, locationId] pairs
+                foreach ($providers as $provider_info) {
+                    $formatted_slots[] = array(
+                        'date' => $date,
+                        'time' => $time,
+                        'datetime' => $date . ' ' . $time,
+                        'provider_id' => $provider_info[0] ?? null,
+                        'location_id' => $provider_info[1] ?? null
+                    );
+                }
+            }
+        }
+        
+        wp_send_json_success(array(
+            'slots' => $formatted_slots,
+            'total' => count($formatted_slots),
+            'minimum' => $result['minimum'] ?? '',
+            'maximum' => $result['maximum'] ?? ''
+        ));
+    }
+    
+    /**
+     * AJAX: Create Amelia booking (Phase 5)
+     */
+    public function ajax_create_booking() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $request_id = absint($_POST['request_id'] ?? 0);
+        
+        if (!$request_id) {
+            wp_send_json_error(array('message' => 'Request ID is required'));
+        }
+        
+        global $wpdb;
+        $requests_table = $wpdb->prefix . 'art_requests';
+        $customers_table = $wpdb->prefix . 'art_customers';
+        
+        // Get request
+        $request = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $requests_table WHERE id = %d",
+            $request_id
+        ));
+        
+        if (!$request) {
+            wp_send_json_error(array('message' => 'Request not found'));
+        }
+        
+        // Get customer
+        $customer = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $customers_table WHERE id = %d",
+            $request->customer_id
+        ));
+        
+        if (!$customer) {
+            wp_send_json_error(array('message' => 'Customer not found'));
+        }
+        
+        // Validate required booking fields
+        $missing = array();
+        if (!$request->service_id) $missing[] = 'Service';
+        if (!$request->start_datetime) $missing[] = 'Start Time';
+        if (!$request->end_datetime) $missing[] = 'End Time';
+        if (!$request->location_id) $missing[] = 'Location';
+        if (empty($customer->email)) $missing[] = 'Customer Email';
+        
+        if (!empty($missing)) {
+            wp_send_json_error(array('message' => 'Missing required fields: ' . implode(', ', $missing)));
+        }
+        
+        // Get selected provider and slot from POST (user selected from availability results)
+        $selected_provider_id = absint($_POST['provider_id'] ?? 0);
+        $selected_slot_datetime = sanitize_text_field($_POST['slot_datetime'] ?? '');
+        
+        if (!$selected_provider_id) {
+            wp_send_json_error(array('message' => 'Please select a provider from availability results'));
+        }
+        
+        if (!$selected_slot_datetime) {
+            wp_send_json_error(array('message' => 'Please select a time slot'));
+        }
+        
+        // Build booking data
+        $booking_data = array(
+            'type' => 'appointment',
+            'bookingStart' => gmdate('Y-m-d H:i', strtotime($selected_slot_datetime)),
+            'serviceId' => $request->service_id,
+            'providerId' => $selected_provider_id,
+            'locationId' => $request->location_id,
+            'notifyParticipants' => 1,
+            'bookings' => array(
+                array(
+                    'customerId' => $customer->amelia_customer_id ?? null,
+                    'customer' => array(
+                        'id' => $customer->amelia_customer_id ?? null,
+                        'firstName' => $customer->first_name,
+                        'lastName' => $customer->last_name,
+                        'email' => $customer->email,
+                        'phone' => $customer->phone ?? ''
+                    ),
+                    'persons' => $request->persons ?? 1,
+                    'duration' => $request->duration_seconds,
+                    'extras' => array(),
+                    'customFields' => array()
+                )
+            ),
+            'payment' => array(
+                'gateway' => 'onSite',
+                'currency' => 'USD',
+                'data' => array()
+            )
+        );
+        
+        // Add price if available
+        if ($request->final_price !== null) {
+            $booking_data['bookings'][0]['price'] = floatval($request->final_price);
+        }
+        
+        $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
+        $result = $api_manager->create_booking($booking_data);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(array('message' => 'Booking failed: ' . $result->get_error_message()));
+        }
+        
+        // Extract booking IDs from response
+        $booking_id = $result['data']['booking']['id'] ?? null;
+        $appointment_id = $result['data']['appointment']['id'] ?? null;
+        $amelia_customer_id = $result['data']['customer']['id'] ?? null;
+        
+        // Update request with Amelia IDs and change status to 'booked'
+        $wpdb->update(
+            $requests_table,
+            array(
+                'status_key' => 'booked',
+                'amelia_booking_id' => $booking_id,
+                'amelia_appointment_id' => $appointment_id
+            ),
+            array('id' => $request_id),
+            array('%s', '%d', '%d'),
+            array('%d')
+        );
+        
+        // Update customer with Amelia customer ID if available
+        if ($amelia_customer_id && !$customer->amelia_customer_id) {
+            $wpdb->update(
+                $customers_table,
+                array('amelia_customer_id' => $amelia_customer_id),
+                array('id' => $customer->id),
+                array('%d'),
+                array('%d')
+            );
+        }
+        
+        amelia_cpt_sync_debug_log('ART: Successfully created Amelia booking #' . $booking_id . ' for request #' . $request_id);
+        
+        wp_send_json_success(array(
+            'message' => 'Booking created successfully!',
+            'booking_id' => $booking_id,
+            'appointment_id' => $appointment_id,
+            'amelia_customer_id' => $amelia_customer_id
+        ));
     }
 }
 
