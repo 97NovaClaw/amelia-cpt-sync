@@ -1251,9 +1251,9 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             'locale' => 'en_US',
             'utcOffset' => null,
             'persons' => absint($request->persons ?? 1),
-            'customerId' => $customer->amelia_customer_id ?? null,
+            'customerId' => !empty($customer->amelia_customer_id) ? absint($customer->amelia_customer_id) : null,
             'customer' => array(
-                'id' => $customer->amelia_customer_id ?? null,
+                'id' => !empty($customer->amelia_customer_id) ? absint($customer->amelia_customer_id) : null,
                 'firstName' => $customer->first_name,
                 'lastName' => $customer->last_name,
                 'email' => $customer->email,

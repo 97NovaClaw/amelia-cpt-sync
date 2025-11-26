@@ -81,10 +81,13 @@ class Amelia_CPT_Sync_ART_API_Manager {
         
         amelia_cpt_sync_debug_log('ART API Response Code: ' . $code);
         
+        // Always log the actual response content for debugging
+        amelia_cpt_sync_debug_log('ART API Response Body', $data);
+        
         if ($code < 200 || $code > 299) {
             $error_message = isset($data['message']) ? $data['message'] : 'HTTP ' . $code;
             amelia_cpt_sync_debug_log('ART API Error Response (' . $code . '): ' . print_r($data, true));
-            amelia_cpt_sync_debug_log('ART API Raw Response Body: ' . substr($body_response, 0, 500));
+            amelia_cpt_sync_debug_log('ART API Raw Response Body: ' . substr($body_response, 0, 1000));
             return new WP_Error('api_error', $error_message, array('code' => $code));
         }
         
@@ -411,11 +414,41 @@ class Amelia_CPT_Sync_ART_API_Manager {
             return $response;
         }
         
-        $booking_id = $response['data']['booking']['id'] ?? null;
+        // Debug: Log the full response structure
+        amelia_cpt_sync_debug_log('ART API: Booking response structure', $response);
+        
+        // According to Amelia API docs, the response structure is:
+        // data.appointment.id = appointment ID
+        // data.appointment.bookings[0].id = booking ID
         $appointment_id = $response['data']['appointment']['id'] ?? null;
+        $booking_id = null;
+        
+        // Get booking ID from the bookings array inside appointment
+        if (isset($response['data']['appointment']['bookings'][0]['id'])) {
+            $booking_id = $response['data']['appointment']['bookings'][0]['id'];
+        }
+        
+        // Fallback: Check alternative structures
+        if (!$booking_id) {
+            // Try data.booking.id
+            $booking_id = $response['data']['booking']['id'] ?? null;
+        }
+        
+        if (!$appointment_id && !$booking_id) {
+            // Check if there's an error message
+            $error_message = $response['message'] ?? 'Unknown error';
+            amelia_cpt_sync_debug_log('ART API: Booking may have failed - ' . $error_message);
+            
+            // Check if it's actually a success but with different structure
+            if (isset($response['data']) && is_array($response['data'])) {
+                amelia_cpt_sync_debug_log('ART API: Response data keys: ' . implode(', ', array_keys($response['data'])));
+            }
+        }
         
         if ($booking_id) {
             amelia_cpt_sync_debug_log('ART API: Successfully created booking #' . $booking_id . ' (appointment #' . $appointment_id . ')');
+        } else {
+            amelia_cpt_sync_debug_log('ART API: Warning - Could not extract booking ID from response. Message: ' . ($response['message'] ?? 'none'));
         }
         
         return $response;
