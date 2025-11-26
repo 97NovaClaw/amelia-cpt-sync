@@ -2880,9 +2880,12 @@ jQuery(document).ready(function($) {
             // Skip if exact match (handled separately) or too far
             if (absDiff === 0 || absDiff > maxDiffMinutes) return;
             
+            // Get provider name from our providers map
+            var providerName = artDetailData.providers[slot.provider_id] || slot.provider_name || 'Provider #' + slot.provider_id;
+            
             nearbySlots.push({
                 provider_id: slot.provider_id,
-                provider_name: slot.provider_name,
+                provider_name: providerName,
                 time: slot.time,
                 diff: absDiff,
                 direction: diff < 0 ? 'before' : 'after',
