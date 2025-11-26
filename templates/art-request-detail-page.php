@@ -2026,7 +2026,10 @@ jQuery(document).ready(function($) {
                             visibleCount++;
                             if (!firstDate) firstDate = dateStr;
                             
-                            var dateObj = new Date(dateStr);
+                            // Parse date parts to avoid timezone issues
+                            // dateStr is "YYYY-MM-DD" format
+                            var dateParts = dateStr.split('-');
+                            var dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]); // Month is 0-indexed
                             var formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' });
                             
                             var btnHtml = '<button type="button" class="art-picker-date-btn" data-date="' + dateStr + '">' + 
@@ -2111,8 +2114,10 @@ jQuery(document).ready(function($) {
         
         timesGrid.empty();
         
-        // Format header date
-        var dateObj = new Date(dateStr);
+        // Format header date - parse parts to avoid timezone issues
+        // dateStr is "YYYY-MM-DD" format
+        var dateParts = dateStr.split('-');
+        var dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]); // Month is 0-indexed
         var formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
         header.text(formattedDate);
         
