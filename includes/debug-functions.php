@@ -33,8 +33,9 @@ function amelia_cpt_sync_is_debug_enabled() {
  * Write to debug log
  *
  * @param string $message The message to log
+ * @param mixed  $data    Optional data to include (array or object will be JSON encoded)
  */
-function amelia_cpt_sync_debug_log($message) {
+function amelia_cpt_sync_debug_log($message, $data = null) {
     // Only log if debug is enabled
     if (!amelia_cpt_sync_is_debug_enabled()) {
         return;
@@ -42,7 +43,20 @@ function amelia_cpt_sync_debug_log($message) {
     
     $log_file = AMELIA_CPT_SYNC_PLUGIN_DIR . 'debug.txt';
     $timestamp = current_time('Y-m-d H:i:s');
-    $log_entry = "[{$timestamp}] {$message}\n";
+    
+    // Format the message
+    $log_entry = "[{$timestamp}] {$message}";
+    
+    // If data is provided, append it
+    if ($data !== null) {
+        if (is_array($data) || is_object($data)) {
+            $log_entry .= ' ' . wp_json_encode($data, JSON_PRETTY_PRINT);
+        } else {
+            $log_entry .= ' ' . $data;
+        }
+    }
+    
+    $log_entry .= "\n";
     
     // Append to log file
     file_put_contents($log_file, $log_entry, FILE_APPEND);

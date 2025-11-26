@@ -944,6 +944,12 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
     gap: 10px;
+    overflow: visible; /* Allow tooltips to show outside */
+    padding-top: 60px; /* Space for tooltips above first row */
+}
+
+.art-picker-times {
+    overflow: visible !important; /* Ensure tooltips aren't clipped */
 }
 
 .art-time-btn {
@@ -2335,16 +2341,30 @@ jQuery(document).ready(function($) {
      * Find providers available at a specific date/time from availability data
      */
     function findProvidersAtTime(dateStr, timeStr) {
-        if (!availabilityData || !dateStr || !timeStr) return [];
+        if (!availabilityData || !dateStr || !timeStr) {
+            console.log('ART: findProvidersAtTime - missing data', {dateStr, timeStr, hasAvailability: !!availabilityData});
+            return [];
+        }
         
         var found = [];
-        // Convert timeStr (HH:mm) to match slot.time format (HH:mm or H:mm)
-        var normalizedTime = timeStr.replace(/^0/, ''); // "08:30" -> "8:30" for matching
+        
+        // Normalize input time to match Amelia format (no leading zero for hours < 10)
+        // Input: "08:30" -> Compare with "8:30"
+        // Input: "14:00" -> Compare with "14:00"
+        var inputParts = timeStr.split(':');
+        var inputHour = parseInt(inputParts[0], 10);
+        var inputMin = inputParts[1];
+        var normalizedInput = inputHour + ':' + inputMin; // "8:30" or "14:00"
         
         $.each(availabilityData, function(i, slot) {
             if (slot.date === dateStr) {
-                // Compare times (both with and without leading zero)
-                if (slot.time === timeStr || slot.time === normalizedTime) {
+                // Normalize slot time the same way
+                var slotParts = slot.time.split(':');
+                var slotHour = parseInt(slotParts[0], 10);
+                var slotMin = slotParts[1];
+                var normalizedSlot = slotHour + ':' + slotMin;
+                
+                if (normalizedSlot === normalizedInput) {
                     found.push({
                         provider_id: slot.provider_id,
                         provider_name: (artDetailData.providers && artDetailData.providers[slot.provider_id]) 
@@ -2356,6 +2376,7 @@ jQuery(document).ready(function($) {
             }
         });
         
+        console.log('ART: findProvidersAtTime result', {dateStr, timeStr, normalizedInput, foundCount: found.length});
         return found;
     }
     

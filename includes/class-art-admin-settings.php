@@ -1033,10 +1033,21 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $formatted_slots = array();
         
         // Debug: Log raw slots structure
-        amelia_cpt_sync_debug_log('ART Slots: Raw structure sample', array(
-            'total_dates' => count($result['slots'] ?? array()),
-            'first_date_sample' => array_slice($result['slots'] ?? array(), 0, 1, true)
+        $raw_slots = $result['slots'] ?? array();
+        amelia_cpt_sync_debug_log('ART Slots: Raw structure', array(
+            'total_dates' => count($raw_slots),
+            'dates_available' => array_keys($raw_slots)
         ));
+        
+        // Log specific date for debugging (today and tomorrow)
+        $today = gmdate('Y-m-d');
+        $tomorrow = gmdate('Y-m-d', strtotime('+1 day'));
+        if (isset($raw_slots[$today])) {
+            amelia_cpt_sync_debug_log('ART Slots: Today (' . $today . ') times', array_keys($raw_slots[$today]));
+        }
+        if (isset($raw_slots[$tomorrow])) {
+            amelia_cpt_sync_debug_log('ART Slots: Tomorrow (' . $tomorrow . ') times', array_keys($raw_slots[$tomorrow]));
+        }
         
         foreach ($result['slots'] as $date => $times) {
             foreach ($times as $time => $providers) {

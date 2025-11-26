@@ -297,7 +297,13 @@ class Amelia_CPT_Sync_ART_API_Manager {
         $query_string = implode('&', $query_parts);
         $endpoint = '/slots&' . $query_string;  // Use & not ? (already in a query string!)
         
-        amelia_cpt_sync_debug_log('ART API: Getting slots for service #' . $params['serviceId']);
+        amelia_cpt_sync_debug_log('ART API: Getting slots', array(
+            'service_id' => $params['serviceId'],
+            'duration' => $params['serviceDuration'],
+            'persons' => $params['persons'],
+            'start_date' => $params['startDateTime'] ?? 'today',
+            'full_endpoint' => $endpoint
+        ));
         
         $response = $this->request($endpoint, 'GET');
         
