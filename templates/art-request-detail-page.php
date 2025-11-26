@@ -2850,6 +2850,99 @@ jQuery(document).ready(function($) {
     }
     
     /**
+     * Find nearest available slots within a time window (±2 hours)
+     * Returns providers sorted by proximity to requested time
+     */
+    function findNearestAvailableSlots(dateStr, requestedTime) {
+        if (!availabilityData || !dateStr || !requestedTime) {
+            return [];
+        }
+        
+        // Parse requested time to minutes since midnight
+        var reqParts = requestedTime.split(':');
+        var reqMinutes = parseInt(reqParts[0], 10) * 60 + parseInt(reqParts[1], 10);
+        
+        var nearbySlots = [];
+        var maxDiffMinutes = 120; // Search within ±2 hours
+        
+        // Iterate through all slots to find nearby ones
+        $.each(availabilityData, function(i, slot) {
+            if (slot.date !== dateStr) return;
+            
+            // Parse slot time
+            var slotParts = slot.time.split(':');
+            var slotMinutes = parseInt(slotParts[0], 10) * 60 + parseInt(slotParts[1], 10);
+            
+            // Calculate difference
+            var diff = slotMinutes - reqMinutes;
+            var absDiff = Math.abs(diff);
+            
+            // Skip if exact match (handled separately) or too far
+            if (absDiff === 0 || absDiff > maxDiffMinutes) return;
+            
+            nearbySlots.push({
+                provider_id: slot.provider_id,
+                provider_name: slot.provider_name,
+                time: slot.time,
+                diff: absDiff,
+                direction: diff < 0 ? 'before' : 'after',
+                rawDiff: diff
+            });
+        });
+        
+        // Sort by absolute difference (closest first)
+        nearbySlots.sort(function(a, b) {
+            return a.diff - b.diff;
+        });
+        
+        // Limit to closest 6 slots to avoid overwhelming the UI
+        // But ensure we show at least one "before" and one "after" if available
+        var result = [];
+        var hasBefore = false;
+        var hasAfter = false;
+        var seenProviders = {};
+        
+        $.each(nearbySlots, function(i, slot) {
+            // Prioritize showing variety (before/after, different providers)
+            var providerKey = slot.provider_id + '_' + slot.time;
+            if (seenProviders[providerKey]) return;
+            
+            if (result.length < 6) {
+                result.push(slot);
+                seenProviders[providerKey] = true;
+                if (slot.direction === 'before') hasBefore = true;
+                if (slot.direction === 'after') hasAfter = true;
+            } else if (!hasBefore && slot.direction === 'before') {
+                // Make room for a "before" slot
+                result.push(slot);
+                hasBefore = true;
+            } else if (!hasAfter && slot.direction === 'after') {
+                // Make room for an "after" slot
+                result.push(slot);
+                hasAfter = true;
+            }
+        });
+        
+        // Re-sort result: show "before" slots first, then "after"
+        result.sort(function(a, b) {
+            if (a.direction === b.direction) {
+                return a.diff - b.diff;
+            }
+            return a.direction === 'before' ? -1 : 1;
+        });
+        
+        console.log('ART: findNearestAvailableSlots', {
+            dateStr: dateStr,
+            requestedTime: requestedTime,
+            reqMinutes: reqMinutes,
+            totalNearby: nearbySlots.length,
+            returning: result.length
+        });
+        
+        return result;
+    }
+    
+    /**
      * Update provider list column based on entered time
      */
     var selectedProviderId = null;
@@ -2891,11 +2984,6 @@ jQuery(document).ready(function($) {
         // Find which providers are available at this EXACT custom time
         var availableAtTime = findProvidersAtTime(dateStr, timeStr);
         
-        // Also find providers available at the nearest hour (for hint)
-        var inputParts = timeStr.split(':');
-        var nearestHour = parseInt(inputParts[0], 10) + ':00';
-        var availableAtHour = findProvidersAtTime(dateStr, nearestHour);
-        
         // Show exact match providers first (if any)
         if (availableAtTime.length > 0) {
             html += '<div class="provider-group">';
@@ -2905,15 +2993,40 @@ jQuery(document).ready(function($) {
                 shownIds.push(String(p.provider_id));
             });
             html += '</div>';
-        } else if (availableAtHour.length > 0) {
-            // Show providers available at nearest hour as a hint
-            html += '<div class="provider-group">';
-            html += '<div class="provider-group-label nearby"><?php _e('Available at', 'amelia-cpt-sync'); ?> ' + formatTime12(nearestHour) + '</div>';
-            $.each(availableAtHour, function(i, p) {
-                html += buildProviderItem(p.provider_id, p.provider_name, getInitials(p.provider_name), '<?php _e('Nearby slot', 'amelia-cpt-sync'); ?>');
-                shownIds.push(String(p.provider_id));
-            });
-            html += '</div>';
+        } else {
+            // No exact match - find nearest available slots
+            var nearbySlots = findNearestAvailableSlots(dateStr, timeStr);
+            
+            if (nearbySlots.length > 0) {
+                // Group by time slot
+                var slotsByTime = {};
+                $.each(nearbySlots, function(i, slot) {
+                    if (!slotsByTime[slot.time]) {
+                        slotsByTime[slot.time] = {
+                            time: slot.time,
+                            diff: slot.diff,
+                            direction: slot.direction,
+                            providers: []
+                        };
+                    }
+                    slotsByTime[slot.time].providers.push(slot);
+                });
+                
+                // Render each nearby time group
+                $.each(slotsByTime, function(time, group) {
+                    var dirLabel = group.direction === 'before' ? '<?php _e('Earlier', 'amelia-cpt-sync'); ?>' : '<?php _e('Later', 'amelia-cpt-sync'); ?>';
+                    var diffMins = group.diff;
+                    var diffLabel = diffMins < 60 ? diffMins + ' <?php _e('min', 'amelia-cpt-sync'); ?>' : Math.round(diffMins/60) + ' <?php _e('hr', 'amelia-cpt-sync'); ?>';
+                    
+                    html += '<div class="provider-group">';
+                    html += '<div class="provider-group-label nearby">' + dirLabel + ': ' + formatTime12(time) + ' <span style="opacity:0.7">(' + diffLabel + ')</span></div>';
+                    $.each(group.providers, function(i, p) {
+                        html += buildProviderItem(p.provider_id, p.provider_name, getInitials(p.provider_name), formatTime12(time));
+                        shownIds.push(String(p.provider_id));
+                    });
+                    html += '</div>';
+                });
+            }
         }
         
         // Add remaining providers for force booking
