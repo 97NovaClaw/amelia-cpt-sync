@@ -1206,15 +1206,25 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         }
         
         // Validate required booking fields
+        // Note: location_id is optional - Amelia can handle bookings without a specific location
         $missing = array();
         if (!$request->service_id) $missing[] = 'Service';
-        if (!$request->start_datetime) $missing[] = 'Start Time';
-        if (!$request->end_datetime) $missing[] = 'End Time';
-        if (!$request->location_id) $missing[] = 'Location';
         if (empty($customer->email)) $missing[] = 'Customer Email';
         
         if (!empty($missing)) {
             wp_send_json_error(array('message' => 'Missing required fields: ' . implode(', ', $missing)));
+        }
+        
+        // Duration is required but can be calculated if not set
+        if (!$request->duration_seconds || $request->duration_seconds <= 0) {
+            // Try to get duration from service
+            $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
+            $service = $api_manager->get_service($request->service_id);
+            if (!is_wp_error($service) && !empty($service['duration'])) {
+                $request->duration_seconds = intval($service['duration']);
+            } else {
+                wp_send_json_error(array('message' => 'Duration is required. Please set a duration in the Time & Duration section.'));
+            }
         }
         
         // Get selected provider and slot from POST (user selected from availability results)
@@ -1266,10 +1276,14 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             ),
             'bookingStart' => gmdate('Y-m-d H:i', strtotime($selected_slot_datetime)),  // "YYYY-MM-DD HH:mm"
             'notifyParticipants' => 1,
-            'locationId' => absint($request->location_id),
             'providerId' => $selected_provider_id,
             'serviceId' => absint($request->service_id)
         );
+        
+        // Only add locationId if it's set (Amelia can handle bookings without location)
+        if (!empty($request->location_id) && $request->location_id > 0) {
+            $booking_data['locationId'] = absint($request->location_id);
+        }
         
         $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
         $result = $api_manager->create_booking($booking_data);

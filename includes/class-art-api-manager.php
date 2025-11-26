@@ -336,8 +336,8 @@ class Amelia_CPT_Sync_ART_API_Manager {
      * @return array|WP_Error Booking response or error
      */
     public function create_booking($booking_data) {
-        // Validate required fields
-        $required = array('bookingStart', 'serviceId', 'providerId', 'locationId', 'bookings');
+        // Validate required fields (locationId is optional)
+        $required = array('bookingStart', 'serviceId', 'providerId', 'bookings');
         foreach ($required as $key) {
             if (!isset($booking_data[$key])) {
                 return new WP_Error('missing_field', 'Missing required booking field: ' . $key);
@@ -360,10 +360,14 @@ class Amelia_CPT_Sync_ART_API_Manager {
             ),
             'bookingStart' => $booking_data['bookingStart'],  // "YYYY-MM-DD HH:mm" format
             'notifyParticipants' => 1,
-            'locationId' => absint($booking_data['locationId']),
             'providerId' => absint($booking_data['providerId']),
             'serviceId' => absint($booking_data['serviceId'])
         );
+        
+        // Only add locationId if provided (Amelia can handle bookings without location)
+        if (!empty($booking_data['locationId']) && $booking_data['locationId'] > 0) {
+            $booking_payload['locationId'] = absint($booking_data['locationId']);
+        }
         
         amelia_cpt_sync_debug_log('ART API: Creating booking for service #' . $booking_data['serviceId'] . ' at ' . $booking_data['bookingStart']);
         amelia_cpt_sync_debug_log('ART API: Booking payload: ' . json_encode($booking_payload, JSON_PRETTY_PRINT));

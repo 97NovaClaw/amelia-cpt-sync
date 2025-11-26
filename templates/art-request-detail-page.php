@@ -2770,14 +2770,10 @@ jQuery(document).ready(function($) {
             return;
         }
         
-        if (!confirm('Create Amelia booking for ' + slotDatetime + '?')) {
-            return;
-        }
-        
-        // Show loading state
+        // Show loading state immediately (no confirmation dialog)
         btn.prop('disabled', true);
         var originalText = btn.html();
-        btn.html('<span class="dashicons dashicons-update spin"></span> Creating booking...');
+        btn.html('<span class="dashicons dashicons-update spin"></span> <?php _e('Creating booking...', 'amelia-cpt-sync'); ?>');
         
         // Call booking API
         $.post(ajaxurl, {
