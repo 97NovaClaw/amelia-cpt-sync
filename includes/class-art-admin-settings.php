@@ -37,7 +37,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         add_action('wp_ajax_art_save_pillars', array($this, 'ajax_save_pillars'));
         add_action('wp_ajax_art_check_customer_match', array($this, 'ajax_check_customer_match'));
         add_action('wp_ajax_art_get_locations', array($this, 'ajax_get_locations'));
-        add_action('wp_ajax_art_get_providers', array($this, 'ajax_get_providers'));
+        add_action('wp_ajax_art_get_service_employees', array($this, 'ajax_get_service_employees'));
         
         // Phase 5: API integration
         add_action('wp_ajax_art_get_service_duration', array($this, 'ajax_get_service_duration'));
@@ -887,37 +887,42 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
     }
     
     /**
-     * AJAX handler for getting providers (employees)
+     * AJAX handler for getting employees for a service
      * Phase 5 Enhancement
      */
-    public function ajax_get_providers() {
+    public function ajax_get_service_employees() {
         check_ajax_referer('art_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
         
-        $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
-        $providers = $api_manager->get_providers();
+        $service_id = absint($_POST['service_id'] ?? 0);
+        if (!$service_id) {
+            wp_send_json_error(array('message' => 'Service ID required'));
+        }
         
-        if (is_wp_error($providers)) {
+        $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
+        $employees = $api_manager->get_service_employees($service_id);
+        
+        if (is_wp_error($employees)) {
             wp_send_json_error(array(
-                'message' => $providers->get_error_message(),
-                'providers' => array()
+                'message' => $employees->get_error_message(),
+                'employees' => array()
             ));
         } else {
             // Map for easier frontend usage: ID -> Name
             $provider_map = array();
-            foreach ($providers as $provider) {
-                $name = trim(($provider['firstName'] ?? '') . ' ' . ($provider['lastName'] ?? ''));
+            foreach ($employees as $emp) {
+                $name = trim(($emp['firstName'] ?? '') . ' ' . ($emp['lastName'] ?? ''));
                 if (empty($name)) {
-                    $name = 'Provider #' . $provider['id'];
+                    $name = 'Provider #' . $emp['id'];
                 }
-                $provider_map[$provider['id']] = $name;
+                $provider_map[$emp['id']] = $name;
             }
             
             wp_send_json_success(array(
-                'providers' => $providers,
+                'employees' => $employees,
                 'provider_map' => $provider_map
             ));
         }

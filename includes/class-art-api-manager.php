@@ -126,36 +126,44 @@ class Amelia_CPT_Sync_ART_API_Manager {
     }
     
     /**
-     * Get providers (employees) from Amelia (Phase 5)
+     * Get employees for a specific service (Phase 5)
+     * Uses /entities endpoint as per documentation
      *
-     * @return array|WP_Error Array of providers or error
+     * @param int $service_id Service ID
+     * @return array|WP_Error Array of employee objects
      */
-    public function get_providers() {
-        $cache_key = 'art_amelia_providers';
+    public function get_service_employees($service_id) {
+        $cache_key = 'art_employees_service_' . $service_id;
         
         // Try cache first
         $cached = get_transient($cache_key);
         if ($cached !== false) {
-            amelia_cpt_sync_debug_log('ART API: Using cached providers');
+            amelia_cpt_sync_debug_log('ART API: Using cached employees for service #' . $service_id);
             return $cached;
         }
         
-        // Call API
-        $response = $this->request('/users/providers', 'GET');
+        // Call API: /entities?types[]=employees&serviceId=X
+        // Note: 'types' param is an array, 'employees' is the type key
+        $endpoint = '/entities?types[]=employees';
+        if ($service_id) {
+            $endpoint .= '&serviceId=' . absint($service_id);
+        }
+        
+        $response = $this->request($endpoint, 'GET');
         
         if (is_wp_error($response)) {
             return $response;
         }
         
-        // Note: Amelia API returns 'users' for this endpoint, containing provider objects
-        $providers = $response['data']['users'] ?? array();
+        // Response structure: data.employees
+        $employees = $response['data']['employees'] ?? array();
         
-        amelia_cpt_sync_debug_log('ART API: Fetched ' . count($providers) . ' providers');
+        amelia_cpt_sync_debug_log('ART API: Fetched ' . count($employees) . ' employees for service #' . $service_id);
         
         // Cache for 1 hour
-        set_transient($cache_key, $providers, HOUR_IN_SECONDS);
+        set_transient($cache_key, $employees, HOUR_IN_SECONDS);
         
-        return $providers;
+        return $employees;
     }
     
     /**

@@ -511,11 +511,23 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                             </label>
                                             <input type="time" id="custom-time-input" class="form-input" style="width: 100%;" disabled>
                                         </div>
+                                        
+                                        <!-- Provider Select for Custom Time -->
+                                        <div>
+                                            <label for="custom-provider-select" style="font-size: 12px; color: #64748b; display: block; margin-bottom: 6px;">
+                                                <?php _e('Assign Provider', 'amelia-cpt-sync'); ?>
+                                            </label>
+                                            <select id="custom-provider-select" class="form-select" style="width: 100%; font-size: 13px;" disabled>
+                                                <option value=""><?php _e('-- Select Provider --', 'amelia-cpt-sync'); ?></option>
+                                            </select>
+                                        </div>
+                                        
                                         <button type="button" id="btn-use-custom-time" class="btn-secondary btn-small" style="width: 100%;" disabled>
                                             <?php _e('Use Custom Time', 'amelia-cpt-sync'); ?>
                                         </button>
-                                        <p class="field-note" style="margin-top: auto;">
-                                            <?php _e('Note: Custom times override API availability checks.', 'amelia-cpt-sync'); ?>
+                                        
+                                        <p class="field-note" style="margin-top: auto; font-size: 11px; line-height: 1.4;">
+                                            <?php _e('Note: Custom times bypass availability checks. Please ensure the provider is actually free.', 'amelia-cpt-sync'); ?>
                                         </p>
                                     </div>
                                 </div>
@@ -1073,6 +1085,10 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 /* === TOOLTIP (Phase 5) === */
 .art-slot-tooltip {
     position: absolute;
+    bottom: 100%; /* Position above */
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 8px; /* Spacing */
     background: #1E293B;
     color: #fff;
     padding: 8px 12px;
@@ -1081,9 +1097,10 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     z-index: 1000;
     white-space: nowrap;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    pointer-events: auto; /* Allow clicking links inside */
+    pointer-events: auto;
 }
 
+/* Arrow pointing down */
 .art-slot-tooltip::after {
     content: '';
     position: absolute;
@@ -1093,6 +1110,12 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     border-width: 5px;
     border-style: solid;
     border-color: #1E293B transparent transparent transparent;
+}
+
+/* Relative parent for positioning */
+.art-time-btn {
+    position: relative;
+    /* ... existing styles ... */
 }
 
 .art-provider-link {
@@ -1946,12 +1969,17 @@ jQuery(document).ready(function($) {
                     }
                 });
                 
-                // Populate Provider Filter
+                // Populate Provider Filter AND Custom Provider Select
                 var providerSelect = $('#filter-provider');
+                var customProviderSelect = $('#custom-provider-select');
+                
                 providerSelect.html('<option value="all">' + '<?php _e('All Available Employees', 'amelia-cpt-sync'); ?>' + '</option>');
+                customProviderSelect.html('<option value="">' + '<?php _e('-- Select Provider --', 'amelia-cpt-sync'); ?>' + '</option>');
                 
                 $.each(uniqueProviders, function(id, name) {
-                    providerSelect.append('<option value="' + id + '">' + name + '</option>');
+                    var option = '<option value="' + id + '">' + name + '</option>';
+                    providerSelect.append(option);
+                    customProviderSelect.append(option);
                 });
                 
                 // Helper to render dates (filtered)
@@ -2038,8 +2066,9 @@ jQuery(document).ready(function($) {
                     
                     renderTimes(selectedDate, dateTimes);
                     
-                    // Enable Custom Time Input
+                    // Enable Custom Time Inputs
                     $('#custom-time-input').prop('disabled', false);
+                    $('#custom-provider-select').prop('disabled', false);
                     $('#btn-use-custom-time').prop('disabled', false);
                 });
                 
@@ -2096,52 +2125,77 @@ jQuery(document).ready(function($) {
             // Create button
             var btn = $('<button type="button" class="art-time-btn">' + timeDisplay + '</button>');
             
-            // Add tooltip if multiple providers or specific provider info needed
-            var providerListHtml = '<div class="art-slot-tooltip" style="display:none;"><strong>Available Providers:</strong><br>';
-            $.each(providerSlots, function(j, slot) {
-                var pName = (artDetailData.providers && artDetailData.providers[slot.provider_id]) ? 
-                            artDetailData.providers[slot.provider_id] : 'Provider #' + slot.provider_id;
+            // Add tooltip logic if multiple providers
+            if (providerSlots.length > 1) {
+                var providerListHtml = '<div class="art-slot-tooltip" style="display:none;"><strong>Select Provider:</strong><br>';
+                $.each(providerSlots, function(j, slot) {
+                    var pName = (artDetailData.providers && artDetailData.providers[slot.provider_id]) ? 
+                                artDetailData.providers[slot.provider_id] : 'Provider #' + slot.provider_id;
+                    
+                    // Make the name clickable to select that specific provider
+                    providerListHtml += '<div class="art-provider-link" data-pid="' + slot.provider_id + '" data-idx="' + j + '">' + pName + '</div>';
+                });
+                providerListHtml += '</div>';
                 
-                providerListHtml += '<span class="art-provider-link" data-pid="' + slot.provider_id + '">' + pName + '</span>';
-            });
-            providerListHtml += '</div>';
-            
-            var tooltip = $(providerListHtml);
-            btn.append(tooltip);
-            
-            // Hover events for tooltip
-            btn.hover(
-                function() { $(this).find('.art-slot-tooltip').show(); },
-                function() { $(this).find('.art-slot-tooltip').hide(); }
-            );
-            
-            // Click specific provider in tooltip (Drill down)
-            tooltip.find('.art-provider-link').on('click', function(e) {
-                e.stopPropagation(); // Prevent button click
-                var pid = $(this).data('pid');
+                var tooltip = $(providerListHtml);
+                btn.append(tooltip);
                 
-                // Set filter
-                $('#filter-provider').val(pid).trigger('change');
+                // Handle Main Button Click -> Toggle Tooltip
+                btn.on('click', function(e) {
+                    e.stopPropagation();
+                    
+                    // If this button is already active, just toggle tooltip
+                    if ($(this).hasClass('active')) {
+                        $(this).find('.art-slot-tooltip').toggle();
+                        return;
+                    }
+                    
+                    // Otherwise, select first provider AND show tooltip to offer others
+                    $('.art-time-btn').removeClass('active');
+                    $('.art-slot-tooltip').hide(); // Close others
+                    
+                    $(this).addClass('active');
+                    $(this).find('.art-slot-tooltip').show();
+                    
+                    // Select first by default
+                    var selectedSlot = providerSlots[0]; 
+                    selectSlot(selectedSlot, timeDisplay + ' (Multiple Available)');
+                });
                 
-                // Re-select this date/time (need to wait for re-render)
-                // This is tricky because re-render wipes the grid. 
-                // For now, just setting filter is good feedback.
-            });
-            
-            // Handle Main Time Click (Auto-select first provider if multiple, or filtered one)
-            btn.on('click', function() {
-                $('.art-time-btn').removeClass('active');
-                $(this).addClass('active');
+                // Handle Provider Selection inside Tooltip
+                tooltip.find('.art-provider-link').on('click', function(e) {
+                    e.stopPropagation(); // Prevent bubbling to button
+                    
+                    var slotIdx = $(this).data('idx');
+                    var selectedSlot = providerSlots[slotIdx];
+                    var pName = $(this).text();
+                    
+                    // Select this specific slot/provider
+                    selectSlot(selectedSlot, timeDisplay + ' (' + pName + ')');
+                    
+                    // Hide tooltip after selection
+                    tooltip.hide();
+                });
                 
-                // If multiple providers, pick the first one (or could force user to pick via tooltip?)
-                // Defaulting to first available is standard behavior
-                var selectedSlot = providerSlots[0]; 
+                // Close tooltip when clicking outside
+                $(document).on('click', function() {
+                    $('.art-slot-tooltip').hide();
+                });
                 
-                // Update summary to mention other providers if available
-                var note = providerSlots.length > 1 ? ' (and ' + (providerSlots.length - 1) + ' others)' : '';
-                
-                selectSlot(selectedSlot, timeDisplay + note);
-            });
+            } else {
+                // Single provider - simple click
+                btn.on('click', function() {
+                    $('.art-time-btn').removeClass('active');
+                    $('.art-slot-tooltip').hide();
+                    $(this).addClass('active');
+                    
+                    var selectedSlot = providerSlots[0];
+                    var pName = (artDetailData.providers && artDetailData.providers[selectedSlot.provider_id]) ? 
+                                artDetailData.providers[selectedSlot.provider_id] : 'Provider #' + selectedSlot.provider_id;
+                                
+                    selectSlot(selectedSlot, timeDisplay + ' (' + pName + ')');
+                });
+            }
             
             timesGrid.append(btn);
         });
@@ -2282,10 +2336,10 @@ jQuery(document).ready(function($) {
             return;
         }
         
-        // Get Provider
-        var providerId = $('#filter-provider').val();
-        if (providerId === 'all') {
-            showNotice('Please filter by a specific employee to use Custom Time', 'error');
+        // Get Provider from Custom Dropdown
+        var providerId = $('#custom-provider-select').val();
+        if (!providerId) {
+            showNotice('Please select a provider to assign this booking to', 'error');
             return;
         }
         
@@ -2298,6 +2352,9 @@ jQuery(document).ready(function($) {
         hour12 = hour12 ? hour12 : 12;
         var timeDisplay = hour12 + ':' + min + ' ' + ampm + ' (Custom)';
         
+        // Get Provider Name
+        var providerName = $('#custom-provider-select option:selected').text();
+        
         // Construct custom slot object
         var slot = {
             date: dateStr,
@@ -2309,10 +2366,10 @@ jQuery(document).ready(function($) {
         
         // Update UI
         $('.art-time-btn').removeClass('active'); // Deselect grid
-        selectSlot(slot, timeDisplay);
+        selectSlot(slot, timeDisplay + ' with ' + providerName);
     });
     
-    // Enable custom time when date is selected (Updated renderFilteredDates)
+    // Enable custom time inputs when date is selected (Updated renderFilteredDates)
     // We'll attach this logic inside the date click handler below
     
     // ========================================================================
@@ -2387,19 +2444,54 @@ jQuery(document).ready(function($) {
     // INITIALIZATION
     // ========================================================================
     
-    // Fetch providers on load for the map
-    function fetchProviders() {
+    // Fetch employees for the current service
+    function fetchServiceEmployees() {
+        var serviceId = $('#pillar-service').val();
+        if (!serviceId) return;
+        
         $.post(ajaxurl, {
-            action: 'art_get_providers',
-            nonce: artDetailData.nonce
+            action: 'art_get_service_employees',
+            nonce: artDetailData.nonce,
+            service_id: serviceId
         }, function(response) {
             if (response.success) {
                 // Store the map: ID -> Name
                 artDetailData.providers = response.data.provider_map;
+                
+                // Update Custom Time Dropdown
+                var customSelect = $('#custom-provider-select');
+                customSelect.empty().append('<option value="">' + '<?php _e('-- Select Provider --', 'amelia-cpt-sync'); ?>' + '</option>');
+                
+                $.each(response.data.provider_map, function(id, name) {
+                    customSelect.append('<option value="' + id + '">' + name + '</option>');
+                });
+                
+                // Update Main Filter if it exists
+                var filterSelect = $('#filter-provider');
+                var currentVal = filterSelect.val();
+                
+                // Only update filter options if not "all" or preserve selection
+                filterSelect.empty().append('<option value="all">' + '<?php _e('All Available Employees', 'amelia-cpt-sync'); ?>' + '</option>');
+                $.each(response.data.provider_map, function(id, name) {
+                    filterSelect.append('<option value="' + id + '">' + name + '</option>');
+                });
+                
+                if (currentVal && currentVal !== 'all') {
+                    filterSelect.val(currentVal);
+                }
             }
         });
     }
-    fetchProviders();
+    
+    // Call on load
+    if (artDetailData.currentService) {
+        fetchServiceEmployees();
+    }
+    
+    // Call when service changes
+    $('#pillar-service').on('change', function() {
+        fetchServiceEmployees();
+    });
     
     // === SPINNING ANIMATION FOR DASHICONS ===
     $('<style>.dashicons.spin { animation: spin 1s linear infinite; } @keyframes spin { 100% { transform: rotate(360deg); } }</style>').appendTo('head');
