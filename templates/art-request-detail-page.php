@@ -919,12 +919,12 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 
 /* 4-column layout (with time grid): Dates | Time Grid | Time Entry | Providers */
 .art-picker-container.with-timegrid {
-    grid-template-columns: 180px 1fr 160px 200px;
+    grid-template-columns: 15% 1fr 20% 35%;
 }
 
-/* 3-column layout (no time grid - default): Dates | Time Entry | Providers */
+/* 3-column layout (no time grid - default): Dates 25% | Time Entry 25% | Providers 50% */
 .art-picker-container.no-timegrid {
-    grid-template-columns: 1fr 160px 220px;
+    grid-template-columns: 25% 25% 50%;
 }
 
 .art-picker-container.no-timegrid .art-picker-dates {
