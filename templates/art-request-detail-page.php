@@ -2382,6 +2382,7 @@ jQuery(document).ready(function($) {
     
     /**
      * Update custom provider dropdown based on entered time
+     * Custom Time is for force-booking, so always show all providers
      */
     function updateCustomProviderDropdown() {
         var activeDateBtn = $('#picker-dates-list .art-picker-date-btn.active');
@@ -2393,47 +2394,84 @@ jQuery(document).ready(function($) {
         var customSelect = $('#custom-provider-select');
         var warningEl = $('#custom-time-warning');
         
-        // If no time entered, show all providers
+        // If no time entered, just show all providers
         if (!timeStr) {
+            // Reset to all providers
+            customSelect.empty();
+            customSelect.append('<option value=""><?php _e('-- Select Provider --', 'amelia-cpt-sync'); ?></option>');
+            if (artDetailData.providers) {
+                $.each(artDetailData.providers, function(id, name) {
+                    customSelect.append('<option value="' + id + '">' + name + '</option>');
+                });
+            }
             warningEl.hide();
             return;
         }
         
-        // Find which providers are available at this custom time
+        // Find which providers are available at this EXACT custom time
         var availableAtTime = findProvidersAtTime(dateStr, timeStr);
         
-        // Reset dropdown and rebuild with availability info
+        // Also find providers available at the nearest hour (for hint)
+        var inputParts = timeStr.split(':');
+        var nearestHour = parseInt(inputParts[0], 10) + ':00';
+        var availableAtHour = findProvidersAtTime(dateStr, nearestHour);
+        
+        // Reset dropdown and rebuild
         customSelect.empty();
         customSelect.append('<option value=""><?php _e('-- Select Provider --', 'amelia-cpt-sync'); ?></option>');
         
+        // Show exact match providers first (if any)
         if (availableAtTime.length > 0) {
-            // Show available providers first (highlighted)
-            customSelect.append('<optgroup label="<?php _e('Available at this time:', 'amelia-cpt-sync'); ?>">');
+            customSelect.append('<optgroup label="<?php _e('Available at exact time:', 'amelia-cpt-sync'); ?>">');
             $.each(availableAtTime, function(i, p) {
-                customSelect.append('<option value="' + p.provider_id + '" class="available">' + p.provider_name + ' ✓</option>');
+                customSelect.append('<option value="' + p.provider_id + '">' + p.provider_name + ' ✓</option>');
             });
             customSelect.append('</optgroup>');
             warningEl.hide();
+        } else if (availableAtHour.length > 0) {
+            // Show providers available at nearest hour as a hint
+            customSelect.append('<optgroup label="<?php _e('Available at ' . '" + nearestHour + "' . ':', 'amelia-cpt-sync'); ?>">');
+            $.each(availableAtHour, function(i, p) {
+                customSelect.append('<option value="' + p.provider_id + '">' + p.provider_name + ' (at ' + nearestHour + ')</option>');
+            });
+            customSelect.append('</optgroup>');
+            
+            // Show warning that exact time has no match
+            if (!warningEl.length) {
+                $('#custom-provider-select').after('<p id="custom-time-warning" class="warning-text" style="color:#F59E0B; font-size:12px; margin-top:5px;"><?php _e('ℹ️ No exact slot at this time. Providers shown are available at nearest hour.', 'amelia-cpt-sync'); ?></p>');
+            } else {
+                warningEl.css('color', '#F59E0B').html('<?php _e('ℹ️ No exact slot at this time. Providers shown are available at nearest hour.', 'amelia-cpt-sync'); ?>').show();
+            }
         } else {
-            // No providers available - show warning
+            // No availability at all - show warning
             if (!warningEl.length) {
                 $('#custom-provider-select').after('<p id="custom-time-warning" class="warning-text" style="color:#DC3545; font-size:12px; margin-top:5px;"><?php _e('⚠️ No availability at this time. Select a provider to force book.', 'amelia-cpt-sync'); ?></p>');
             } else {
-                warningEl.show();
+                warningEl.css('color', '#DC3545').html('<?php _e('⚠️ No availability at this time. Select a provider to force book.', 'amelia-cpt-sync'); ?>').show();
             }
         }
         
-        // Add all providers (for force booking)
+        // Always add ALL providers for force booking option
         if (artDetailData.providers) {
-            customSelect.append('<optgroup label="<?php _e('All Providers (Force Book):', 'amelia-cpt-sync'); ?>">');
+            // Get IDs already shown
+            var shownIds = [];
+            availableAtTime.forEach(function(p) { shownIds.push(p.provider_id); });
+            availableAtHour.forEach(function(p) { shownIds.push(p.provider_id); });
+            
+            // Add remaining providers
+            var hasOthers = false;
             $.each(artDetailData.providers, function(id, name) {
-                // Check if already in available list
-                var isAvailable = availableAtTime.some(function(p) { return p.provider_id == id; });
-                if (!isAvailable) {
+                if (shownIds.indexOf(parseInt(id)) === -1) {
+                    if (!hasOthers) {
+                        customSelect.append('<optgroup label="<?php _e('Other Providers:', 'amelia-cpt-sync'); ?>">');
+                        hasOthers = true;
+                    }
                     customSelect.append('<option value="' + id + '">' + name + '</option>');
                 }
             });
-            customSelect.append('</optgroup>');
+            if (hasOthers) {
+                customSelect.append('</optgroup>');
+            }
         }
     }
     
