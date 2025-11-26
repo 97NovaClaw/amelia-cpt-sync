@@ -126,27 +126,27 @@ class Amelia_CPT_Sync_ART_API_Manager {
     }
     
     /**
-     * Get employees for a specific service (Phase 5)
-     * Uses /entities endpoint as per documentation
+     * Get employees (providers) for a specific service (Phase 5)
+     * Uses /users/providers endpoint as per Amelia API documentation
      *
-     * @param int $service_id Service ID
+     * @param int $service_id Service ID to filter by (optional)
      * @return array|WP_Error Array of employee objects
      */
-    public function get_service_employees($service_id) {
-        $cache_key = 'art_employees_service_' . $service_id;
+    public function get_service_employees($service_id = null) {
+        $cache_key = 'art_providers_service_' . ($service_id ?: 'all');
         
         // Try cache first
         $cached = get_transient($cache_key);
         if ($cached !== false) {
-            amelia_cpt_sync_debug_log('ART API: Using cached employees for service #' . $service_id);
+            amelia_cpt_sync_debug_log('ART API: Using cached providers for service #' . ($service_id ?: 'all'));
             return $cached;
         }
         
-        // Call API: /entities?types[]=employees&serviceId=X
-        // Note: 'types' param is an array, 'employees' is the type key
-        $endpoint = '/entities?types[]=employees';
+        // Call API: /users/providers?services[0]=X
+        // Per Amelia docs: services[] is an array filter
+        $endpoint = '/users/providers';
         if ($service_id) {
-            $endpoint .= '&serviceId=' . absint($service_id);
+            $endpoint .= '&services[0]=' . absint($service_id);
         }
         
         $response = $this->request($endpoint, 'GET');
@@ -155,10 +155,10 @@ class Amelia_CPT_Sync_ART_API_Manager {
             return $response;
         }
         
-        // Response structure: data.employees
-        $employees = $response['data']['employees'] ?? array();
+        // Response structure: data.users (array of provider objects)
+        $employees = $response['data']['users'] ?? array();
         
-        amelia_cpt_sync_debug_log('ART API: Fetched ' . count($employees) . ' employees for service #' . $service_id);
+        amelia_cpt_sync_debug_log('ART API: Fetched ' . count($employees) . ' providers for service #' . ($service_id ?: 'all'));
         
         // Cache for 1 hour
         set_transient($cache_key, $employees, HOUR_IN_SECONDS);

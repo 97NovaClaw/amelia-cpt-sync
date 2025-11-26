@@ -1032,20 +1032,38 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         // Process slots for frontend display
         $formatted_slots = array();
         
+        // Debug: Log raw slots structure
+        amelia_cpt_sync_debug_log('ART Slots: Raw structure sample', array(
+            'total_dates' => count($result['slots'] ?? array()),
+            'first_date_sample' => array_slice($result['slots'] ?? array(), 0, 1, true)
+        ));
+        
         foreach ($result['slots'] as $date => $times) {
             foreach ($times as $time => $providers) {
                 // providers is an array of [providerId, locationId] pairs
                 foreach ($providers as $provider_info) {
+                    // Skip slots without valid provider
+                    if (empty($provider_info[0])) {
+                        amelia_cpt_sync_debug_log('ART Slots: Skipping slot without provider', array(
+                            'date' => $date,
+                            'time' => $time,
+                            'raw_provider_info' => $provider_info
+                        ));
+                        continue;
+                    }
+                    
                     $formatted_slots[] = array(
                         'date' => $date,
                         'time' => $time,
                         'datetime' => $date . ' ' . $time,
-                        'provider_id' => $provider_info[0] ?? null,
-                        'location_id' => $provider_info[1] ?? null
+                        'provider_id' => intval($provider_info[0]),
+                        'location_id' => isset($provider_info[1]) ? intval($provider_info[1]) : 0
                     );
                 }
             }
         }
+        
+        amelia_cpt_sync_debug_log('ART Slots: Formatted ' . count($formatted_slots) . ' slots');
         
         wp_send_json_success(array(
             'slots' => $formatted_slots,

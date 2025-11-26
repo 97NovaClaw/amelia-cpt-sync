@@ -2210,12 +2210,24 @@ jQuery(document).ready(function($) {
         $('#selected-provider-id').val(slot.provider_id);
         $('#selected-location-id').val(slot.location_id);
         
+        // Get provider name
+        var providerName = (artDetailData.providers && artDetailData.providers[slot.provider_id]) 
+            ? artDetailData.providers[slot.provider_id] 
+            : 'Provider #' + slot.provider_id;
+        
+        // Get location name
+        var locationName = 'Default';
+        if (slot.location_id && $('#pillar-location option[value="' + slot.location_id + '"]').length) {
+            locationName = $('#pillar-location option[value="' + slot.location_id + '"]').text();
+        }
+        
         // Build summary
         var summary = 
             '<div style="color: #2C3E50;">' +
+            '<strong style="font-size:14px;">Booking Summary:</strong><br>' +
             '<strong>Date & Time:</strong> ' + slot.date + ' at ' + timeDisplay + '<br>' +
-            '<strong>Provider:</strong> Provider #' + slot.provider_id + '<br>' +
-            '<strong>Location:</strong> Location #' + (slot.location_id || 'Default') +
+            '<strong>Provider:</strong> ' + providerName + '<br>' +
+            '<strong>Location:</strong> ' + locationName +
             '</div>';
         
         $('#slot-summary').html(summary);
@@ -2319,6 +2331,96 @@ jQuery(document).ready(function($) {
     // CUSTOM TIME OVERRIDE
     // ========================================================================
     
+    /**
+     * Find providers available at a specific date/time from availability data
+     */
+    function findProvidersAtTime(dateStr, timeStr) {
+        if (!availabilityData || !dateStr || !timeStr) return [];
+        
+        var found = [];
+        // Convert timeStr (HH:mm) to match slot.time format (HH:mm or H:mm)
+        var normalizedTime = timeStr.replace(/^0/, ''); // "08:30" -> "8:30" for matching
+        
+        $.each(availabilityData, function(i, slot) {
+            if (slot.date === dateStr) {
+                // Compare times (both with and without leading zero)
+                if (slot.time === timeStr || slot.time === normalizedTime) {
+                    found.push({
+                        provider_id: slot.provider_id,
+                        provider_name: (artDetailData.providers && artDetailData.providers[slot.provider_id]) 
+                            ? artDetailData.providers[slot.provider_id] 
+                            : 'Provider #' + slot.provider_id,
+                        location_id: slot.location_id
+                    });
+                }
+            }
+        });
+        
+        return found;
+    }
+    
+    /**
+     * Update custom provider dropdown based on entered time
+     */
+    function updateCustomProviderDropdown() {
+        var activeDateBtn = $('#picker-dates-list .art-picker-date-btn.active');
+        if (!activeDateBtn.length) return;
+        
+        var dateStr = activeDateBtn.data('date');
+        var timeStr = $('#custom-time-input').val();
+        
+        var customSelect = $('#custom-provider-select');
+        var warningEl = $('#custom-time-warning');
+        
+        // If no time entered, show all providers
+        if (!timeStr) {
+            warningEl.hide();
+            return;
+        }
+        
+        // Find which providers are available at this custom time
+        var availableAtTime = findProvidersAtTime(dateStr, timeStr);
+        
+        // Reset dropdown and rebuild with availability info
+        customSelect.empty();
+        customSelect.append('<option value=""><?php _e('-- Select Provider --', 'amelia-cpt-sync'); ?></option>');
+        
+        if (availableAtTime.length > 0) {
+            // Show available providers first (highlighted)
+            customSelect.append('<optgroup label="<?php _e('Available at this time:', 'amelia-cpt-sync'); ?>">');
+            $.each(availableAtTime, function(i, p) {
+                customSelect.append('<option value="' + p.provider_id + '" class="available">' + p.provider_name + ' ✓</option>');
+            });
+            customSelect.append('</optgroup>');
+            warningEl.hide();
+        } else {
+            // No providers available - show warning
+            if (!warningEl.length) {
+                $('#custom-provider-select').after('<p id="custom-time-warning" class="warning-text" style="color:#DC3545; font-size:12px; margin-top:5px;"><?php _e('⚠️ No availability at this time. Select a provider to force book.', 'amelia-cpt-sync'); ?></p>');
+            } else {
+                warningEl.show();
+            }
+        }
+        
+        // Add all providers (for force booking)
+        if (artDetailData.providers) {
+            customSelect.append('<optgroup label="<?php _e('All Providers (Force Book):', 'amelia-cpt-sync'); ?>">');
+            $.each(artDetailData.providers, function(id, name) {
+                // Check if already in available list
+                var isAvailable = availableAtTime.some(function(p) { return p.provider_id == id; });
+                if (!isAvailable) {
+                    customSelect.append('<option value="' + id + '">' + name + '</option>');
+                }
+            });
+            customSelect.append('</optgroup>');
+        }
+    }
+    
+    // Update provider dropdown when custom time changes
+    $('#custom-time-input').on('change input', function() {
+        updateCustomProviderDropdown();
+    });
+    
     // When "Use Custom Time" is clicked
     $('#btn-use-custom-time').on('click', function() {
         // Get date
@@ -2350,10 +2452,14 @@ jQuery(document).ready(function($) {
         var ampm = hour >= 12 ? 'PM' : 'AM';
         var hour12 = hour % 12;
         hour12 = hour12 ? hour12 : 12;
-        var timeDisplay = hour12 + ':' + min + ' ' + ampm + ' (Custom)';
+        var timeDisplay = hour12 + ':' + min + ' ' + ampm;
+        
+        // Check if this is a force booking (not in available slots)
+        var availableAtTime = findProvidersAtTime(dateStr, timeStr);
+        var isForced = !availableAtTime.some(function(p) { return p.provider_id == providerId; });
         
         // Get Provider Name
-        var providerName = $('#custom-provider-select option:selected').text();
+        var providerName = $('#custom-provider-select option:selected').text().replace(' ✓', '');
         
         // Construct custom slot object
         var slot = {
@@ -2361,12 +2467,16 @@ jQuery(document).ready(function($) {
             time: timeStr,
             datetime: dateStr + ' ' + timeStr,
             provider_id: providerId,
-            location_id: $('#pillar-location').val() || 0 // Use location from pillars
+            location_id: $('#pillar-location').val() || 0
         };
         
         // Update UI
         $('.art-time-btn').removeClass('active'); // Deselect grid
-        selectSlot(slot, timeDisplay + ' with ' + providerName);
+        var displayLabel = timeDisplay + ' with ' + providerName;
+        if (isForced) {
+            displayLabel += ' (FORCED)';
+        }
+        selectSlot(slot, displayLabel);
     });
     
     // Enable custom time inputs when date is selected (Updated renderFilteredDates)
@@ -2445,9 +2555,12 @@ jQuery(document).ready(function($) {
     // ========================================================================
     
     // Fetch employees for the current service
-    function fetchServiceEmployees() {
+    function fetchServiceEmployees(callback) {
         var serviceId = $('#pillar-service').val();
-        if (!serviceId) return;
+        if (!serviceId) {
+            if (callback) callback();
+            return;
+        }
         
         $.post(ajaxurl, {
             action: 'art_get_service_employees',
@@ -2457,6 +2570,7 @@ jQuery(document).ready(function($) {
             if (response.success) {
                 // Store the map: ID -> Name
                 artDetailData.providers = response.data.provider_map;
+                console.log('ART: Loaded providers', artDetailData.providers);
                 
                 // Update Custom Time Dropdown
                 var customSelect = $('#custom-provider-select');
@@ -2479,7 +2593,19 @@ jQuery(document).ready(function($) {
                 if (currentVal && currentVal !== 'all') {
                     filterSelect.val(currentVal);
                 }
+                
+                // If availability data exists, re-render with correct names
+                if (availabilityData && availabilityData.length > 0) {
+                    var activeDate = $('#picker-dates-list .art-picker-date-btn.active').data('date');
+                    if (activeDate) {
+                        // Re-render dates and times with new provider names
+                        var selectedFilter = $('#filter-provider').val() || 'all';
+                        renderFilteredDates(selectedFilter);
+                    }
+                }
             }
+            
+            if (callback) callback();
         });
     }
     
