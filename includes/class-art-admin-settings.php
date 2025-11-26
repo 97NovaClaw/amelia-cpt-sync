@@ -44,6 +44,9 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         add_action('wp_ajax_art_get_service_duration', array($this, 'ajax_get_service_duration'));
         add_action('wp_ajax_art_check_availability', array($this, 'ajax_check_availability'));
         add_action('wp_ajax_art_create_booking', array($this, 'ajax_create_booking'));
+        
+        // Phase 5B: Availability Engine
+        add_action('wp_ajax_art_check_provider_availability', array($this, 'ajax_check_provider_availability'));
     }
     
     /**
@@ -1092,20 +1095,38 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             'dates_available' => array_keys($raw_slots)
         ));
         
-        // Log specific date for debugging (today and tomorrow)
+        // Log specific dates for debugging
         $today = gmdate('Y-m-d');
         $tomorrow = gmdate('Y-m-d', strtotime('+1 day'));
+        $day_after = gmdate('Y-m-d', strtotime('+2 days'));
+        
+        // Log today
         if (isset($raw_slots[$today])) {
-            amelia_cpt_sync_debug_log('ART Slots: Today (' . $today . ') times', array_keys($raw_slots[$today]));
+            amelia_cpt_sync_debug_log('ART Slots: Today (' . $today . ') - ' . count($raw_slots[$today]) . ' time slots', array_keys($raw_slots[$today]));
         }
+        
+        // Log tomorrow
         if (isset($raw_slots[$tomorrow])) {
-            amelia_cpt_sync_debug_log('ART Slots: Tomorrow (' . $tomorrow . ') times', array_keys($raw_slots[$tomorrow]));
+            amelia_cpt_sync_debug_log('ART Slots: Tomorrow (' . $tomorrow . ') - ' . count($raw_slots[$tomorrow]) . ' time slots', array_keys($raw_slots[$tomorrow]));
+        }
+        
+        // Log day after tomorrow (Nov 28)
+        if (isset($raw_slots[$day_after])) {
+            $times_for_day = array_keys($raw_slots[$day_after]);
+            amelia_cpt_sync_debug_log('ART Slots: Day after (' . $day_after . ') - ' . count($times_for_day) . ' time slots', $times_for_day);
             
-            // Log provider details for early morning slots (to debug the 6am issue)
-            foreach (array('5:00', '6:00', '7:00', '05:00', '06:00', '07:00') as $check_time) {
-                if (isset($raw_slots[$tomorrow][$check_time])) {
-                    amelia_cpt_sync_debug_log('ART Slots: ' . $tomorrow . ' @ ' . $check_time . ' providers', $raw_slots[$tomorrow][$check_time]);
-                }
+            // Log ALL providers for this day
+            foreach ($raw_slots[$day_after] as $time => $providers) {
+                amelia_cpt_sync_debug_log('ART Slots: ' . $day_after . ' @ ' . $time . ' has ' . count($providers) . ' providers', $providers);
+            }
+        }
+        
+        // Also log a specific date if provided in params (for debugging)
+        $debug_date = '2025-11-28';
+        if (isset($raw_slots[$debug_date])) {
+            amelia_cpt_sync_debug_log('ART Slots DEBUG: ' . $debug_date . ' ALL times', array_keys($raw_slots[$debug_date]));
+            foreach ($raw_slots[$debug_date] as $time => $providers) {
+                amelia_cpt_sync_debug_log('ART Slots DEBUG: ' . $debug_date . ' @ ' . $time, $providers);
             }
         }
         
@@ -1293,6 +1314,91 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             'booking_id' => $booking_id,
             'appointment_id' => $appointment_id,
             'amelia_customer_id' => $amelia_customer_id
+        ));
+    }
+    
+    /**
+     * AJAX: Check provider availability using Availability Engine (Phase 5B)
+     * 
+     * This uses the custom Availability Engine for detailed provider-level checks
+     * including working hours, appointments, buffers, etc.
+     */
+    public function ajax_check_provider_availability() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        // Get parameters
+        $date = sanitize_text_field($_POST['date'] ?? '');
+        $time = sanitize_text_field($_POST['time'] ?? '');
+        $service_id = absint($_POST['service_id'] ?? 0);
+        $duration = absint($_POST['duration'] ?? 0);
+        $location_id = !empty($_POST['location_id']) ? absint($_POST['location_id']) : null;
+        
+        // Validate required fields
+        if (empty($date)) {
+            wp_send_json_error(array('message' => __('Date is required', 'amelia-cpt-sync')));
+        }
+        
+        if (empty($time)) {
+            wp_send_json_error(array('message' => __('Time is required', 'amelia-cpt-sync')));
+        }
+        
+        if (!$service_id) {
+            wp_send_json_error(array('message' => __('Service is required', 'amelia-cpt-sync')));
+        }
+        
+        if (!$duration) {
+            wp_send_json_error(array('message' => __('Duration is required', 'amelia-cpt-sync')));
+        }
+        
+        amelia_cpt_sync_debug_log('Availability Engine AJAX: Starting check', array(
+            'date' => $date,
+            'time' => $time,
+            'service_id' => $service_id,
+            'duration' => $duration,
+            'location_id' => $location_id
+        ));
+        
+        // Run availability engine
+        $engine = new Amelia_CPT_Sync_ART_Availability_Engine();
+        $result = $engine->check_availability($date, $time, $service_id, $duration, $location_id);
+        
+        if (is_wp_error($result)) {
+            amelia_cpt_sync_debug_log('Availability Engine AJAX: Error - ' . $result->get_error_message());
+            
+            // Fallback: return all providers as force-book with warning
+            $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
+            $providers = $api_manager->get_service_employees($service_id);
+            
+            $fallback_providers = array();
+            if (!is_wp_error($providers)) {
+                foreach ($providers as $p) {
+                    $fallback_providers[] = array(
+                        'id' => $p['id'],
+                        'name' => trim(($p['firstName'] ?? '') . ' ' . ($p['lastName'] ?? '')),
+                        'status' => 'force_book',
+                        'conflicts' => array()
+                    );
+                }
+            }
+            
+            wp_send_json_success(array(
+                'error' => true,
+                'message' => __('Availability check failed. Please verify manually in Amelia calendar.', 'amelia-cpt-sync'),
+                'providers' => $fallback_providers
+            ));
+        }
+        
+        amelia_cpt_sync_debug_log('Availability Engine AJAX: Success', array(
+            'total_providers' => count($result)
+        ));
+        
+        wp_send_json_success(array(
+            'providers' => $result,
+            'error' => false
         ));
     }
 }

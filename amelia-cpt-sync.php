@@ -3,7 +3,7 @@
  * Plugin Name: Amelia Expansion Suite
  * Plugin URI: https://github.com/97NovaClaw/amelia-cpt-sync
  * Description: Complete Amelia integration suite: CPT Sync, Dynamic Popups, and Request Triage System
- * Version: 2.10.1
+ * Version: 2.10.3
  * Author: 97NovaClaw
  * Author URI: https://github.com/97NovaClaw
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('WPINC')) {
 /**
  * Current plugin version.
  */
-define('AMELIA_CPT_SYNC_VERSION', '2.10.1');
+define('AMELIA_CPT_SYNC_VERSION', '2.11.0');
 define('AMELIA_CPT_SYNC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AMELIA_CPT_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -142,6 +142,8 @@ require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-jetformbuilder-par
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-hook-handler.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-request-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-api-manager.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-availability-settings.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-availability-engine.php';
 
 /**
  * Initialize the plugin
@@ -155,6 +157,10 @@ function run_amelia_cpt_sync() {
         // Initialize ART module admin settings
         $art_admin_settings = new Amelia_CPT_Sync_ART_Admin_Settings();
         $art_admin_settings->init();
+        
+        // Initialize ART Availability Engine settings
+        $art_availability_settings = new Amelia_CPT_Sync_ART_Availability_Settings();
+        $art_availability_settings->init();
     }
     
     // Initialize ART hook handler (runs on both frontend and backend)

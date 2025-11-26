@@ -1138,6 +1138,50 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     color: #64748B;
 }
 
+.provider-item .provider-conflicts {
+    font-size: 10px;
+    color: #94A3B8;
+    margin-top: 2px;
+    line-height: 1.3;
+}
+
+.provider-group.warning .provider-item .provider-conflicts {
+    color: #B45309;
+}
+
+.provider-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 30px 15px;
+    color: #64748B;
+    font-size: 13px;
+}
+
+.provider-loading .dashicons {
+    margin-right: 8px;
+}
+
+.provider-loading .dashicons.spin {
+    animation: spin 1s linear infinite;
+}
+
+.provider-error {
+    padding: 15px;
+    color: #DC3545;
+    font-size: 13px;
+    text-align: center;
+}
+
+.provider-warning {
+    padding: 8px 12px;
+    background: #FFF3CD;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: #856404;
+}
+
 .provider-item .provider-check {
     width: 20px;
     height: 20px;
@@ -2934,10 +2978,20 @@ jQuery(document).ready(function($) {
             return a.direction === 'before' ? -1 : 1;
         });
         
+        // Debug: Show all available times for this date
+        var allTimesForDate = [];
+        $.each(availabilityData, function(i, slot) {
+            if (slot.date === dateStr && allTimesForDate.indexOf(slot.time) === -1) {
+                allTimesForDate.push(slot.time);
+            }
+        });
+        allTimesForDate.sort();
+        
         console.log('ART: findNearestAvailableSlots', {
             dateStr: dateStr,
             requestedTime: requestedTime,
             reqMinutes: reqMinutes,
+            allTimesForDate: allTimesForDate,
             totalNearby: nearbySlots.length,
             returning: result.length
         });
@@ -2947,8 +3001,10 @@ jQuery(document).ready(function($) {
     
     /**
      * Update provider list column based on entered time
+     * Uses the Availability Engine for detailed availability checking
      */
     var selectedProviderId = null;
+    var availabilityEngineEnabled = true; // Set to false to use old slots-based logic
     
     function updateProviderList() {
         var activeDateBtn = $('#picker-dates-list .art-picker-date-btn.active');
@@ -2981,6 +3037,157 @@ jQuery(document).ready(function($) {
             return;
         }
         
+        // Use Availability Engine if enabled
+        if (availabilityEngineEnabled) {
+            checkProviderAvailabilityEngine(dateStr, timeStr);
+            return;
+        }
+        
+        // Fallback to old slots-based logic
+        updateProviderListFromSlots(dateStr, timeStr);
+    }
+    
+    /**
+     * Check provider availability using the Availability Engine
+     */
+    function checkProviderAvailabilityEngine(dateStr, timeStr) {
+        var providerList = $('#provider-list');
+        var serviceId = $('#pillar-service').val();
+        var duration = $('#pillar-duration-hidden').val() || artDetailData.serviceDuration || 3600;
+        var locationId = $('#pillar-location').val() || 0;
+        
+        if (!serviceId) {
+            providerList.html('<div class="provider-placeholder"><?php _e('Select a service first', 'amelia-cpt-sync'); ?></div>');
+            return;
+        }
+        
+        // Show loading state
+        providerList.html(
+            '<div class="provider-loading">' +
+                '<span class="dashicons dashicons-update spin"></span> ' +
+                '<?php _e('Checking availability...', 'amelia-cpt-sync'); ?>' +
+            '</div>'
+        );
+        
+        // Call Availability Engine AJAX
+        $.ajax({
+            url: ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'art_check_provider_availability',
+                nonce: artDetailData.nonce,
+                date: dateStr,
+                time: timeStr,
+                service_id: serviceId,
+                duration: duration,
+                location_id: locationId
+            },
+            success: function(response) {
+                if (response.success) {
+                    renderAvailabilityEngineResults(response.data.providers, response.data.error, response.data.message);
+                } else {
+                    providerList.html(
+                        '<div class="provider-error">' +
+                            '<span class="dashicons dashicons-warning"></span> ' +
+                            (response.data.message || '<?php _e('Error checking availability', 'amelia-cpt-sync'); ?>') +
+                        '</div>'
+                    );
+                }
+            },
+            error: function() {
+                providerList.html(
+                    '<div class="provider-error">' +
+                        '<span class="dashicons dashicons-warning"></span> ' +
+                        '<?php _e('Network error. Please try again.', 'amelia-cpt-sync'); ?>' +
+                    '</div>'
+                );
+            }
+        });
+    }
+    
+    /**
+     * Render results from Availability Engine
+     */
+    function renderAvailabilityEngineResults(providers, hasError, errorMessage) {
+        var providerList = $('#provider-list');
+        var html = '';
+        
+        // Show warning if there was an error
+        if (hasError && errorMessage) {
+            html += '<div class="provider-warning" style="padding: 8px; background: #fff3cd; border-radius: 4px; margin-bottom: 10px; font-size: 12px;">' +
+                '<span class="dashicons dashicons-warning" style="color: #856404;"></span> ' +
+                errorMessage +
+            '</div>';
+        }
+        
+        // Group providers by status
+        var available = providers.filter(function(p) { return p.status === 'available'; });
+        var mightConflict = providers.filter(function(p) { return p.status === 'might_conflict'; });
+        var forceBook = providers.filter(function(p) { return p.status === 'force_book' || p.status === 'not_available'; });
+        
+        // Render Available providers
+        if (available.length > 0) {
+            html += '<div class="provider-group">';
+            html += '<div class="provider-group-label available"><?php _e('✓ Available', 'amelia-cpt-sync'); ?></div>';
+            $.each(available, function(i, p) {
+                html += buildProviderItemWithConflicts(p.id, p.name, getInitials(p.name), '<?php _e('Available', 'amelia-cpt-sync'); ?>', []);
+            });
+            html += '</div>';
+        }
+        
+        // Render Might Conflict providers
+        if (mightConflict.length > 0) {
+            html += '<div class="provider-group">';
+            html += '<div class="provider-group-label warning"><?php _e('⚠️ Might Conflict', 'amelia-cpt-sync'); ?></div>';
+            $.each(mightConflict, function(i, p) {
+                html += buildProviderItemWithConflicts(p.id, p.name, getInitials(p.name), '<?php _e('Might Conflict', 'amelia-cpt-sync'); ?>', p.conflicts || []);
+            });
+            html += '</div>';
+        }
+        
+        // Render Force Book providers
+        if (forceBook.length > 0) {
+            html += '<div class="provider-group">';
+            html += '<div class="provider-group-label force"><?php _e('Force Book', 'amelia-cpt-sync'); ?></div>';
+            $.each(forceBook, function(i, p) {
+                var conflictText = (p.conflicts && p.conflicts.length > 0) ? p.conflicts.join(', ') : '';
+                html += buildProviderItemWithConflicts(p.id, p.name, getInitials(p.name), '<?php _e('Override', 'amelia-cpt-sync'); ?>', p.conflicts || []);
+            });
+            html += '</div>';
+        }
+        
+        if (html === '' || providers.length === 0) {
+            html = '<div class="provider-placeholder"><?php _e('No providers available for this service', 'amelia-cpt-sync'); ?></div>';
+        }
+        
+        providerList.html(html);
+    }
+    
+    /**
+     * Build provider item with conflict details
+     */
+    function buildProviderItemWithConflicts(id, name, initials, status, conflicts) {
+        var conflictHtml = '';
+        if (conflicts && conflicts.length > 0) {
+            conflictHtml = '<div class="provider-conflicts">' + conflicts.join('<br>') + '</div>';
+        }
+        
+        return '<div class="provider-item" data-provider-id="' + id + '">' +
+            '<div class="provider-avatar">' + initials + '</div>' +
+            '<div class="provider-info">' +
+                '<div class="provider-name">' + name + '</div>' +
+                '<div class="provider-status">' + status + '</div>' +
+                conflictHtml +
+            '</div>' +
+            '<div class="provider-check"><span class="dashicons dashicons-yes"></span></div>' +
+        '</div>';
+    }
+    
+    /**
+     * Fallback: Update provider list from slots data (old logic)
+     */
+    function updateProviderListFromSlots(dateStr, timeStr) {
+        var providerList = $('#provider-list');
         var html = '';
         var shownIds = [];
         
