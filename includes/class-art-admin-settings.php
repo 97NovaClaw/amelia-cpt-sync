@@ -47,6 +47,10 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         
         // Phase 5B: Availability Engine
         add_action('wp_ajax_art_check_provider_availability', array($this, 'ajax_check_provider_availability'));
+        
+        // Booking management
+        add_action('wp_ajax_art_reschedule_booking', array($this, 'ajax_reschedule_booking'));
+        add_action('wp_ajax_art_delete_booking', array($this, 'ajax_delete_booking'));
     }
     
     /**
@@ -1297,17 +1301,33 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $appointment_id = $result['data']['appointment']['id'] ?? null;
         $amelia_customer_id = $result['data']['customer']['id'] ?? null;
         
-        // Update request with Amelia IDs and change status to 'booked'
+        // Update request status to 'booked'
         $wpdb->update(
             $requests_table,
             array(
                 'status_key' => 'booked',
+                'booked_at' => current_time('mysql', 1)
+            ),
+            array('id' => $request_id),
+            array('%s', '%s'),
+            array('%d')
+        );
+        
+        // Store the booking link in art_booking_links table
+        $booking_links_table = $wpdb->prefix . 'art_booking_links';
+        
+        // First, delete any existing booking links for this request
+        $wpdb->delete($booking_links_table, array('request_id' => $request_id), array('%d'));
+        
+        // Insert new booking link
+        $wpdb->insert(
+            $booking_links_table,
+            array(
+                'request_id' => $request_id,
                 'amelia_booking_id' => $booking_id,
                 'amelia_appointment_id' => $appointment_id
             ),
-            array('id' => $request_id),
-            array('%s', '%d', '%d'),
-            array('%d')
+            array('%d', '%d', '%d')
         );
         
         // Update customer with Amelia customer ID if available
@@ -1323,11 +1343,74 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         
         amelia_cpt_sync_debug_log('ART: Successfully created Amelia booking #' . $booking_id . ' for request #' . $request_id);
         
+        // Get service and category names from Amelia API
+        $api_manager_for_names = new Amelia_CPT_Sync_ART_API_Manager();
+        
+        $service_name = '';
+        $category_name = '';
+        
+        // Get service details (includes category)
+        $service_details = $api_manager_for_names->get_service($request->service_id);
+        if (!is_wp_error($service_details) && !empty($service_details['name'])) {
+            $service_name = $service_details['name'];
+            
+            // Try to get category from service
+            if (!empty($service_details['categoryId'])) {
+                $categories = $api_manager_for_names->get_categories();
+                if (!is_wp_error($categories)) {
+                    foreach ($categories as $cat) {
+                        if (intval($cat['id']) === intval($service_details['categoryId'])) {
+                            $category_name = $cat['name'];
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Get provider name from the selected provider
+        $provider_name = '';
+        $providers = $api_manager_for_names->get_service_employees($request->service_id);
+        if (!is_wp_error($providers)) {
+            foreach ($providers as $p) {
+                if (intval($p['id']) === intval($selected_provider_id)) {
+                    $provider_name = trim(($p['firstName'] ?? '') . ' ' . ($p['lastName'] ?? ''));
+                    break;
+                }
+            }
+        }
+        
+        // Get location name
+        $location_name = '';
+        if ($request->location_id) {
+            $locations = $api_manager_for_names->get_locations();
+            if (!is_wp_error($locations)) {
+                foreach ($locations as $loc) {
+                    if (intval($loc['id']) === intval($request->location_id)) {
+                        $location_name = $loc['name'];
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Format datetime for human-readable display
+        $booking_timestamp = strtotime($selected_slot_datetime);
+        $formatted_date = date('l, F jS, Y', $booking_timestamp); // e.g., "Friday, November 17th, 2025"
+        $formatted_time = date('h:i A', $booking_timestamp); // e.g., "02:00 AM"
+        
         wp_send_json_success(array(
             'message' => 'Booking created successfully!',
             'booking_id' => $booking_id,
             'appointment_id' => $appointment_id,
-            'amelia_customer_id' => $amelia_customer_id
+            'amelia_customer_id' => $amelia_customer_id,
+            'service_name' => $service_name,
+            'category_name' => $category_name,
+            'provider_name' => $provider_name,
+            'location_name' => $location_name,
+            'formatted_date' => $formatted_date,
+            'formatted_time' => $formatted_time,
+            'raw_datetime' => $selected_slot_datetime
         ));
     }
     
@@ -1413,6 +1496,157 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         wp_send_json_success(array(
             'providers' => $result,
             'error' => false
+        ));
+    }
+    
+    /**
+     * AJAX: Reschedule an existing Amelia booking
+     */
+    public function ajax_reschedule_booking() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $request_id = absint($_POST['request_id'] ?? 0);
+        $new_datetime = sanitize_text_field($_POST['new_datetime'] ?? '');
+        $new_provider_id = absint($_POST['new_provider_id'] ?? 0);
+        
+        if (!$request_id || !$new_datetime || !$new_provider_id) {
+            wp_send_json_error(array('message' => 'Missing required fields'));
+        }
+        
+        global $wpdb;
+        $requests_table = $wpdb->prefix . 'art_requests';
+        $booking_links_table = $wpdb->prefix . 'art_booking_links';
+        
+        // Get request data
+        $request = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $requests_table WHERE id = %d",
+            $request_id
+        ));
+        
+        if (!$request) {
+            wp_send_json_error(array('message' => 'Request not found'));
+        }
+        
+        // Get the active booking link
+        $booking_link = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $booking_links_table WHERE request_id = %d ORDER BY linked_at DESC LIMIT 1",
+            $request_id
+        ));
+        
+        if (!$booking_link || !$booking_link->amelia_appointment_id) {
+            wp_send_json_error(array('message' => 'No existing Amelia appointment to reschedule'));
+        }
+        
+        $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
+        
+        // Update the appointment with new datetime and provider
+        $update_data = array(
+            'bookingStart' => gmdate('Y-m-d H:i', strtotime($new_datetime)),
+            'providerId' => $new_provider_id,
+            'notifyParticipants' => 1
+        );
+        
+        // Add location if set
+        if (!empty($request->location_id) && $request->location_id > 0) {
+            $update_data['locationId'] = absint($request->location_id);
+        }
+        
+        $result = $api_manager->update_appointment($booking_link->amelia_appointment_id, $update_data);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(array('message' => 'Reschedule failed: ' . $result->get_error_message()));
+        }
+        
+        // Format datetime for response
+        $booking_timestamp = strtotime($new_datetime);
+        $formatted_date = date('l, F jS, Y', $booking_timestamp);
+        $formatted_time = date('h:i A', $booking_timestamp);
+        
+        // Get provider name
+        $provider_name = '';
+        $providers = $api_manager->get_service_employees($request->service_id);
+        if (!is_wp_error($providers)) {
+            foreach ($providers as $p) {
+                if (intval($p['id']) === intval($new_provider_id)) {
+                    $provider_name = trim(($p['firstName'] ?? '') . ' ' . ($p['lastName'] ?? ''));
+                    break;
+                }
+            }
+        }
+        
+        amelia_cpt_sync_debug_log('ART: Successfully rescheduled appointment #' . $booking_link->amelia_appointment_id);
+        
+        wp_send_json_success(array(
+            'message' => 'Booking rescheduled successfully!',
+            'appointment_id' => $booking_link->amelia_appointment_id,
+            'booking_id' => $booking_link->amelia_booking_id,
+            'formatted_date' => $formatted_date,
+            'formatted_time' => $formatted_time,
+            'provider_name' => $provider_name,
+            'raw_datetime' => $new_datetime
+        ));
+    }
+    
+    /**
+     * AJAX: Delete an existing Amelia booking and create a new one
+     */
+    public function ajax_delete_booking() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $request_id = absint($_POST['request_id'] ?? 0);
+        
+        if (!$request_id) {
+            wp_send_json_error(array('message' => 'Request ID is required'));
+        }
+        
+        global $wpdb;
+        $requests_table = $wpdb->prefix . 'art_requests';
+        $booking_links_table = $wpdb->prefix . 'art_booking_links';
+        
+        // Get the active booking link
+        $booking_link = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $booking_links_table WHERE request_id = %d ORDER BY linked_at DESC LIMIT 1",
+            $request_id
+        ));
+        
+        if (!$booking_link || !$booking_link->amelia_appointment_id) {
+            wp_send_json_error(array('message' => 'No existing Amelia appointment to delete'));
+        }
+        
+        $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
+        
+        // Delete the appointment from Amelia
+        $result = $api_manager->delete_appointment($booking_link->amelia_appointment_id);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(array('message' => 'Delete failed: ' . $result->get_error_message()));
+        }
+        
+        // Remove the booking link
+        $wpdb->delete($booking_links_table, array('request_id' => $request_id), array('%d'));
+        
+        // Update request status back to tentative
+        $wpdb->update(
+            $requests_table,
+            array('status_key' => 'tentative'),
+            array('id' => $request_id),
+            array('%s'),
+            array('%d')
+        );
+        
+        amelia_cpt_sync_debug_log('ART: Successfully deleted appointment #' . $booking_link->amelia_appointment_id . ' for request #' . $request_id);
+        
+        wp_send_json_success(array(
+            'message' => 'Previous booking deleted. You can now create a new booking.',
+            'deleted_appointment_id' => $booking_link->amelia_appointment_id
         ));
     }
 }

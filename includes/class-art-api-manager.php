@@ -126,6 +126,38 @@ class Amelia_CPT_Sync_ART_API_Manager {
     }
     
     /**
+     * Get all service categories (Phase 5)
+     *
+     * @return array|WP_Error Array of categories or error
+     */
+    public function get_categories() {
+        $cache_key = 'art_amelia_categories';
+        
+        // Try cache first
+        $cached = get_transient($cache_key);
+        if ($cached !== false) {
+            amelia_cpt_sync_debug_log('ART API: Using cached categories');
+            return $cached;
+        }
+        
+        // Call API
+        $response = $this->request('/entities?types=categories', 'GET');
+        
+        if (is_wp_error($response)) {
+            return $response;
+        }
+        
+        $categories = $response['data']['categories'] ?? array();
+        
+        amelia_cpt_sync_debug_log('ART API: Fetched ' . count($categories) . ' categories');
+        
+        // Cache for 1 hour
+        set_transient($cache_key, $categories, HOUR_IN_SECONDS);
+        
+        return $categories;
+    }
+    
+    /**
      * Get employees (providers) for a specific service (Phase 5)
      * Uses /users/providers endpoint as per Amelia API documentation
      *
@@ -385,6 +417,91 @@ class Amelia_CPT_Sync_ART_API_Manager {
         if ($booking_id) {
             amelia_cpt_sync_debug_log('ART API: Successfully created booking #' . $booking_id . ' (appointment #' . $appointment_id . ')');
         }
+        
+        return $response;
+    }
+    
+    /**
+     * Update an existing Amelia appointment (reschedule)
+     *
+     * @param int $appointment_id Amelia appointment ID
+     * @param array $update_data Data to update (bookingStart, providerId, locationId, etc.)
+     * @return array|WP_Error Response or error
+     */
+    public function update_appointment($appointment_id, $update_data) {
+        if (!$appointment_id) {
+            return new WP_Error('invalid_appointment', 'Appointment ID is required');
+        }
+        
+        amelia_cpt_sync_debug_log('ART API: Updating appointment #' . $appointment_id, $update_data);
+        
+        $response = $this->request('/appointments/' . absint($appointment_id), 'POST', $update_data);
+        
+        if (is_wp_error($response)) {
+            amelia_cpt_sync_debug_log('ART API: Update appointment failed - ' . $response->get_error_message());
+            return $response;
+        }
+        
+        amelia_cpt_sync_debug_log('ART API: Successfully updated appointment #' . $appointment_id);
+        
+        return $response;
+    }
+    
+    /**
+     * Delete an Amelia appointment
+     *
+     * @param int $appointment_id Amelia appointment ID
+     * @return array|WP_Error Response or error
+     */
+    public function delete_appointment($appointment_id) {
+        if (!$appointment_id) {
+            return new WP_Error('invalid_appointment', 'Appointment ID is required');
+        }
+        
+        amelia_cpt_sync_debug_log('ART API: Deleting appointment #' . $appointment_id);
+        
+        $response = $this->request('/appointments/delete/' . absint($appointment_id), 'POST');
+        
+        if (is_wp_error($response)) {
+            amelia_cpt_sync_debug_log('ART API: Delete appointment failed - ' . $response->get_error_message());
+            return $response;
+        }
+        
+        amelia_cpt_sync_debug_log('ART API: Successfully deleted appointment #' . $appointment_id);
+        
+        return $response;
+    }
+    
+    /**
+     * Update appointment status (cancel, approve, etc.)
+     *
+     * @param int $appointment_id Amelia appointment ID
+     * @param string $status New status (approved, pending, canceled, rejected, no-show)
+     * @return array|WP_Error Response or error
+     */
+    public function update_appointment_status($appointment_id, $status) {
+        if (!$appointment_id) {
+            return new WP_Error('invalid_appointment', 'Appointment ID is required');
+        }
+        
+        $valid_statuses = array('approved', 'pending', 'canceled', 'rejected', 'no-show');
+        if (!in_array($status, $valid_statuses, true)) {
+            return new WP_Error('invalid_status', 'Invalid status: ' . $status);
+        }
+        
+        amelia_cpt_sync_debug_log('ART API: Updating appointment #' . $appointment_id . ' status to ' . $status);
+        
+        $response = $this->request('/appointments/status/' . absint($appointment_id), 'POST', array(
+            'status' => $status,
+            'packageCustomerId' => null
+        ));
+        
+        if (is_wp_error($response)) {
+            amelia_cpt_sync_debug_log('ART API: Update status failed - ' . $response->get_error_message());
+            return $response;
+        }
+        
+        amelia_cpt_sync_debug_log('ART API: Successfully updated appointment #' . $appointment_id . ' status to ' . $status);
         
         return $response;
     }
