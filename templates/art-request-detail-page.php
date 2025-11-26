@@ -516,7 +516,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             
                             <!-- Date & Time Picker Container -->
                             <div class="art-picker-container <?php echo $show_timeslots_grid ? 'with-timegrid' : 'no-timegrid'; ?>">
-                                <!-- Left: Dates -->
+                                <!-- Column 1: Dates -->
                                 <div class="art-picker-dates" id="picker-dates-list">
                                     <!-- Dates will be injected here -->
                                     <div style="padding: 20px; text-align: center; color: #94A3B8;">
@@ -525,7 +525,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                 </div>
                                 
                                 <?php if ($show_timeslots_grid): ?>
-                                <!-- Middle: Times (optional - controlled by setting) -->
+                                <!-- Column 2: Times (optional - controlled by setting) -->
                                 <div class="art-picker-times">
                                     <div class="art-picker-times-header" id="picker-times-header">
                                         Select a date to see times
@@ -536,38 +536,39 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                 </div>
                                 <?php endif; ?>
                                 
-                                <!-- Right: Custom Time Entry -->
-                                <div class="art-picker-custom">
-                                    <div class="art-picker-custom-header">
-                                        <?php _e('Select Time & Provider', 'amelia-cpt-sync'); ?>
+                                <!-- Column: Time Entry -->
+                                <div class="art-picker-time-entry">
+                                    <div class="art-picker-column-header">
+                                        <?php _e('Select Time', 'amelia-cpt-sync'); ?>
                                     </div>
-                                    <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
-                                        <div>
-                                            <label for="custom-time-input" style="font-size: 12px; color: #64748b; display: block; margin-bottom: 6px;">
-                                                <?php _e('Enter Time', 'amelia-cpt-sync'); ?>
-                                            </label>
-                                            <input type="time" id="custom-time-input" class="form-input" style="width: 100%;" disabled>
+                                    <div class="art-picker-column-content">
+                                        <div class="time-entry-field">
+                                            <label for="custom-time-input"><?php _e('Enter Time', 'amelia-cpt-sync'); ?></label>
+                                            <input type="time" id="custom-time-input" class="form-input" disabled>
+                                            <p class="field-hint"><?php _e('Reference the calendar above', 'amelia-cpt-sync'); ?></p>
                                         </div>
-                                        
-                                        <!-- Provider Select -->
-                                        <div>
-                                            <label for="custom-provider-select" style="font-size: 12px; color: #64748b; display: block; margin-bottom: 6px;">
-                                                <?php _e('Assign Provider', 'amelia-cpt-sync'); ?>
-                                            </label>
-                                            <select id="custom-provider-select" class="form-select" style="width: 100%; font-size: 13px;" disabled>
-                                                <option value=""><?php _e('-- Select Provider --', 'amelia-cpt-sync'); ?></option>
-                                            </select>
-                                        </div>
-                                        
-                                        <button type="button" id="btn-use-custom-time" class="btn-secondary btn-small" style="width: 100%;" disabled>
-                                            <?php _e('Select This Time', 'amelia-cpt-sync'); ?>
-                                        </button>
-                                        
-                                        <p class="field-note" style="margin-top: auto; font-size: 11px; line-height: 1.4;">
-                                            <?php _e('Use the Amelia calendar above for visual reference, then enter your desired time here.', 'amelia-cpt-sync'); ?>
-                                        </p>
                                     </div>
                                 </div>
+                                
+                                <!-- Column: Provider Selection -->
+                                <div class="art-picker-providers">
+                                    <div class="art-picker-column-header">
+                                        <?php _e('Select Provider', 'amelia-cpt-sync'); ?>
+                                    </div>
+                                    <div class="art-provider-list" id="provider-list">
+                                        <div class="provider-placeholder">
+                                            <?php _e('Select a date and time first', 'amelia-cpt-sync'); ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Confirm Selection Button -->
+                            <div class="art-picker-confirm" id="picker-confirm-section" style="display: none;">
+                                <button type="button" id="btn-use-custom-time" class="btn-primary" disabled>
+                                    <span class="dashicons dashicons-yes-alt"></span>
+                                    <?php _e('Confirm Selection', 'amelia-cpt-sync'); ?>
+                                </button>
                             </div>
                             
                             <!-- Hidden inputs to store selection for booking logic -->
@@ -916,22 +917,17 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     margin-top: 16px;
 }
 
-/* 3-column layout (with time grid) */
+/* 4-column layout (with time grid): Dates | Time Grid | Time Entry | Providers */
 .art-picker-container.with-timegrid {
-    grid-template-columns: 200px 1fr 220px;
+    grid-template-columns: 180px 1fr 160px 200px;
 }
 
-/* 2-column layout (no time grid - default) */
+/* 3-column layout (no time grid - default): Dates | Time Entry | Providers */
 .art-picker-container.no-timegrid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 160px 220px;
 }
 
 .art-picker-container.no-timegrid .art-picker-dates {
-    max-height: 400px;
-}
-
-.art-picker-container.no-timegrid .art-picker-custom {
-    border-left: 1px solid #E0E5F1;
     max-height: 400px;
 }
 
@@ -976,17 +972,212 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     overflow-y: auto;
 }
 
-.art-picker-custom {
-    padding: 20px;
+/* Time Entry Column */
+.art-picker-time-entry {
+    padding: 16px;
     background: #F8FAFC;
     border-left: 1px solid #E0E5F1;
     display: flex;
     flex-direction: column;
-    gap: 12px;
 }
 
-.art-picker-times-header,
-.art-picker-custom-header {
+.art-picker-time-entry .time-entry-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.art-picker-time-entry label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #64748B;
+}
+
+.art-picker-time-entry input[type="time"] {
+    padding: 10px 12px;
+    font-size: 16px;
+    border: 1px solid #E0E5F1;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.art-picker-time-entry input[type="time"]:focus {
+    border-color: #1A84EE;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(26, 132, 238, 0.1);
+}
+
+.art-picker-time-entry .field-hint {
+    font-size: 11px;
+    color: #94A3B8;
+    margin: 0;
+}
+
+/* Provider Selection Column */
+.art-picker-providers {
+    background: #fff;
+    border-left: 1px solid #E0E5F1;
+    display: flex;
+    flex-direction: column;
+    max-height: 400px;
+}
+
+.art-picker-column-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1E293B;
+    padding: 12px 16px;
+    background: #F8FAFC;
+    border-bottom: 1px solid #E0E5F1;
+    flex-shrink: 0;
+}
+
+.art-picker-column-content {
+    padding: 16px;
+    flex: 1;
+}
+
+.art-provider-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.provider-placeholder {
+    padding: 20px;
+    text-align: center;
+    color: #94A3B8;
+    font-size: 13px;
+}
+
+/* Provider Item Styles */
+.provider-group {
+    margin-bottom: 12px;
+}
+
+.provider-group-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 6px 12px;
+    background: #F1F5F9;
+    border-radius: 4px;
+    margin-bottom: 6px;
+}
+
+.provider-group-label.available {
+    background: #DCFCE7;
+    color: #166534;
+}
+
+.provider-group-label.nearby {
+    background: #FEF3C7;
+    color: #92400E;
+}
+
+.provider-group-label.force {
+    background: #FEE2E2;
+    color: #991B1B;
+}
+
+.provider-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    margin: 4px 0;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: #fff;
+}
+
+.provider-item:hover {
+    background: #F8FAFC;
+    border-color: #E0E5F1;
+}
+
+.provider-item.selected {
+    background: #EFF6FF;
+    border-color: #1A84EE;
+}
+
+.provider-item .provider-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.provider-item .provider-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.provider-item .provider-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #1E293B;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.provider-item .provider-status {
+    font-size: 11px;
+    color: #64748B;
+}
+
+.provider-item .provider-check {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #E0E5F1;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+}
+
+.provider-item.selected .provider-check {
+    background: #1A84EE;
+    border-color: #1A84EE;
+    color: #fff;
+}
+
+.provider-item.selected .provider-check .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+}
+
+/* Confirm Button Section */
+.art-picker-confirm {
+    margin-top: 16px;
+    padding: 16px;
+    background: #F8FAFC;
+    border: 1px solid #E0E5F1;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.art-picker-confirm .btn-primary {
+    padding: 12px 24px;
+    font-size: 14px;
+}
+
+.art-picker-times-header {
     font-size: 14px;
     font-weight: 600;
     color: #1E293B;
@@ -1049,7 +1240,16 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     border-radius: 3px;
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 1200px) {
+    .art-picker-container.with-timegrid {
+        grid-template-columns: 180px 1fr 200px; /* Hide time grid on medium screens */
+    }
+    .art-picker-container.with-timegrid .art-picker-times {
+        display: none;
+    }
+}
+
+@media (max-width: 900px) {
     .art-picker-container.with-timegrid,
     .art-picker-container.no-timegrid {
         grid-template-columns: 1fr; /* Stack on smaller screens */
@@ -1060,11 +1260,17 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
         max-height: 200px;
     }
     .art-picker-times {
-        max-height: 300px;
-    }
-    .art-picker-custom {
+        max-height: 250px;
         border-left: none;
-        border-top: 1px solid #E0E5F1;
+        border-bottom: 1px solid #E0E5F1;
+    }
+    .art-picker-time-entry {
+        border-left: none;
+        border-bottom: 1px solid #E0E5F1;
+    }
+    .art-picker-providers {
+        border-left: none;
+        max-height: 300px;
     }
 }
 
@@ -2224,18 +2430,18 @@ jQuery(document).ready(function($) {
                     }
                 });
                 
-                // Populate Provider Filter AND Custom Provider Select
+                // Populate Provider Filter dropdown (for filtering the time grid)
                 var providerSelect = $('#filter-provider');
-                var customProviderSelect = $('#custom-provider-select');
                 
                 providerSelect.html('<option value="all">' + '<?php _e('All Available Employees', 'amelia-cpt-sync'); ?>' + '</option>');
-                customProviderSelect.html('<option value="">' + '<?php _e('-- Select Provider --', 'amelia-cpt-sync'); ?>' + '</option>');
                 
                 $.each(uniqueProviders, function(id, name) {
                     var option = '<option value="' + id + '">' + name + '</option>';
                     providerSelect.append(option);
-                    customProviderSelect.append(option);
                 });
+                
+                // Update provider list column (will show placeholder)
+                updateProviderList();
                 
                 // Helper to render dates (filtered)
                 function renderFilteredDates(providerFilter) {
@@ -2327,10 +2533,11 @@ jQuery(document).ready(function($) {
                         renderTimes(selectedDate, dateTimes);
                     }
                     
-                    // Enable Custom Time Inputs
+                    // Enable Time Input
                     $('#custom-time-input').prop('disabled', false);
-                    $('#custom-provider-select').prop('disabled', false);
-                    $('#btn-use-custom-time').prop('disabled', false);
+                    
+                    // Update provider list (will show placeholder until time is entered)
+                    updateProviderList();
                 });
                 
                 // Show results
@@ -2643,47 +2850,43 @@ jQuery(document).ready(function($) {
     }
     
     /**
-     * Update custom provider dropdown based on entered time
-     * Custom Time is for force-booking, so always show all providers
+     * Update provider list column based on entered time
      */
-    function updateCustomProviderDropdown() {
+    var selectedProviderId = null;
+    
+    function updateProviderList() {
         var activeDateBtn = $('#picker-dates-list .art-picker-date-btn.active');
-        var customSelect = $('#custom-provider-select');
-        var warningEl = $('#custom-time-warning');
+        var providerList = $('#provider-list');
+        var confirmSection = $('#picker-confirm-section');
         
         var providerCount = artDetailData.providers ? Object.keys(artDetailData.providers).length : 0;
         
-        console.log('ART: updateCustomProviderDropdown called', {
-            hasActiveDate: activeDateBtn.length > 0,
-            hasProviders: !!artDetailData.providers,
-            providerCount: providerCount,
-            providers: artDetailData.providers
-        });
+        // Reset selection
+        selectedProviderId = null;
+        confirmSection.hide();
+        $('#btn-use-custom-time').prop('disabled', true);
         
-        // If no providers loaded yet, show message
+        // If no providers loaded yet, show loading
         if (providerCount === 0) {
-            console.log('ART: No providers loaded yet');
-            customSelect.empty();
-            customSelect.append('<option value=""><?php _e('Loading providers...', 'amelia-cpt-sync'); ?></option>');
+            providerList.html('<div class="provider-placeholder"><?php _e('Loading providers...', 'amelia-cpt-sync'); ?></div>');
             return;
         }
         
         var dateStr = activeDateBtn.length ? activeDateBtn.data('date') : null;
         var timeStr = $('#custom-time-input').val();
         
-        // Reset dropdown
-        customSelect.empty();
-        customSelect.append('<option value=""><?php _e('-- Select Provider --', 'amelia-cpt-sync'); ?></option>');
-        
-        // If no date selected or no time entered, just show all providers
-        if (!dateStr || !timeStr) {
-            $.each(artDetailData.providers, function(id, name) {
-                customSelect.append('<option value="' + id + '">' + name + '</option>');
-            });
-            if (warningEl.length) warningEl.hide();
-            console.log('ART: Populated all providers (no date/time filter)');
+        if (!dateStr) {
+            providerList.html('<div class="provider-placeholder"><?php _e('Select a date first', 'amelia-cpt-sync'); ?></div>');
             return;
         }
+        
+        if (!timeStr) {
+            providerList.html('<div class="provider-placeholder"><?php _e('Enter a time to see availability', 'amelia-cpt-sync'); ?></div>');
+            return;
+        }
+        
+        var html = '';
+        var shownIds = [];
         
         // Find which providers are available at this EXACT custom time
         var availableAtTime = findProvidersAtTime(dateStr, timeStr);
@@ -2693,81 +2896,115 @@ jQuery(document).ready(function($) {
         var nearestHour = parseInt(inputParts[0], 10) + ':00';
         var availableAtHour = findProvidersAtTime(dateStr, nearestHour);
         
-        console.log('ART: Custom time lookup', {
-            dateStr: dateStr,
-            timeStr: timeStr,
-            nearestHour: nearestHour,
-            exactMatches: availableAtTime.length,
-            hourMatches: availableAtHour.length
-        });
-        
-        var shownIds = [];
-        
         // Show exact match providers first (if any)
         if (availableAtTime.length > 0) {
-            customSelect.append('<optgroup label="<?php _e('Available at this time:', 'amelia-cpt-sync'); ?>">');
+            html += '<div class="provider-group">';
+            html += '<div class="provider-group-label available"><?php _e('✓ Available at this time', 'amelia-cpt-sync'); ?></div>';
             $.each(availableAtTime, function(i, p) {
-                customSelect.append('<option value="' + p.provider_id + '">' + p.provider_name + ' ✓</option>');
+                html += buildProviderItem(p.provider_id, p.provider_name, getInitials(p.provider_name), '<?php _e('Available', 'amelia-cpt-sync'); ?>');
                 shownIds.push(String(p.provider_id));
             });
-            customSelect.append('</optgroup>');
-            if (warningEl.length) warningEl.hide();
+            html += '</div>';
         } else if (availableAtHour.length > 0) {
             // Show providers available at nearest hour as a hint
-            customSelect.append('<optgroup label="Available at ' + nearestHour + ':">');
+            html += '<div class="provider-group">';
+            html += '<div class="provider-group-label nearby"><?php _e('Available at', 'amelia-cpt-sync'); ?> ' + formatTime12(nearestHour) + '</div>';
             $.each(availableAtHour, function(i, p) {
-                customSelect.append('<option value="' + p.provider_id + '">' + p.provider_name + ' (at ' + nearestHour + ')</option>');
+                html += buildProviderItem(p.provider_id, p.provider_name, getInitials(p.provider_name), '<?php _e('Nearby slot', 'amelia-cpt-sync'); ?>');
                 shownIds.push(String(p.provider_id));
             });
-            customSelect.append('</optgroup>');
-            
-            // Show info that exact time has no match
-            if (!warningEl.length) {
-                $('#custom-provider-select').after('<p id="custom-time-warning" class="warning-text" style="color:#F59E0B; font-size:12px; margin-top:5px;"><?php _e('ℹ️ No exact slot. Showing providers at nearest hour.', 'amelia-cpt-sync'); ?></p>');
-            } else {
-                warningEl.css('color', '#F59E0B').text('<?php _e('ℹ️ No exact slot. Showing providers at nearest hour.', 'amelia-cpt-sync'); ?>').show();
-            }
-        } else {
-            // No availability at all - show warning
-            if (!warningEl.length) {
-                $('#custom-provider-select').after('<p id="custom-time-warning" class="warning-text" style="color:#DC3545; font-size:12px; margin-top:5px;"><?php _e('⚠️ No availability. Select provider to force book.', 'amelia-cpt-sync'); ?></p>');
-            } else {
-                warningEl.css('color', '#DC3545').text('<?php _e('⚠️ No availability. Select provider to force book.', 'amelia-cpt-sync'); ?>').show();
-            }
+            html += '</div>';
         }
         
-        // Always add ALL providers for force booking option
-        var hasOthers = false;
+        // Add remaining providers for force booking
+        var forceProviders = [];
         $.each(artDetailData.providers, function(id, name) {
             if (shownIds.indexOf(String(id)) === -1) {
-                if (!hasOthers) {
-                    customSelect.append('<optgroup label="<?php _e('Force Book:', 'amelia-cpt-sync'); ?>">');
-                    hasOthers = true;
-                }
-                customSelect.append('<option value="' + id + '">' + name + '</option>');
+                forceProviders.push({ id: id, name: name });
             }
         });
-        if (hasOthers) {
-            customSelect.append('</optgroup>');
+        
+        if (forceProviders.length > 0) {
+            html += '<div class="provider-group">';
+            html += '<div class="provider-group-label force"><?php _e('Force Book', 'amelia-cpt-sync'); ?></div>';
+            $.each(forceProviders, function(i, prov) {
+                html += buildProviderItem(prov.id, prov.name, getInitials(prov.name), '<?php _e('Override schedule', 'amelia-cpt-sync'); ?>');
+            });
+            html += '</div>';
         }
         
-        console.log('ART: Custom dropdown populated with ' + customSelect.find('option').length + ' options');
+        if (html === '') {
+            html = '<div class="provider-placeholder"><?php _e('No providers available', 'amelia-cpt-sync'); ?></div>';
+        }
+        
+        providerList.html(html);
     }
     
-    // Update provider dropdown when custom time changes
-    $('#custom-time-input').on('change input', function() {
-        console.log('ART: Custom time input changed to:', $(this).val());
-        updateCustomProviderDropdown();
+    function buildProviderItem(id, name, initials, status) {
+        return '<div class="provider-item" data-provider-id="' + id + '">' +
+            '<div class="provider-avatar">' + initials + '</div>' +
+            '<div class="provider-info">' +
+                '<div class="provider-name">' + name + '</div>' +
+                '<div class="provider-status">' + status + '</div>' +
+            '</div>' +
+            '<div class="provider-check"><span class="dashicons dashicons-yes"></span></div>' +
+        '</div>';
+    }
+    
+    function getInitials(name) {
+        if (!name) return '??';
+        var parts = name.split(' ');
+        if (parts.length >= 2) {
+            return (parts[0][0] + parts[1][0]).toUpperCase();
+        }
+        return name.substring(0, 2).toUpperCase();
+    }
+    
+    function formatTime12(timeStr) {
+        var parts = timeStr.split(':');
+        var hour = parseInt(parts[0]);
+        var min = parts[1] || '00';
+        var ampm = hour >= 12 ? 'PM' : 'AM';
+        var hour12 = hour % 12;
+        hour12 = hour12 ? hour12 : 12;
+        return hour12 + ':' + min + ' ' + ampm;
+    }
+    
+    // Handle provider selection
+    $(document).on('click', '.provider-item', function() {
+        var item = $(this);
+        var providerId = item.data('provider-id');
+        
+        // Toggle selection
+        if (selectedProviderId == providerId) {
+            // Deselect
+            item.removeClass('selected');
+            selectedProviderId = null;
+            $('#picker-confirm-section').hide();
+            $('#btn-use-custom-time').prop('disabled', true);
+        } else {
+            // Select this one
+            $('.provider-item').removeClass('selected');
+            item.addClass('selected');
+            selectedProviderId = providerId;
+            $('#picker-confirm-section').show();
+            $('#btn-use-custom-time').prop('disabled', false);
+        }
     });
     
-    // Also update when date is selected (to populate providers initially)
+    // Update provider list when custom time changes
+    $('#custom-time-input').on('change input', function() {
+        updateProviderList();
+    });
+    
+    // Also update when date is selected
     $(document).on('click', '.art-picker-date-btn', function() {
         setTimeout(function() {
-            updateCustomProviderDropdown();
+            updateProviderList();
         }, 100);
     });
     
-    // When "Use Custom Time" is clicked
+    // When "Confirm Selection" is clicked
     $('#btn-use-custom-time').on('click', function() {
         // Get date
         var activeDateBtn = $('#picker-dates-list .art-picker-date-btn.active');
@@ -2784,12 +3021,12 @@ jQuery(document).ready(function($) {
             return;
         }
         
-        // Get Provider from Custom Dropdown
-        var providerId = $('#custom-provider-select').val();
-        if (!providerId) {
-            showNotice('Please select a provider to assign this booking to', 'error');
+        // Get Provider from selection
+        if (!selectedProviderId) {
+            showNotice('Please select a provider', 'error');
             return;
         }
+        var providerId = selectedProviderId;
         
         // Format time for display
         var timeParts = timeStr.split(':');
