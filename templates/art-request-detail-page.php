@@ -43,6 +43,7 @@ $art_settings = get_option('art_settings', array());
 $global_settings = $art_settings['global'] ?? array();
 $show_location = $global_settings['show_location_field'] ?? true;
 $show_persons = $global_settings['show_persons_field'] ?? true;
+$show_timeslots_grid = $global_settings['show_timeslots_grid'] ?? false; // Off by default
 
 // Get duration settings
 $duration_interval_minutes = $global_settings['duration_interval_minutes'] ?? 30;
@@ -480,7 +481,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             </h4>
                             
                             <!-- Date & Time Picker Container -->
-                            <div class="art-picker-container">
+                            <div class="art-picker-container <?php echo $show_timeslots_grid ? 'with-timegrid' : 'no-timegrid'; ?>">
                                 <!-- Left: Dates -->
                                 <div class="art-picker-dates" id="picker-dates-list">
                                     <!-- Dates will be injected here -->
@@ -489,7 +490,8 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                     </div>
                                 </div>
                                 
-                                <!-- Right: Times -->
+                                <?php if ($show_timeslots_grid): ?>
+                                <!-- Middle: Times (optional - controlled by setting) -->
                                 <div class="art-picker-times">
                                     <div class="art-picker-times-header" id="picker-times-header">
                                         Select a date to see times
@@ -498,11 +500,12 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                         <!-- Times will be injected here -->
                                     </div>
                                 </div>
+                                <?php endif; ?>
                                 
-                                <!-- Custom: Manual Entry -->
+                                <!-- Right: Custom Time Entry -->
                                 <div class="art-picker-custom">
                                     <div class="art-picker-custom-header">
-                                        <?php _e('Custom Time', 'amelia-cpt-sync'); ?>
+                                        <?php _e('Select Time & Provider', 'amelia-cpt-sync'); ?>
                                     </div>
                                     <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
                                         <div>
@@ -512,7 +515,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                             <input type="time" id="custom-time-input" class="form-input" style="width: 100%;" disabled>
                                         </div>
                                         
-                                        <!-- Provider Select for Custom Time -->
+                                        <!-- Provider Select -->
                                         <div>
                                             <label for="custom-provider-select" style="font-size: 12px; color: #64748b; display: block; margin-bottom: 6px;">
                                                 <?php _e('Assign Provider', 'amelia-cpt-sync'); ?>
@@ -523,11 +526,11 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                         </div>
                                         
                                         <button type="button" id="btn-use-custom-time" class="btn-secondary btn-small" style="width: 100%;" disabled>
-                                            <?php _e('Use Custom Time', 'amelia-cpt-sync'); ?>
+                                            <?php _e('Select This Time', 'amelia-cpt-sync'); ?>
                                         </button>
                                         
                                         <p class="field-note" style="margin-top: auto; font-size: 11px; line-height: 1.4;">
-                                            <?php _e('Note: Custom times bypass availability checks. Please ensure the provider is actually free.', 'amelia-cpt-sync'); ?>
+                                            <?php _e('Use the Amelia calendar above for visual reference, then enter your desired time here.', 'amelia-cpt-sync'); ?>
                                         </p>
                                     </div>
                                 </div>
@@ -871,13 +874,31 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 /* === DATE & TIME PICKER (Phase 5) === */
 .art-picker-container {
     display: grid;
-    grid-template-columns: 200px 1fr 220px; /* 3 Columns */
     gap: 0;
     border: 1px solid #E0E5F1;
     border-radius: 8px;
     overflow: hidden;
     background: #fff;
     margin-top: 16px;
+}
+
+/* 3-column layout (with time grid) */
+.art-picker-container.with-timegrid {
+    grid-template-columns: 200px 1fr 220px;
+}
+
+/* 2-column layout (no time grid - default) */
+.art-picker-container.no-timegrid {
+    grid-template-columns: 1fr 1fr;
+}
+
+.art-picker-container.no-timegrid .art-picker-dates {
+    max-height: 400px;
+}
+
+.art-picker-container.no-timegrid .art-picker-custom {
+    border-left: 1px solid #E0E5F1;
+    max-height: 400px;
 }
 
 .art-picker-dates {
@@ -995,7 +1016,8 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 }
 
 @media (max-width: 1000px) {
-    .art-picker-container {
+    .art-picker-container.with-timegrid,
+    .art-picker-container.no-timegrid {
         grid-template-columns: 1fr; /* Stack on smaller screens */
     }
     .art-picker-dates {
@@ -1495,7 +1517,8 @@ jQuery(document).ready(function($) {
         currentCategory: <?php echo wp_json_encode($request->category_id); ?>,
         currentService: <?php echo wp_json_encode($request->service_id); ?>,
         currentLocation: <?php echo wp_json_encode($request->location_id); ?>,
-        providers: {} // Will be populated by fetchServiceEmployees()
+        providers: {}, // Will be populated by fetchServiceEmployees()
+        showTimeslotsGrid: <?php echo $show_timeslots_grid ? 'true' : 'false'; ?>
     };
     
     // === HELPER: Show Notice ===
@@ -2076,7 +2099,10 @@ jQuery(document).ready(function($) {
                     $('.art-picker-date-btn').removeClass('active');
                     btn.addClass('active');
                     
-                    renderTimes(selectedDate, dateTimes);
+                    // Only render times if the time grid is enabled
+                    if (artDetailData.showTimeslotsGrid) {
+                        renderTimes(selectedDate, dateTimes);
+                    }
                     
                     // Enable Custom Time Inputs
                     $('#custom-time-input').prop('disabled', false);

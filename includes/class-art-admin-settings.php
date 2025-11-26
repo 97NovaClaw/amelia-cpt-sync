@@ -116,6 +116,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                 'cache_duration' => 60,
                 'show_location_field' => true,
                 'show_persons_field' => true,
+                'show_timeslots_grid' => false, // Off by default - use Custom Time instead
                 'duration_interval_minutes' => 30,
                 'duration_max_hours' => 12
             ),
@@ -146,6 +147,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                 'cache_duration' => absint($input['global']['cache_duration']),
                 'show_location_field' => !empty($input['global']['show_location_field']),
                 'show_persons_field' => !empty($input['global']['show_persons_field']),
+                'show_timeslots_grid' => !empty($input['global']['show_timeslots_grid']),
                 'duration_interval_minutes' => absint($input['global']['duration_interval_minutes']),
                 'duration_max_hours' => absint($input['global']['duration_max_hours'])
             );
@@ -176,6 +178,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $cache_duration = absint($_POST['cache_duration'] ?? 60);
         $show_location_field = !empty($_POST['show_location_field']);
         $show_persons_field = !empty($_POST['show_persons_field']);
+        $show_timeslots_grid = !empty($_POST['show_timeslots_grid']);
         $duration_interval = absint($_POST['duration_interval_minutes'] ?? 30);
         $duration_max = absint($_POST['duration_max_hours'] ?? 12);
         
@@ -188,6 +191,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $settings['global']['cache_duration'] = $cache_duration;
         $settings['global']['show_location_field'] = $show_location_field;
         $settings['global']['show_persons_field'] = $show_persons_field;
+        $settings['global']['show_timeslots_grid'] = $show_timeslots_grid;
         $settings['global']['duration_interval_minutes'] = $duration_interval;
         $settings['global']['duration_max_hours'] = $duration_max;
         
@@ -434,6 +438,20 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                                 />
                                 Show Persons Field in detail view
                             </label>
+                            <br><br>
+                            <label>
+                                <input 
+                                    type="checkbox" 
+                                    name="show_timeslots_grid" 
+                                    value="1" 
+                                    <?php checked($global['show_timeslots_grid'] ?? false); ?>
+                                />
+                                Show Time Slots Grid (middle column in availability picker)
+                                <p class="description" style="margin-left: 24px; margin-top: 4px;">
+                                    When disabled, only Date selection and Custom Time entry are shown. 
+                                    Use the embedded Amelia calendar for visual reference.
+                                </p>
+                            </label>
                             <p class="description">
                                 Control which fields appear when editing triage requests.<br>
                                 Data is still captured and saved if forms submit these fields.<br>
@@ -587,6 +605,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                         cache_duration: $('#art-cache-duration').val(),
                         show_location_field: $('input[name="show_location_field"]').is(':checked') ? 1 : 0,
                         show_persons_field: $('input[name="show_persons_field"]').is(':checked') ? 1 : 0,
+                        show_timeslots_grid: $('input[name="show_timeslots_grid"]').is(':checked') ? 1 : 0,
                         duration_interval_minutes: $('#art-duration-interval').val(),
                         duration_max_hours: $('#art-duration-max').val()
                     },
@@ -1010,6 +1029,12 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         }
         
         // Build params for slots API (matching Amelia API docs format)
+        // serviceDuration determines both:
+        // 1. The minimum time block needed (filters out slots that can't fit)
+        // 2. The interval between displayed slots
+        // 
+        // For long durations (e.g., 5 hours), slots will be spaced 5 hours apart.
+        // Users can use "Custom Time" to check specific times not in the grid.
         $params = array(
             'serviceId' => $request->service_id,
             'serviceDuration' => $request->duration_seconds,
