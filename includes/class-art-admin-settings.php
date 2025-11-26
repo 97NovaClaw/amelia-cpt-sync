@@ -1047,6 +1047,13 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         }
         if (isset($raw_slots[$tomorrow])) {
             amelia_cpt_sync_debug_log('ART Slots: Tomorrow (' . $tomorrow . ') times', array_keys($raw_slots[$tomorrow]));
+            
+            // Log provider details for early morning slots (to debug the 6am issue)
+            foreach (array('5:00', '6:00', '7:00', '05:00', '06:00', '07:00') as $check_time) {
+                if (isset($raw_slots[$tomorrow][$check_time])) {
+                    amelia_cpt_sync_debug_log('ART Slots: ' . $tomorrow . ' @ ' . $check_time . ' providers', $raw_slots[$tomorrow][$check_time]);
+                }
+            }
         }
         
         foreach ($result['slots'] as $date => $times) {
