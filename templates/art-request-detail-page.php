@@ -49,6 +49,10 @@ $show_timeslots_grid = $global_settings['show_timeslots_grid'] ?? false; // Off 
 $duration_interval_minutes = $global_settings['duration_interval_minutes'] ?? 30;
 $duration_max_hours = $global_settings['duration_max_hours'] ?? 12;
 
+// Get user's calendar zoom preference
+$user_calendar_zoom = get_user_meta(get_current_user_id(), 'art_calendar_zoom', true);
+$user_calendar_zoom = $user_calendar_zoom ? intval($user_calendar_zoom) : 100;
+
 // Generate duration dropdown options
 $duration_options = array();
 $max_seconds = $duration_max_hours * 3600;
@@ -431,14 +435,38 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                     <div class="card-body">
                         
                         <!-- Visual Calendar Iframe (Auto-loaded) -->
-                        <div id="calendar-visual-container" style="margin-bottom: 20px; border: 1px solid #E0E5F1; border-radius: 6px; overflow: hidden;">
-                            <div style="padding: 10px; background: #f0f0f1; border-bottom: 1px solid #E0E5F1; display: flex; justify-content: space-between; align-items: center;">
+                        <div id="calendar-visual-container" class="calendar-container" data-zoom="<?php echo esc_attr($user_calendar_zoom); ?>">
+                            <div class="calendar-toolbar">
                                 <strong><?php _e('Amelia Calendar Reference', 'amelia-cpt-sync'); ?></strong>
-                                <button type="button" id="btn-close-calendar" class="button-link-delete" style="text-decoration: none;">
-                                    <span class="dashicons dashicons-no"></span> <?php _e('Hide', 'amelia-cpt-sync'); ?>
-                                </button>
+                                <div class="calendar-controls">
+                                    <!-- Zoom Controls -->
+                                    <div class="zoom-controls">
+                                        <button type="button" id="btn-zoom-out" class="btn-icon" title="<?php esc_attr_e('Zoom Out', 'amelia-cpt-sync'); ?>">
+                                            <span class="dashicons dashicons-minus"></span>
+                                        </button>
+                                        <span id="zoom-level"><?php echo esc_html($user_calendar_zoom); ?>%</span>
+                                        <button type="button" id="btn-zoom-in" class="btn-icon" title="<?php esc_attr_e('Zoom In', 'amelia-cpt-sync'); ?>">
+                                            <span class="dashicons dashicons-plus"></span>
+                                        </button>
+                                        <button type="button" id="btn-zoom-reset" class="btn-icon" title="<?php esc_attr_e('Reset Zoom', 'amelia-cpt-sync'); ?>">
+                                            <span class="dashicons dashicons-image-rotate"></span>
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Expand/Collapse Button -->
+                                    <button type="button" id="btn-expand-calendar" class="btn-icon" title="<?php esc_attr_e('Expand Calendar', 'amelia-cpt-sync'); ?>">
+                                        <span class="dashicons dashicons-editor-expand"></span>
+                                    </button>
+                                    
+                                    <!-- Hide Button -->
+                                    <button type="button" id="btn-close-calendar" class="btn-icon btn-close" title="<?php esc_attr_e('Hide Calendar', 'amelia-cpt-sync'); ?>">
+                                        <span class="dashicons dashicons-no-alt"></span>
+                                    </button>
+                                </div>
                             </div>
-                            <iframe id="amelia-calendar-frame" src="<?php echo admin_url('admin.php?page=wpamelia-calendar'); ?>" width="100%" height="600px" style="border: 0;"></iframe>
+                            <div class="calendar-iframe-wrapper">
+                                <iframe id="amelia-calendar-frame" src="<?php echo admin_url('admin.php?page=wpamelia-calendar'); ?>" style="transform-origin: 0 0; transform: scale(<?php echo $user_calendar_zoom / 100; ?>);"></iframe>
+                            </div>
                         </div>
 
                         <!-- Step 1: Check Availability Button -->
@@ -1441,21 +1469,115 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 }
 
 /* === CALENDAR IFRAME === */
-#calendar-visual-container iframe {
-    border: none;
+.calendar-container {
+    margin-bottom: 20px;
+    border: 1px solid #E0E5F1;
+    border-radius: 8px;
+    overflow: hidden;
     background: #fff;
+    transition: all 0.3s ease;
 }
 
-#calendar-visual-container .button-link-delete {
-    color: #d63638;
+.calendar-container.expanded {
+    position: fixed;
+    top: 50px;
+    left: 180px;
+    right: 20px;
+    bottom: 20px;
+    z-index: 9999;
+    margin: 0;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+}
+
+.calendar-toolbar {
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #E0E5F1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.calendar-toolbar strong {
+    font-size: 14px;
+    color: #1E293B;
+}
+
+.calendar-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.zoom-controls {
     display: flex;
     align-items: center;
     gap: 4px;
+    padding: 4px 8px;
+    background: #fff;
+    border: 1px solid #E0E5F1;
+    border-radius: 6px;
 }
 
-#calendar-visual-container .button-link-delete:hover {
-    color: #b32d2e;
-    background: none;
+.zoom-controls #zoom-level {
+    min-width: 45px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748B;
+}
+
+.btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid #E0E5F1;
+    border-radius: 6px;
+    background: #fff;
+    color: #64748B;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-icon:hover {
+    background: #f1f5f9;
+    color: #1A84EE;
+    border-color: #1A84EE;
+}
+
+.btn-icon.btn-close:hover {
+    background: #FEE2E2;
+    color: #DC2626;
+    border-color: #DC2626;
+}
+
+.btn-icon .dashicons {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+
+.calendar-iframe-wrapper {
+    position: relative;
+    height: 500px;
+    overflow: auto;
+    background: #fff;
+}
+
+.calendar-container.expanded .calendar-iframe-wrapper {
+    height: calc(100% - 56px);
+}
+
+#amelia-calendar-frame {
+    border: none;
+    background: #fff;
+    width: 100%;
+    height: 100%;
+    /* Width/height will be adjusted by JS based on zoom */
 }
 
 /* === RESPONSIVE === */
@@ -2606,14 +2728,95 @@ jQuery(document).ready(function($) {
     // We'll attach this logic inside the date click handler below
     
     // ========================================================================
-    // VISUAL CALENDAR (IFRAME)
+    // VISUAL CALENDAR (IFRAME) - With Zoom & Expand
     // ========================================================================
+    
+    var calendarZoom = <?php echo $user_calendar_zoom; ?>;
+    var calendarExpanded = false;
+    
+    function updateIframeZoom() {
+        var scale = calendarZoom / 100;
+        var iframe = $('#amelia-calendar-frame');
+        
+        // Scale the iframe and adjust its dimensions to compensate
+        iframe.css({
+            'transform': 'scale(' + scale + ')',
+            'width': (100 / scale) + '%',
+            'height': (100 / scale) + '%'
+        });
+        
+        $('#zoom-level').text(calendarZoom + '%');
+    }
+    
+    function saveZoomPreference() {
+        $.post(ajaxurl, {
+            action: 'art_save_calendar_zoom',
+            nonce: artDetailData.nonce,
+            zoom: calendarZoom
+        });
+    }
+    
+    // Zoom In
+    $('#btn-zoom-in').on('click', function() {
+        if (calendarZoom < 150) {
+            calendarZoom += 10;
+            updateIframeZoom();
+            saveZoomPreference();
+        }
+    });
+    
+    // Zoom Out
+    $('#btn-zoom-out').on('click', function() {
+        if (calendarZoom > 50) {
+            calendarZoom -= 10;
+            updateIframeZoom();
+            saveZoomPreference();
+        }
+    });
+    
+    // Reset Zoom
+    $('#btn-zoom-reset').on('click', function() {
+        calendarZoom = 100;
+        updateIframeZoom();
+        saveZoomPreference();
+    });
+    
+    // Expand/Collapse Calendar
+    $('#btn-expand-calendar').on('click', function() {
+        var container = $('#calendar-visual-container');
+        var btn = $(this);
+        
+        if (calendarExpanded) {
+            // Collapse
+            container.removeClass('expanded');
+            btn.find('.dashicons').removeClass('dashicons-editor-contract').addClass('dashicons-editor-expand');
+            btn.attr('title', '<?php esc_attr_e('Expand Calendar', 'amelia-cpt-sync'); ?>');
+            calendarExpanded = false;
+        } else {
+            // Expand
+            container.addClass('expanded');
+            btn.find('.dashicons').removeClass('dashicons-editor-expand').addClass('dashicons-editor-contract');
+            btn.attr('title', '<?php esc_attr_e('Collapse Calendar', 'amelia-cpt-sync'); ?>');
+            calendarExpanded = true;
+        }
+    });
+    
+    // ESC key to collapse
+    $(document).on('keydown', function(e) {
+        if (e.key === 'Escape' && calendarExpanded) {
+            $('#btn-expand-calendar').trigger('click');
+        }
+    });
     
     function toggleCalendar(show) {
         if (show) {
             $('#calendar-visual-container').slideDown();
             $('#btn-toggle-calendar').hide();
         } else {
+            // If expanded, collapse first
+            if (calendarExpanded) {
+                $('#btn-expand-calendar').trigger('click');
+            }
             $('#calendar-visual-container').slideUp();
             $('#btn-toggle-calendar').show();
         }
@@ -2631,6 +2834,9 @@ jQuery(document).ready(function($) {
     
     // Auto-show calendar on load (it's already visible in HTML, just ensuring state)
     $('#btn-toggle-calendar').hide();
+    
+    // Initialize zoom on load
+    updateIframeZoom();
     
     // Inject CSS into iframe when loaded to hide WP admin UI and Amelia headers
     $('#amelia-calendar-frame').on('load', function() {

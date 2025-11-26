@@ -30,6 +30,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         add_action('wp_ajax_art_save_settings', array($this, 'ajax_save_settings'));
         add_action('wp_ajax_art_clear_cache', array($this, 'ajax_clear_cache'));
         add_action('wp_ajax_art_save_per_page', array($this, 'ajax_save_per_page'));
+        add_action('wp_ajax_art_save_calendar_zoom', array($this, 'ajax_save_calendar_zoom'));
         
         // Phase 4: Detail view AJAX handlers
         add_action('wp_ajax_art_update_status', array($this, 'ajax_update_status'));
@@ -260,6 +261,33 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         wp_send_json_success(array(
             'message' => 'Preference saved',
             'per_page' => $per_page
+        ));
+    }
+    
+    /**
+     * AJAX handler for saving calendar zoom preference
+     */
+    public function ajax_save_calendar_zoom() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $zoom = isset($_POST['zoom']) ? intval($_POST['zoom']) : 100;
+        
+        // Validate zoom value (50% to 150%)
+        if ($zoom < 50 || $zoom > 150) {
+            $zoom = 100;
+        }
+        
+        // Save to user meta (per-user preference)
+        $user_id = get_current_user_id();
+        update_user_meta($user_id, 'art_calendar_zoom', $zoom);
+        
+        wp_send_json_success(array(
+            'message' => 'Zoom preference saved',
+            'zoom' => $zoom
         ));
     }
     
