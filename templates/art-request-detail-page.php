@@ -1495,6 +1495,17 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     margin: 0;
     border-radius: 12px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+}
+
+.calendar-container.expanded-locked .calendar-toolbar {
+    flex-shrink: 0;
+}
+
+.calendar-container.expanded-locked .calendar-iframe-wrapper {
+    flex: 1;
+    overflow: hidden;
 }
 
 /* Unlocked/Floating Mode - draggable & resizable */
@@ -1506,8 +1517,12 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     box-shadow: 0 10px 40px rgba(0,0,0,0.3);
     resize: both;
     overflow: hidden;
-    min-width: 400px;
-    min-height: 300px;
+    min-width: 500px;
+    min-height: 400px;
+    max-width: 95vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Draggable header styling */
@@ -1515,6 +1530,27 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     cursor: move;
     user-select: none;
     background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+    flex-shrink: 0;
+}
+
+/* While dragging */
+.calendar-container.is-dragging {
+    opacity: 0.9;
+    cursor: move !important;
+}
+
+.calendar-container.is-dragging * {
+    pointer-events: none;
+}
+
+.calendar-container.is-dragging .calendar-toolbar {
+    background: linear-gradient(to bottom, #e3e6ea, #d5d9de);
+}
+
+/* Iframe wrapper in unlocked mode */
+.calendar-container.expanded-unlocked .calendar-iframe-wrapper {
+    flex: 1;
+    overflow: hidden;
 }
 
 /* Resize handle indicator */
@@ -1527,6 +1563,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     height: 20px;
     cursor: nwse-resize;
     background: linear-gradient(135deg, transparent 50%, #94A3B8 50%, #94A3B8 60%, transparent 60%, transparent 70%, #94A3B8 70%, #94A3B8 80%, transparent 80%);
+    z-index: 10;
 }
 
 /* Active state for buttons */
@@ -1630,8 +1667,10 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     background: #fff;
 }
 
-.calendar-container.expanded .calendar-iframe-wrapper {
-    height: calc(100% - 56px);
+/* Expanded modes - iframe fills available space */
+.calendar-container.expanded-locked .calendar-iframe-wrapper,
+.calendar-container.expanded-unlocked .calendar-iframe-wrapper {
+    height: calc(100% - 52px); /* Subtract toolbar height */
 }
 
 #amelia-calendar-frame {
@@ -1639,7 +1678,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     background: #fff;
     width: 100%;
     height: 100%;
-    /* Width/height will be adjusted by JS based on zoom */
+    display: block; /* Remove inline spacing */
 }
 
 /* === RESPONSIVE === */
@@ -2911,39 +2950,49 @@ jQuery(document).ready(function($) {
     });
     
     // Dragging functionality for unlocked mode
-    $('#calendar-visual-container').on('mousedown', '.calendar-toolbar', function(e) {
+    var $calendarContainer = $('#calendar-visual-container');
+    
+    $calendarContainer.on('mousedown', '.calendar-toolbar', function(e) {
         if (calendarMode !== 'unlocked') return;
         if ($(e.target).closest('.calendar-controls').length) return; // Don't drag when clicking controls
         
-        var container = $('#calendar-visual-container');
         isDragging = true;
         
-        dragOffset.x = e.clientX - container.offset().left;
-        dragOffset.y = e.clientY - container.offset().top;
+        var containerPos = $calendarContainer.position();
+        dragOffset.x = e.pageX - containerPos.left;
+        dragOffset.y = e.pageY - containerPos.top;
+        
+        // Add dragging class for visual feedback
+        $calendarContainer.addClass('is-dragging');
         
         // Prevent text selection while dragging
         e.preventDefault();
     });
     
-    $(document).on('mousemove', function(e) {
+    $(document).on('mousemove.calendarDrag', function(e) {
         if (!isDragging || calendarMode !== 'unlocked') return;
         
-        var container = $('#calendar-visual-container');
-        var newLeft = e.clientX - dragOffset.x;
-        var newTop = e.clientY - dragOffset.y;
+        var newLeft = e.pageX - dragOffset.x;
+        var newTop = e.pageY - dragOffset.y;
         
-        // Keep within viewport bounds
-        newLeft = Math.max(0, Math.min(newLeft, $(window).width() - container.width()));
-        newTop = Math.max(0, Math.min(newTop, $(window).height() - container.height()));
+        // Keep within viewport bounds (with some padding)
+        var maxLeft = $(window).width() - $calendarContainer.outerWidth();
+        var maxTop = $(window).height() - 50; // Allow some to go off bottom
         
-        container.css({
+        newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+        newTop = Math.max(0, Math.min(newTop, maxTop));
+        
+        $calendarContainer.css({
             left: newLeft + 'px',
             top: newTop + 'px'
         });
     });
     
-    $(document).on('mouseup', function() {
-        isDragging = false;
+    $(document).on('mouseup.calendarDrag', function() {
+        if (isDragging) {
+            isDragging = false;
+            $calendarContainer.removeClass('is-dragging');
+        }
     });
     
     // ESC key to collapse any expanded mode
