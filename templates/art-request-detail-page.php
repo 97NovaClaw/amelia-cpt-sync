@@ -453,9 +453,15 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                         </button>
                                     </div>
                                     
-                                    <!-- Expand/Collapse Button -->
-                                    <button type="button" id="btn-expand-calendar" class="btn-icon" title="<?php esc_attr_e('Expand Calendar', 'amelia-cpt-sync'); ?>">
+                                    <!-- Locked Expand Button -->
+                                    <button type="button" id="btn-expand-locked" class="btn-icon" title="<?php esc_attr_e('Expand (Locked)', 'amelia-cpt-sync'); ?>">
                                         <span class="dashicons dashicons-editor-expand"></span>
+                                        <span class="lock-icon dashicons dashicons-lock"></span>
+                                    </button>
+                                    
+                                    <!-- Unlocked/Draggable Mode Button -->
+                                    <button type="button" id="btn-expand-unlocked" class="btn-icon" title="<?php esc_attr_e('Floating Window Mode', 'amelia-cpt-sync'); ?>">
+                                        <span class="dashicons dashicons-move"></span>
                                     </button>
                                     
                                     <!-- Hide Button -->
@@ -1478,16 +1484,72 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     transition: all 0.3s ease;
 }
 
-.calendar-container.expanded {
+/* Locked Expand Mode - fills both columns */
+.calendar-container.expanded-locked {
     position: fixed;
-    top: 50px;
-    left: 180px;
+    top: 80px;
+    left: 200px;
     right: 20px;
-    bottom: 20px;
+    bottom: 40px;
     z-index: 9999;
     margin: 0;
     border-radius: 12px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+}
+
+/* Unlocked/Floating Mode - draggable & resizable */
+.calendar-container.expanded-unlocked {
+    position: fixed;
+    z-index: 9999;
+    margin: 0;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    resize: both;
+    overflow: hidden;
+    min-width: 400px;
+    min-height: 300px;
+}
+
+/* Draggable header styling */
+.calendar-container.expanded-unlocked .calendar-toolbar {
+    cursor: move;
+    user-select: none;
+    background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+}
+
+/* Resize handle indicator */
+.calendar-container.expanded-unlocked::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 20px;
+    height: 20px;
+    cursor: nwse-resize;
+    background: linear-gradient(135deg, transparent 50%, #94A3B8 50%, #94A3B8 60%, transparent 60%, transparent 70%, #94A3B8 70%, #94A3B8 80%, transparent 80%);
+}
+
+/* Active state for buttons */
+#btn-expand-locked.active,
+#btn-expand-unlocked.active {
+    background: #1A84EE;
+    color: #fff;
+    border-color: #1A84EE;
+}
+
+/* Lock icon styling */
+#btn-expand-locked {
+    position: relative;
+}
+
+#btn-expand-locked .lock-icon {
+    position: absolute;
+    font-size: 10px;
+    width: 10px;
+    height: 10px;
+    bottom: 2px;
+    right: 2px;
+    color: inherit;
 }
 
 .calendar-toolbar {
@@ -2781,30 +2843,113 @@ jQuery(document).ready(function($) {
         saveZoomPreference();
     });
     
-    // Expand/Collapse Calendar
-    $('#btn-expand-calendar').on('click', function() {
+    // Calendar expansion modes
+    var calendarMode = 'normal'; // 'normal', 'locked', 'unlocked'
+    var dragOffset = { x: 0, y: 0 };
+    var isDragging = false;
+    
+    function resetCalendarMode() {
+        var container = $('#calendar-visual-container');
+        container.removeClass('expanded-locked expanded-unlocked');
+        container.css({ top: '', left: '', right: '', bottom: '', width: '', height: '' });
+        $('#btn-expand-locked').removeClass('active');
+        $('#btn-expand-unlocked').removeClass('active');
+        calendarMode = 'normal';
+        calendarExpanded = false;
+    }
+    
+    // Locked Expand Mode
+    $('#btn-expand-locked').on('click', function() {
         var container = $('#calendar-visual-container');
         var btn = $(this);
         
-        if (calendarExpanded) {
-            // Collapse
-            container.removeClass('expanded');
-            btn.find('.dashicons').removeClass('dashicons-editor-contract').addClass('dashicons-editor-expand');
-            btn.attr('title', '<?php esc_attr_e('Expand Calendar', 'amelia-cpt-sync'); ?>');
-            calendarExpanded = false;
+        if (calendarMode === 'locked') {
+            // Collapse back to normal
+            resetCalendarMode();
         } else {
-            // Expand
-            container.addClass('expanded');
-            btn.find('.dashicons').removeClass('dashicons-editor-expand').addClass('dashicons-editor-contract');
-            btn.attr('title', '<?php esc_attr_e('Collapse Calendar', 'amelia-cpt-sync'); ?>');
+            // Switch to locked mode
+            resetCalendarMode();
+            container.addClass('expanded-locked');
+            btn.addClass('active');
+            calendarMode = 'locked';
             calendarExpanded = true;
         }
     });
     
-    // ESC key to collapse
+    // Unlocked/Floating Mode
+    $('#btn-expand-unlocked').on('click', function() {
+        var container = $('#calendar-visual-container');
+        var btn = $(this);
+        
+        if (calendarMode === 'unlocked') {
+            // Collapse back to normal
+            resetCalendarMode();
+        } else {
+            // Switch to unlocked mode
+            resetCalendarMode();
+            
+            // Set initial position and size (centered, reasonable size)
+            var winWidth = $(window).width();
+            var winHeight = $(window).height();
+            var width = Math.min(900, winWidth - 100);
+            var height = Math.min(600, winHeight - 100);
+            var left = (winWidth - width) / 2;
+            var top = Math.max(50, (winHeight - height) / 2);
+            
+            container.addClass('expanded-unlocked');
+            container.css({
+                top: top + 'px',
+                left: left + 'px',
+                width: width + 'px',
+                height: height + 'px'
+            });
+            
+            btn.addClass('active');
+            calendarMode = 'unlocked';
+            calendarExpanded = true;
+        }
+    });
+    
+    // Dragging functionality for unlocked mode
+    $('#calendar-visual-container').on('mousedown', '.calendar-toolbar', function(e) {
+        if (calendarMode !== 'unlocked') return;
+        if ($(e.target).closest('.calendar-controls').length) return; // Don't drag when clicking controls
+        
+        var container = $('#calendar-visual-container');
+        isDragging = true;
+        
+        dragOffset.x = e.clientX - container.offset().left;
+        dragOffset.y = e.clientY - container.offset().top;
+        
+        // Prevent text selection while dragging
+        e.preventDefault();
+    });
+    
+    $(document).on('mousemove', function(e) {
+        if (!isDragging || calendarMode !== 'unlocked') return;
+        
+        var container = $('#calendar-visual-container');
+        var newLeft = e.clientX - dragOffset.x;
+        var newTop = e.clientY - dragOffset.y;
+        
+        // Keep within viewport bounds
+        newLeft = Math.max(0, Math.min(newLeft, $(window).width() - container.width()));
+        newTop = Math.max(0, Math.min(newTop, $(window).height() - container.height()));
+        
+        container.css({
+            left: newLeft + 'px',
+            top: newTop + 'px'
+        });
+    });
+    
+    $(document).on('mouseup', function() {
+        isDragging = false;
+    });
+    
+    // ESC key to collapse any expanded mode
     $(document).on('keydown', function(e) {
         if (e.key === 'Escape' && calendarExpanded) {
-            $('#btn-expand-calendar').trigger('click');
+            resetCalendarMode();
         }
     });
     
@@ -2815,7 +2960,7 @@ jQuery(document).ready(function($) {
         } else {
             // If expanded, collapse first
             if (calendarExpanded) {
-                $('#btn-expand-calendar').trigger('click');
+                resetCalendarMode();
             }
             $('#calendar-visual-container').slideUp();
             $('#btn-toggle-calendar').show();
