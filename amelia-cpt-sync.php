@@ -182,3 +182,35 @@ function run_amelia_cpt_sync() {
 
 add_action('plugins_loaded', 'run_amelia_cpt_sync');
 
+/**
+ * Hook into Amelia's booking process to allow ART bookings to bypass availability checks
+ * 
+ * This filter runs before Amelia processes a booking request. When we detect that the
+ * booking is coming from our ART module (via the 'artBooking' flag), we set 
+ * 'isBackendOrCabinet' to true, which tells Amelia to treat this as an admin booking
+ * and skip certain availability validations.
+ * 
+ * This is necessary because:
+ * 1. The API treats requests as "frontend" bookings by default
+ * 2. Our custom Availability Engine has already validated the slot
+ * 3. We want admins to be able to force-book if needed
+ */
+add_filter('amelia_before_booking_added_filter', 'art_modify_booking_data_for_backend', 10, 1);
+
+function art_modify_booking_data_for_backend($appointmentData) {
+    // Check if this booking is from our ART module
+    if (!empty($appointmentData['artBooking']) && $appointmentData['artBooking'] === true) {
+        // Mark as backend/cabinet booking to bypass frontend availability restrictions
+        $appointmentData['isBackendOrCabinet'] = true;
+        
+        // Log for debugging
+        amelia_cpt_sync_debug_log('ART Amelia Hook: Modified booking data for backend processing', array(
+            'serviceId' => $appointmentData['serviceId'] ?? null,
+            'providerId' => $appointmentData['providerId'] ?? null,
+            'bookingStart' => $appointmentData['bookingStart'] ?? null
+        ));
+    }
+    
+    return $appointmentData;
+}
+
