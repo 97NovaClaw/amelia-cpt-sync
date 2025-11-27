@@ -119,26 +119,38 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             }
             
             // Step 2: Create appointment
-            $wpdb->insert(
-                $appointments_table,
-                array(
-                    'status' => 'approved',
-                    'bookingStart' => $booking_start_formatted,
-                    'bookingEnd' => $booking_end,
-                    'notifyParticipants' => 1,
-                    'serviceId' => absint($booking_data['serviceId']),
-                    'providerId' => absint($booking_data['providerId']),
-                    'locationId' => !empty($booking_data['locationId']) ? absint($booking_data['locationId']) : null,
-                    'internalNotes' => 'Created by ART Module',
-                    'googleCalendarEventId' => null,
-                    'googleMeetUrl' => null,
-                    'outlookCalendarEventId' => null,
-                    'zoomMeeting' => null,
-                    'lessonSpace' => null,
-                    'parentId' => null,
-                ),
-                array('%s', '%s', '%s', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
-            );
+            // Using raw SQL to handle NULL values and all columns properly
+            $service_id = absint($booking_data['serviceId']);
+            $provider_id = absint($booking_data['providerId']);
+            $location_id = !empty($booking_data['locationId']) ? absint($booking_data['locationId']) : 'NULL';
+            $location_sql = $location_id === 'NULL' ? 'NULL' : '%d';
+            
+            if ($location_id === 'NULL') {
+                $wpdb->query($wpdb->prepare(
+                    "INSERT INTO $appointments_table 
+                    (status, bookingStart, bookingEnd, notifyParticipants, createPaymentLinks, serviceId, packageId, providerId, locationId, internalNotes, googleCalendarEventId, googleMeetUrl, outlookCalendarEventId, microsoftTeamsUrl, appleCalendarEventId, zoomMeeting, lessonSpace, parentId, error) 
+                    VALUES (%s, %s, %s, 1, 1, %d, NULL, %d, NULL, %s, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
+                    'approved',
+                    $booking_start_formatted,
+                    $booking_end,
+                    $service_id,
+                    $provider_id,
+                    'Created by ART Module'
+                ));
+            } else {
+                $wpdb->query($wpdb->prepare(
+                    "INSERT INTO $appointments_table 
+                    (status, bookingStart, bookingEnd, notifyParticipants, createPaymentLinks, serviceId, packageId, providerId, locationId, internalNotes, googleCalendarEventId, googleMeetUrl, outlookCalendarEventId, microsoftTeamsUrl, appleCalendarEventId, zoomMeeting, lessonSpace, parentId, error) 
+                    VALUES (%s, %s, %s, 1, 1, %d, NULL, %d, %d, %s, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
+                    'approved',
+                    $booking_start_formatted,
+                    $booking_end,
+                    $service_id,
+                    $provider_id,
+                    $location_id,
+                    'Created by ART Module'
+                ));
+            }
             
             $appointment_id = $wpdb->insert_id;
             
@@ -151,32 +163,35 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             amelia_cpt_sync_debug_log('ART Booking DB: Created appointment #' . $appointment_id);
             
             // Step 3: Create customer booking
-            $wpdb->insert(
-                $bookings_table,
-                array(
-                    'appointmentId' => $appointment_id,
-                    'customerId' => $customer_id,
-                    'status' => 'approved',
-                    'price' => floatval($booking_info['price'] ?? 0),
-                    'persons' => absint($booking_info['persons'] ?? 1),
-                    'couponId' => null,
-                    'token' => wp_generate_uuid4(),
-                    'customFields' => '{}',
-                    'info' => wp_json_encode(array(
-                        'firstName' => $customer_data['firstName'] ?? '',
-                        'lastName' => $customer_data['lastName'] ?? '',
-                        'phone' => $customer_data['phone'] ?? '',
-                        'locale' => 'en_US',
-                    )),
-                    'utcOffset' => null,
-                    'aggregatedPrice' => 1,
-                    'packageCustomerServiceId' => null,
-                    'duration' => $duration_seconds,
-                    'created' => current_time('mysql', 1),
-                    'actionsCompleted' => 1,
-                ),
-                array('%d', '%d', '%s', '%f', '%d', '%d', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%s', '%d')
-            );
+            // Note: Using raw SQL to handle NULL values properly
+            $token = wp_generate_uuid4();
+            $info_json = wp_json_encode(array(
+                'firstName' => $customer_data['firstName'] ?? '',
+                'lastName' => $customer_data['lastName'] ?? '',
+                'phone' => $customer_data['phone'] ?? '',
+                'locale' => 'en_US',
+            ));
+            $created_time = current_time('mysql', 1);
+            $price = floatval($booking_info['price'] ?? 0);
+            $persons = absint($booking_info['persons'] ?? 1);
+            
+            $booking_insert_result = $wpdb->query($wpdb->prepare(
+                "INSERT INTO $bookings_table 
+                (appointmentId, customerId, status, price, tax, persons, couponId, token, customFields, info, utcOffset, aggregatedPrice, packageCustomerServiceId, duration, created, actionsCompleted) 
+                VALUES (%d, %d, %s, %f, NULL, %d, NULL, %s, %s, %s, NULL, 1, NULL, %d, %s, 1)",
+                $appointment_id,
+                $customer_id,
+                'approved',
+                $price,
+                $persons,
+                $token,
+                '{}',
+                $info_json,
+                $duration_seconds,
+                $created_time
+            ));
+            
+            $booking_id = $wpdb->insert_id;
             
             $booking_id = $wpdb->insert_id;
             
@@ -189,27 +204,24 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             amelia_cpt_sync_debug_log('ART Booking DB: Created booking #' . $booking_id);
             
             // Step 4: Create payment record
-            $wpdb->insert(
-                $payments_table,
-                array(
-                    'customerBookingId' => $booking_id,
-                    'packageCustomerId' => null,
-                    'parentId' => null,
-                    'amount' => floatval($booking_info['price'] ?? 0),
-                    'dateTime' => current_time('mysql', 1),
-                    'status' => 'pending',
-                    'gateway' => 'onSite',
-                    'gatewayTitle' => 'On-site',
-                    'data' => '',
-                    'entity' => 'appointment',
-                    'created' => current_time('mysql', 1),
-                    'actionsCompleted' => 1,
-                    'wcOrderId' => null,
-                    'wcOrderItemId' => null,
-                    'transactionId' => null,
-                ),
-                array('%d', '%d', '%d', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%s')
-            );
+            // Using raw SQL to handle NULL values properly
+            $payment_datetime = current_time('mysql', 1);
+            $payment_amount = floatval($booking_info['price'] ?? 0);
+            
+            $wpdb->query($wpdb->prepare(
+                "INSERT INTO $payments_table 
+                (customerBookingId, amount, dateTime, status, gateway, gatewayTitle, data, packageCustomerId, parentId, entity, created, actionsCompleted, triggeredActions, wcOrderId, wcOrderItemId, transactionId, transfers, invoiceNumber) 
+                VALUES (%d, %f, %s, %s, %s, %s, %s, NULL, NULL, %s, %s, 1, NULL, NULL, NULL, NULL, NULL, NULL)",
+                $booking_id,
+                $payment_amount,
+                $payment_datetime,
+                'pending',
+                'onSite',
+                'On-site',
+                '',
+                'appointment',
+                $payment_datetime
+            ));
             
             $payment_id = $wpdb->insert_id;
             amelia_cpt_sync_debug_log('ART Booking DB: Created payment #' . $payment_id);
