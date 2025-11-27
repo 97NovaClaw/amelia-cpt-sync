@@ -373,13 +373,138 @@ class Amelia_CPT_Sync_ART_API_Manager {
     }
     
     /**
-     * Create an Amelia booking (Phase 5)
+     * Create an Amelia booking using direct container access (Hybrid Hook Approach)
+     * 
+     * This method bypasses the REST API and uses Amelia's internal services directly.
+     * Benefits:
+     * - No "time slot unavailable" errors (availability validation disabled)
+     * - Better performance (no HTTP overhead)
+     * - Full admin privileges
+     *
+     * @param array $booking_data Booking data
+     * @return array|WP_Error Booking response or error
+     */
+    public function create_booking_via_container($booking_data) {
+        // Check if Amelia is installed and active
+        $amelia_path = WP_PLUGIN_DIR . '/ameliabooking';
+        $container_path = $amelia_path . '/src/Infrastructure/ContainerConfig/container.php';
+        
+        if (!file_exists($container_path)) {
+            amelia_cpt_sync_debug_log('ART Hook: Amelia container not found, falling back to API');
+            return $this->create_booking_via_api($booking_data);
+        }
+        
+        try {
+            amelia_cpt_sync_debug_log('ART Hook: Creating booking via Amelia container');
+            amelia_cpt_sync_debug_log('ART Hook: Booking data', $booking_data);
+            
+            // Get Amelia's container
+            /** @var \AmeliaBooking\Infrastructure\Common\Container $container */
+            $container = require $container_path;
+            
+            // Get the reservation service for appointments
+            /** @var \AmeliaBooking\Application\Services\Reservation\ReservationService $reservationService */
+            $reservationService = $container->get('application.reservation.service');
+            
+            /** @var \AmeliaBooking\Application\Services\Reservation\AppointmentReservationService $appointmentReservationService */
+            $appointmentReservationService = $reservationService->get('appointment');
+            
+            // Create reservation with ALL validation DISABLED
+            // This is the key - we bypass availability validation entirely
+            /** @var \AmeliaBooking\Domain\Entity\Booking\Reservation $reservation */
+            $reservation = $appointmentReservationService->getNew(
+                false,  // couponValidation - skip coupon checks
+                false,  // customFieldsValidation - skip custom field validation
+                false   // availabilityValidation - DISABLE slot validation ⭐
+            );
+            
+            // Build appointment data in Amelia's expected format
+            $appointmentData = array(
+                'type' => 'appointment',
+                'bookingStart' => $booking_data['bookingStart'],
+                'notifyParticipants' => 1,
+                'serviceId' => absint($booking_data['serviceId']),
+                'providerId' => absint($booking_data['providerId']),
+                'locationId' => !empty($booking_data['locationId']) ? absint($booking_data['locationId']) : null,
+                'bookings' => $booking_data['bookings'],
+                'payment' => array(
+                    'gateway' => 'onSite',
+                    'currency' => 'USD',
+                    'data' => array()
+                ),
+                'recurring' => array(),
+                'package' => array(),
+                'isBackendOrCabinet' => true,
+                'packageBookingFromBackend' => true
+            );
+            
+            // Apply Amelia's filter hook (for compatibility)
+            $appointmentData = apply_filters('amelia_before_booking_added_filter', $appointmentData);
+            
+            // Trigger before action
+            do_action('amelia_before_booking_added', $appointmentData);
+            
+            // Process the booking through Amelia's internal service
+            // The book() method handles all the complex logic
+            $appointmentReservationService->book($appointmentData, $reservation, true);
+            
+            // Check if booking was successful
+            $booking = $reservation->getBooking();
+            $appointment = $reservation->getReservation();
+            
+            if (!$booking || !$appointment) {
+                amelia_cpt_sync_debug_log('ART Hook: Booking failed - no booking/appointment created');
+                return new WP_Error('booking_failed', 'Booking creation failed via container');
+            }
+            
+            $booking_id = $booking->getId() ? $booking->getId()->getValue() : null;
+            $appointment_id = $appointment->getId() ? $appointment->getId()->getValue() : null;
+            $customer_id = $booking->getCustomer() && $booking->getCustomer()->getId() 
+                ? $booking->getCustomer()->getId()->getValue() 
+                : null;
+            
+            amelia_cpt_sync_debug_log('ART Hook: Successfully created booking #' . $booking_id . ' (appointment #' . $appointment_id . ')');
+            
+            // Trigger after action
+            do_action('amelia_after_booking_added', $appointmentData);
+            
+            // Return in same format as API response for compatibility
+            return array(
+                'message' => 'Successfully added booking',
+                'data' => array(
+                    'appointment' => array(
+                        'id' => $appointment_id,
+                        'bookings' => array(
+                            array(
+                                'id' => $booking_id,
+                                'customerId' => $customer_id
+                            )
+                        )
+                    ),
+                    'customer' => array(
+                        'id' => $customer_id
+                    )
+                )
+            );
+            
+        } catch (\Exception $e) {
+            amelia_cpt_sync_debug_log('ART Hook: Exception during booking - ' . $e->getMessage());
+            amelia_cpt_sync_debug_log('ART Hook: Stack trace - ' . $e->getTraceAsString());
+            
+            // Fall back to API method
+            amelia_cpt_sync_debug_log('ART Hook: Falling back to API method');
+            return $this->create_booking_via_api($booking_data);
+        }
+    }
+    
+    /**
+     * Create an Amelia booking via REST API (Original method, now fallback)
      * Format based on Amelia API documentation
      *
      * @param array $booking_data Booking data
      * @return array|WP_Error Booking response or error
      */
-    public function create_booking($booking_data) {
+    public function create_booking_via_api($booking_data) {
         // Validate required fields (locationId is optional)
         $required = array('bookingStart', 'serviceId', 'providerId', 'bookings');
         foreach ($required as $key) {
@@ -472,6 +597,46 @@ class Amelia_CPT_Sync_ART_API_Manager {
         }
         
         return $response;
+    }
+    
+    /**
+     * Create an Amelia booking (Main entry point)
+     * 
+     * Uses hybrid approach:
+     * 1. First tries direct container access (bypasses validation)
+     * 2. Falls back to REST API if container fails
+     *
+     * @param array $booking_data Booking data
+     * @return array|WP_Error Booking response or error
+     */
+    public function create_booking($booking_data) {
+        // Validate required fields first
+        $required = array('bookingStart', 'serviceId', 'providerId', 'bookings');
+        foreach ($required as $key) {
+            if (!isset($booking_data[$key])) {
+                return new WP_Error('missing_field', 'Missing required booking field: ' . $key);
+            }
+        }
+        
+        if (empty($booking_data['bookings']) || !is_array($booking_data['bookings'])) {
+            return new WP_Error('invalid_bookings', 'Bookings must be a non-empty array');
+        }
+        
+        // Try container method first (bypasses slot validation)
+        amelia_cpt_sync_debug_log('ART: Attempting booking via container (hybrid approach)');
+        $result = $this->create_booking_via_container($booking_data);
+        
+        // If container method succeeded, return result
+        if (!is_wp_error($result)) {
+            return $result;
+        }
+        
+        // Log the container error
+        amelia_cpt_sync_debug_log('ART: Container method failed: ' . $result->get_error_message());
+        amelia_cpt_sync_debug_log('ART: Falling back to API method');
+        
+        // Fall back to API method
+        return $this->create_booking_via_api($booking_data);
     }
     
     /**
