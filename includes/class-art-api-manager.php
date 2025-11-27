@@ -394,6 +394,9 @@ class Amelia_CPT_Sync_ART_API_Manager {
         }
         
         // Build payload in EXACT format from Amelia API docs
+        // Key flags for backend/admin booking:
+        // - isBackendOrCabinet: bypasses customer blocking, booking limits, recaptcha
+        // - packageBookingFromBackend: treats this as backend booking for slot validation (less strict)
         $booking_payload = array(
             'type' => 'appointment',
             'bookings' => $booking_data['bookings'],  // Already formatted by caller
@@ -405,7 +408,9 @@ class Amelia_CPT_Sync_ART_API_Manager {
             'bookingStart' => $booking_data['bookingStart'],  // "YYYY-MM-DD HH:mm" format
             'notifyParticipants' => 1,
             'providerId' => absint($booking_data['providerId']),
-            'serviceId' => absint($booking_data['serviceId'])
+            'serviceId' => absint($booking_data['serviceId']),
+            'isBackendOrCabinet' => true,  // Bypass customer restrictions and recaptcha
+            'packageBookingFromBackend' => true  // Use backend slot validation (less strict)
         );
         
         // Only add locationId if provided (Amelia can handle bookings without location)
