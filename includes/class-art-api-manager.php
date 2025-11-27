@@ -373,104 +373,205 @@ class Amelia_CPT_Sync_ART_API_Manager {
     }
     
     /**
-     * Create an Amelia booking using direct container access (Hybrid Hook Approach)
+     * Create an Amelia booking using direct database access (Hybrid Approach)
      * 
-     * This method bypasses the REST API and uses Amelia's internal services directly.
+     * This method bypasses the REST API validation by writing directly to Amelia's database.
      * Benefits:
-     * - No "time slot unavailable" errors (availability validation disabled)
-     * - Better performance (no HTTP overhead)
-     * - Full admin privileges
+     * - No "time slot unavailable" errors (no validation at all)
+     * - Reliable (no container initialization issues)
+     * - Full control over the booking
      *
      * @param array $booking_data Booking data
      * @return array|WP_Error Booking response or error
      */
-    public function create_booking_via_container($booking_data) {
-        // Check if Amelia is installed and active
-        $amelia_path = WP_PLUGIN_DIR . '/ameliabooking';
-        $container_path = $amelia_path . '/src/Infrastructure/ContainerConfig/container.php';
+    public function create_booking_via_database($booking_data) {
+        global $wpdb;
         
-        if (!file_exists($container_path)) {
-            amelia_cpt_sync_debug_log('ART Hook: Amelia container not found, falling back to API');
+        amelia_cpt_sync_debug_log('ART Direct DB: Creating booking via direct database insert');
+        amelia_cpt_sync_debug_log('ART Direct DB: Booking data', $booking_data);
+        
+        // Check if Amelia tables exist
+        $appointments_table = $wpdb->prefix . 'amelia_appointments';
+        $bookings_table = $wpdb->prefix . 'amelia_customer_bookings';
+        $customers_table = $wpdb->prefix . 'amelia_users';
+        $payments_table = $wpdb->prefix . 'amelia_payments';
+        
+        if ($wpdb->get_var("SHOW TABLES LIKE '$appointments_table'") !== $appointments_table) {
+            amelia_cpt_sync_debug_log('ART Direct DB: Amelia tables not found, falling back to API');
             return $this->create_booking_via_api($booking_data);
         }
         
         try {
-            amelia_cpt_sync_debug_log('ART Hook: Creating booking via Amelia container');
-            amelia_cpt_sync_debug_log('ART Hook: Booking data', $booking_data);
+            // Start transaction
+            $wpdb->query('START TRANSACTION');
             
-            // Get Amelia's container
-            /** @var \AmeliaBooking\Infrastructure\Common\Container $container */
-            $container = require $container_path;
+            // Extract booking info
+            $booking_info = $booking_data['bookings'][0] ?? array();
+            $customer_data = $booking_info['customer'] ?? array();
             
-            // Get the reservation service for appointments
-            /** @var \AmeliaBooking\Application\Services\Reservation\ReservationService $reservationService */
-            $reservationService = $container->get('application.reservation.service');
+            // Parse booking start time
+            $booking_start = $booking_data['bookingStart'];
+            $duration_seconds = absint($booking_info['duration'] ?? 3600);
+            $booking_end = gmdate('Y-m-d H:i:s', strtotime($booking_start) + $duration_seconds);
+            $booking_start_formatted = gmdate('Y-m-d H:i:s', strtotime($booking_start));
             
-            /** @var \AmeliaBooking\Application\Services\Reservation\AppointmentReservationService $appointmentReservationService */
-            $appointmentReservationService = $reservationService->get('appointment');
-            
-            // Create reservation with ALL validation DISABLED
-            // This is the key - we bypass availability validation entirely
-            /** @var \AmeliaBooking\Domain\Entity\Booking\Reservation $reservation */
-            $reservation = $appointmentReservationService->getNew(
-                false,  // couponValidation - skip coupon checks
-                false,  // customFieldsValidation - skip custom field validation
-                false   // availabilityValidation - DISABLE slot validation ⭐
-            );
-            
-            // Build appointment data in Amelia's expected format
-            $appointmentData = array(
-                'type' => 'appointment',
-                'bookingStart' => $booking_data['bookingStart'],
-                'notifyParticipants' => 1,
-                'serviceId' => absint($booking_data['serviceId']),
-                'providerId' => absint($booking_data['providerId']),
-                'locationId' => !empty($booking_data['locationId']) ? absint($booking_data['locationId']) : null,
-                'bookings' => $booking_data['bookings'],
-                'payment' => array(
-                    'gateway' => 'onSite',
-                    'currency' => 'USD',
-                    'data' => array()
-                ),
-                'recurring' => array(),
-                'package' => array(),
-                'isBackendOrCabinet' => true,
-                'packageBookingFromBackend' => true
-            );
-            
-            // Apply Amelia's filter hook (for compatibility)
-            $appointmentData = apply_filters('amelia_before_booking_added_filter', $appointmentData);
-            
-            // Trigger before action
-            do_action('amelia_before_booking_added', $appointmentData);
-            
-            // Process the booking through Amelia's internal service
-            // The book() method handles all the complex logic
-            $appointmentReservationService->book($appointmentData, $reservation, true);
-            
-            // Check if booking was successful
-            $booking = $reservation->getBooking();
-            $appointment = $reservation->getReservation();
-            
-            if (!$booking || !$appointment) {
-                amelia_cpt_sync_debug_log('ART Hook: Booking failed - no booking/appointment created');
-                return new WP_Error('booking_failed', 'Booking creation failed via container');
+            // Step 1: Find or create customer
+            $customer_id = null;
+            if (!empty($customer_data['email'])) {
+                // Look for existing customer
+                $existing_customer = $wpdb->get_row($wpdb->prepare(
+                    "SELECT id FROM $customers_table WHERE email = %s AND type = 'customer' LIMIT 1",
+                    $customer_data['email']
+                ));
+                
+                if ($existing_customer) {
+                    $customer_id = $existing_customer->id;
+                    amelia_cpt_sync_debug_log('ART Direct DB: Found existing customer #' . $customer_id);
+                } else {
+                    // Create new customer
+                    $wpdb->insert(
+                        $customers_table,
+                        array(
+                            'status' => 'visible',
+                            'type' => 'customer',
+                            'firstName' => sanitize_text_field($customer_data['firstName'] ?? ''),
+                            'lastName' => sanitize_text_field($customer_data['lastName'] ?? ''),
+                            'email' => sanitize_email($customer_data['email']),
+                            'phone' => sanitize_text_field($customer_data['phone'] ?? ''),
+                            'countryPhoneIso' => '',
+                            'gender' => null,
+                            'birthday' => null,
+                            'note' => 'Created by ART Module',
+                            'pictureFullPath' => null,
+                            'pictureThumbPath' => null,
+                            'translations' => '{}',
+                        ),
+                        array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
+                    );
+                    $customer_id = $wpdb->insert_id;
+                    amelia_cpt_sync_debug_log('ART Direct DB: Created new customer #' . $customer_id);
+                }
             }
             
-            $booking_id = $booking->getId() ? $booking->getId()->getValue() : null;
-            $appointment_id = $appointment->getId() ? $appointment->getId()->getValue() : null;
-            $customer_id = $booking->getCustomer() && $booking->getCustomer()->getId() 
-                ? $booking->getCustomer()->getId()->getValue() 
-                : null;
+            if (!$customer_id) {
+                $wpdb->query('ROLLBACK');
+                return new WP_Error('customer_error', 'Failed to find or create customer');
+            }
             
-            amelia_cpt_sync_debug_log('ART Hook: Successfully created booking #' . $booking_id . ' (appointment #' . $appointment_id . ')');
+            // Step 2: Create appointment
+            $wpdb->insert(
+                $appointments_table,
+                array(
+                    'status' => 'approved',
+                    'bookingStart' => $booking_start_formatted,
+                    'bookingEnd' => $booking_end,
+                    'notifyParticipants' => 1,
+                    'serviceId' => absint($booking_data['serviceId']),
+                    'providerId' => absint($booking_data['providerId']),
+                    'locationId' => !empty($booking_data['locationId']) ? absint($booking_data['locationId']) : null,
+                    'internalNotes' => 'Created by ART Module',
+                    'googleCalendarEventId' => null,
+                    'googleMeetUrl' => null,
+                    'outlookCalendarEventId' => null,
+                    'zoomMeeting' => null,
+                    'lessonSpace' => null,
+                    'parentId' => null,
+                ),
+                array('%s', '%s', '%s', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d')
+            );
             
-            // Trigger after action
+            $appointment_id = $wpdb->insert_id;
+            
+            if (!$appointment_id) {
+                $wpdb->query('ROLLBACK');
+                amelia_cpt_sync_debug_log('ART Direct DB: Failed to create appointment - ' . $wpdb->last_error);
+                return new WP_Error('appointment_error', 'Failed to create appointment: ' . $wpdb->last_error);
+            }
+            
+            amelia_cpt_sync_debug_log('ART Direct DB: Created appointment #' . $appointment_id);
+            
+            // Step 3: Create customer booking
+            $wpdb->insert(
+                $bookings_table,
+                array(
+                    'appointmentId' => $appointment_id,
+                    'customerId' => $customer_id,
+                    'status' => 'approved',
+                    'price' => floatval($booking_info['price'] ?? 0),
+                    'persons' => absint($booking_info['persons'] ?? 1),
+                    'couponId' => null,
+                    'token' => wp_generate_uuid4(),
+                    'customFields' => '{}',
+                    'info' => wp_json_encode(array(
+                        'firstName' => $customer_data['firstName'] ?? '',
+                        'lastName' => $customer_data['lastName'] ?? '',
+                        'phone' => $customer_data['phone'] ?? '',
+                        'locale' => 'en_US',
+                    )),
+                    'utcOffset' => null,
+                    'aggregatedPrice' => 1,
+                    'packageCustomerServiceId' => null,
+                    'duration' => $duration_seconds,
+                    'created' => current_time('mysql', 1),
+                    'actionsCompleted' => 1,
+                ),
+                array('%d', '%d', '%s', '%f', '%d', '%d', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%s', '%d')
+            );
+            
+            $booking_id = $wpdb->insert_id;
+            
+            if (!$booking_id) {
+                $wpdb->query('ROLLBACK');
+                amelia_cpt_sync_debug_log('ART Direct DB: Failed to create booking - ' . $wpdb->last_error);
+                return new WP_Error('booking_error', 'Failed to create booking: ' . $wpdb->last_error);
+            }
+            
+            amelia_cpt_sync_debug_log('ART Direct DB: Created booking #' . $booking_id);
+            
+            // Step 4: Create payment record
+            $wpdb->insert(
+                $payments_table,
+                array(
+                    'customerBookingId' => $booking_id,
+                    'packageCustomerId' => null,
+                    'parentId' => null,
+                    'amount' => floatval($booking_info['price'] ?? 0),
+                    'dateTime' => current_time('mysql', 1),
+                    'status' => 'pending',
+                    'gateway' => 'onSite',
+                    'gatewayTitle' => 'On-site',
+                    'data' => '',
+                    'entity' => 'appointment',
+                    'created' => current_time('mysql', 1),
+                    'actionsCompleted' => 1,
+                    'wcOrderId' => null,
+                    'wcOrderItemId' => null,
+                    'transactionId' => null,
+                ),
+                array('%d', '%d', '%d', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%s')
+            );
+            
+            $payment_id = $wpdb->insert_id;
+            amelia_cpt_sync_debug_log('ART Direct DB: Created payment #' . $payment_id);
+            
+            // Commit transaction
+            $wpdb->query('COMMIT');
+            
+            amelia_cpt_sync_debug_log('ART Direct DB: Successfully created booking #' . $booking_id . ' (appointment #' . $appointment_id . ')');
+            
+            // Trigger Amelia hooks for compatibility
+            $appointmentData = array(
+                'type' => 'appointment',
+                'bookingStart' => $booking_start_formatted,
+                'serviceId' => absint($booking_data['serviceId']),
+                'providerId' => absint($booking_data['providerId']),
+                'bookings' => $booking_data['bookings'],
+            );
             do_action('amelia_after_booking_added', $appointmentData);
             
-            // Return in same format as API response for compatibility
+            // Return in same format as API response
             return array(
-                'message' => 'Successfully added booking',
+                'message' => 'Successfully added booking (via direct database)',
                 'data' => array(
                     'appointment' => array(
                         'id' => $appointment_id,
@@ -488,11 +589,11 @@ class Amelia_CPT_Sync_ART_API_Manager {
             );
             
         } catch (\Exception $e) {
-            amelia_cpt_sync_debug_log('ART Hook: Exception during booking - ' . $e->getMessage());
-            amelia_cpt_sync_debug_log('ART Hook: Stack trace - ' . $e->getTraceAsString());
+            $wpdb->query('ROLLBACK');
+            amelia_cpt_sync_debug_log('ART Direct DB: Exception - ' . $e->getMessage());
             
             // Fall back to API method
-            amelia_cpt_sync_debug_log('ART Hook: Falling back to API method');
+            amelia_cpt_sync_debug_log('ART Direct DB: Falling back to API method');
             return $this->create_booking_via_api($booking_data);
         }
     }
@@ -603,8 +704,8 @@ class Amelia_CPT_Sync_ART_API_Manager {
      * Create an Amelia booking (Main entry point)
      * 
      * Uses hybrid approach:
-     * 1. First tries direct container access (bypasses validation)
-     * 2. Falls back to REST API if container fails
+     * 1. First tries direct database insert (bypasses ALL validation)
+     * 2. Falls back to REST API if database method fails
      *
      * @param array $booking_data Booking data
      * @return array|WP_Error Booking response or error
@@ -622,17 +723,17 @@ class Amelia_CPT_Sync_ART_API_Manager {
             return new WP_Error('invalid_bookings', 'Bookings must be a non-empty array');
         }
         
-        // Try container method first (bypasses slot validation)
-        amelia_cpt_sync_debug_log('ART: Attempting booking via container (hybrid approach)');
-        $result = $this->create_booking_via_container($booking_data);
+        // Try direct database method first (bypasses ALL slot validation)
+        amelia_cpt_sync_debug_log('ART: Attempting booking via direct database (hybrid approach)');
+        $result = $this->create_booking_via_database($booking_data);
         
-        // If container method succeeded, return result
+        // If database method succeeded, return result
         if (!is_wp_error($result)) {
             return $result;
         }
         
-        // Log the container error
-        amelia_cpt_sync_debug_log('ART: Container method failed: ' . $result->get_error_message());
+        // Log the database error
+        amelia_cpt_sync_debug_log('ART: Database method failed: ' . $result->get_error_message());
         amelia_cpt_sync_debug_log('ART: Falling back to API method');
         
         // Fall back to API method
