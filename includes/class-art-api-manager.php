@@ -426,6 +426,18 @@ class Amelia_CPT_Sync_ART_API_Manager {
         // Debug: Log the full response structure
         amelia_cpt_sync_debug_log('ART API: Booking response structure', $response);
         
+        // Check for Amelia-specific error conditions that return 200 OK but indicate failure
+        if (!empty($response['data']['timeSlotUnavailable'])) {
+            amelia_cpt_sync_debug_log('ART API: Booking failed - Time slot is unavailable');
+            return new WP_Error('time_slot_unavailable', 'The selected time slot is no longer available. Please choose a different time.');
+        }
+        
+        // Check for other error indicators in the response
+        if (isset($response['message']) && stripos($response['message'], 'unavailable') !== false) {
+            amelia_cpt_sync_debug_log('ART API: Booking failed - ' . $response['message']);
+            return new WP_Error('booking_failed', $response['message']);
+        }
+        
         // According to Amelia API docs, the response structure is:
         // data.appointment.id = appointment ID
         // data.appointment.bookings[0].id = booking ID
@@ -446,7 +458,9 @@ class Amelia_CPT_Sync_ART_API_Manager {
         if ($booking_id) {
             amelia_cpt_sync_debug_log('ART API: Successfully created booking #' . $booking_id . ' (appointment #' . $appointment_id . ')');
         } else {
+            // If we still don't have a booking ID, the booking likely failed
             amelia_cpt_sync_debug_log('ART API: Warning - Could not extract booking ID from response. Message: ' . ($response['message'] ?? 'none'));
+            return new WP_Error('booking_id_missing', 'Booking may have failed - no booking ID returned. Response: ' . ($response['message'] ?? 'Unknown error'));
         }
         
         return $response;
