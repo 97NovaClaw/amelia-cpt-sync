@@ -434,7 +434,10 @@ class Amelia_CPT_Sync_ART_API_Manager {
         // Check for Amelia-specific error conditions that return 200 OK but indicate failure
         if (!empty($response['data']['timeSlotUnavailable'])) {
             amelia_cpt_sync_debug_log('ART API: Booking failed - Time slot is unavailable');
-            return new WP_Error('time_slot_unavailable', 'The selected time slot is no longer available. Please choose a different time.');
+            return new WP_Error(
+                'time_slot_unavailable', 
+                'The selected time slot is unavailable. This usually means: (1) The time is outside the provider\'s working hours, (2) Another booking was just made for this slot, or (3) The time doesn\'t align with the service\'s time slot intervals. Try selecting a time from the available slots list.'
+            );
         }
         
         // Check for other error indicators in the response
