@@ -81,8 +81,16 @@ class Amelia_CPT_Sync_ART_API_Manager {
         
         amelia_cpt_sync_debug_log('ART API Response Code: ' . $code);
         
-        // Always log the actual response content for debugging
-        amelia_cpt_sync_debug_log('ART API Response Body', $data);
+        // Log response content for debugging (but truncate large responses like slots)
+        if (strlen($body_response) > 5000) {
+            amelia_cpt_sync_debug_log('ART API Response Body (truncated)', array(
+                'message' => $data['message'] ?? 'No message',
+                'data_keys' => isset($data['data']) ? array_keys($data['data']) : [],
+                'response_size' => strlen($body_response) . ' bytes'
+            ));
+        } else {
+            amelia_cpt_sync_debug_log('ART API Response Body', $data);
+        }
         
         if ($code < 200 || $code > 299) {
             $error_message = isset($data['message']) ? $data['message'] : 'HTTP ' . $code;
@@ -349,6 +357,7 @@ class Amelia_CPT_Sync_ART_API_Manager {
         
         $slots = $response['data']['slots'] ?? array();
         
+        // Just log a summary, not all the data
         amelia_cpt_sync_debug_log('ART API: Retrieved slots for ' . count($slots) . ' dates');
         
         // Log if no slots found (might be scheduling issue, not API error)

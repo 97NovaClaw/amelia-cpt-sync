@@ -22,7 +22,7 @@ if (!defined('WPINC')) {
 /**
  * Current plugin version.
  */
-define('AMELIA_CPT_SYNC_VERSION', '2.11.0');
+define('AMELIA_CPT_SYNC_VERSION', '2.11.3');
 define('AMELIA_CPT_SYNC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AMELIA_CPT_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
 

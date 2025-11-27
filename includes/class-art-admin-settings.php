@@ -1092,47 +1092,9 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         // Process slots for frontend display
         $formatted_slots = array();
         
-        // Debug: Log raw slots structure
+        // Brief debug log - just summary, not all dates
         $raw_slots = $result['slots'] ?? array();
-        amelia_cpt_sync_debug_log('ART Slots: Raw structure', array(
-            'total_dates' => count($raw_slots),
-            'dates_available' => array_keys($raw_slots)
-        ));
-        
-        // Log specific dates for debugging
-        $today = gmdate('Y-m-d');
-        $tomorrow = gmdate('Y-m-d', strtotime('+1 day'));
-        $day_after = gmdate('Y-m-d', strtotime('+2 days'));
-        
-        // Log today
-        if (isset($raw_slots[$today])) {
-            amelia_cpt_sync_debug_log('ART Slots: Today (' . $today . ') - ' . count($raw_slots[$today]) . ' time slots', array_keys($raw_slots[$today]));
-        }
-        
-        // Log tomorrow
-        if (isset($raw_slots[$tomorrow])) {
-            amelia_cpt_sync_debug_log('ART Slots: Tomorrow (' . $tomorrow . ') - ' . count($raw_slots[$tomorrow]) . ' time slots', array_keys($raw_slots[$tomorrow]));
-        }
-        
-        // Log day after tomorrow (Nov 28)
-        if (isset($raw_slots[$day_after])) {
-            $times_for_day = array_keys($raw_slots[$day_after]);
-            amelia_cpt_sync_debug_log('ART Slots: Day after (' . $day_after . ') - ' . count($times_for_day) . ' time slots', $times_for_day);
-            
-            // Log ALL providers for this day
-            foreach ($raw_slots[$day_after] as $time => $providers) {
-                amelia_cpt_sync_debug_log('ART Slots: ' . $day_after . ' @ ' . $time . ' has ' . count($providers) . ' providers', $providers);
-            }
-        }
-        
-        // Also log a specific date if provided in params (for debugging)
-        $debug_date = '2025-11-28';
-        if (isset($raw_slots[$debug_date])) {
-            amelia_cpt_sync_debug_log('ART Slots DEBUG: ' . $debug_date . ' ALL times', array_keys($raw_slots[$debug_date]));
-            foreach ($raw_slots[$debug_date] as $time => $providers) {
-                amelia_cpt_sync_debug_log('ART Slots DEBUG: ' . $debug_date . ' @ ' . $time, $providers);
-            }
-        }
+        amelia_cpt_sync_debug_log('ART Slots: ' . count($raw_slots) . ' dates available');
         
         foreach ($result['slots'] as $date => $times) {
             foreach ($times as $time => $providers) {
@@ -1140,11 +1102,6 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                 foreach ($providers as $provider_info) {
                     // Skip slots without valid provider
                     if (empty($provider_info[0])) {
-                        amelia_cpt_sync_debug_log('ART Slots: Skipping slot without provider', array(
-                            'date' => $date,
-                            'time' => $time,
-                            'raw_provider_info' => $provider_info
-                        ));
                         continue;
                     }
                     
