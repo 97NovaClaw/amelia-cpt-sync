@@ -1247,8 +1247,8 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             $booking_data['locationId'] = absint($request->location_id);
         }
         
-        $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
-        $result = $api_manager->create_booking($booking_data);
+        $booking_service = new Amelia_CPT_Sync_ART_Booking_Service();
+        $result = $booking_service->create_booking($booking_data);
         
         if (is_wp_error($result)) {
             wp_send_json_error(array('message' => 'Booking failed: ' . $result->get_error_message()));
@@ -1506,6 +1506,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             wp_send_json_error(array('message' => 'No existing Amelia appointment to reschedule'));
         }
         
+        $booking_service = new Amelia_CPT_Sync_ART_Booking_Service();
         $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
         
         // Update the appointment with new datetime and provider
@@ -1520,7 +1521,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             $update_data['locationId'] = absint($request->location_id);
         }
         
-        $result = $api_manager->update_appointment($booking_link->amelia_appointment_id, $update_data);
+        $result = $booking_service->update_appointment($booking_link->amelia_appointment_id, $update_data);
         
         if (is_wp_error($result)) {
             wp_send_json_error(array('message' => 'Reschedule failed: ' . $result->get_error_message()));
@@ -1586,10 +1587,10 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             wp_send_json_error(array('message' => 'No existing Amelia appointment to delete'));
         }
         
-        $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
+        $booking_service = new Amelia_CPT_Sync_ART_Booking_Service();
         
         // Delete the appointment from Amelia
-        $result = $api_manager->delete_appointment($booking_link->amelia_appointment_id);
+        $result = $booking_service->delete_appointment($booking_link->amelia_appointment_id);
         
         if (is_wp_error($result)) {
             wp_send_json_error(array('message' => 'Delete failed: ' . $result->get_error_message()));
