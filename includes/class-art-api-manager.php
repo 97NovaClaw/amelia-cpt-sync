@@ -452,7 +452,12 @@ class Amelia_CPT_Sync_ART_API_Manager {
         // Check for specific error conditions
         if (isset($response['data']['timeSlotUnavailable']) && $response['data']['timeSlotUnavailable'] === true) {
             amelia_cpt_sync_debug_log('ART API: Time slot unavailable - booking rejected by Amelia');
-            return new WP_Error('time_slot_unavailable', $response['message'] ?? 'Time slot is unavailable');
+            
+            // Provide a helpful error message
+            $error_msg = 'Time slot is unavailable. ';
+            $error_msg .= 'To allow booking at any time, enable "Allow admin to book over existing appointments" in Amelia → Settings → Roles.';
+            
+            return new WP_Error('time_slot_unavailable', $error_msg);
         }
         
         if ($booking_id) {

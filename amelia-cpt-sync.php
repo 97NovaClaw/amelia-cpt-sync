@@ -185,15 +185,15 @@ add_action('plugins_loaded', 'run_amelia_cpt_sync');
 /**
  * Hook into Amelia's booking process to allow ART bookings to bypass availability checks
  * 
+ * NOTE: This filter only works when Amelia is on the SAME WordPress installation.
+ * For remote API calls (different WordPress site), you must enable the 
+ * "Allow admin to book over existing appointments" setting in:
+ * Amelia → Settings → Roles → allowAdminBookOverApp
+ * 
  * This filter runs before Amelia processes a booking request. When we detect that the
  * booking is coming from our ART module (via the 'artBooking' flag), we set 
  * 'isBackendOrCabinet' to true, which tells Amelia to treat this as an admin booking
  * and skip certain availability validations.
- * 
- * This is necessary because:
- * 1. The API treats requests as "frontend" bookings by default
- * 2. Our custom Availability Engine has already validated the slot
- * 3. We want admins to be able to force-book if needed
  */
 add_filter('amelia_before_booking_added_filter', 'art_modify_booking_data_for_backend', 10, 1);
 

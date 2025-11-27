@@ -1293,13 +1293,20 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $result = $api_manager->create_booking($booking_data);
         
         if (is_wp_error($result)) {
-            wp_send_json_error(array('message' => 'Booking failed: ' . $result->get_error_message()));
+            wp_send_json_error(array('message' => $result->get_error_message()));
         }
         
         // Extract booking IDs from response
-        $booking_id = $result['data']['booking']['id'] ?? null;
+        // According to Amelia API docs:
+        // - data.appointment.id = appointment ID
+        // - data.appointment.bookings[0].id = booking ID
         $appointment_id = $result['data']['appointment']['id'] ?? null;
-        $amelia_customer_id = $result['data']['customer']['id'] ?? null;
+        $booking_id = null;
+        if (isset($result['data']['appointment']['bookings'][0]['id'])) {
+            $booking_id = $result['data']['appointment']['bookings'][0]['id'];
+        }
+        $amelia_customer_id = $result['data']['appointment']['bookings'][0]['customer']['id'] ?? 
+                              $result['data']['customer']['id'] ?? null;
         
         // Update request status to 'booked'
         $wpdb->update(
