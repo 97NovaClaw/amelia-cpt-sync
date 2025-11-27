@@ -1218,7 +1218,8 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                 'countryPhoneIso' => '',
                 'externalId' => null
             ),
-            'duration' => absint($request->duration_seconds)
+            'duration' => absint($request->duration_seconds),
+            'status' => 'approved'  // Required when packageBookingFromBackend is true
         );
         
         // Add price if available
