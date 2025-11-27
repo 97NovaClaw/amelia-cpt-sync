@@ -1293,7 +1293,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $result = $api_manager->create_booking($booking_data);
         
         if (is_wp_error($result)) {
-            wp_send_json_error(array('message' => $result->get_error_message()));
+            wp_send_json_error(array('message' => 'Booking failed: ' . $result->get_error_message()));
         }
         
         // Extract booking IDs from response

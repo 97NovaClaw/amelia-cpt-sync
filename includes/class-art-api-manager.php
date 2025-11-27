@@ -396,11 +396,7 @@ class Amelia_CPT_Sync_ART_API_Manager {
             'bookingStart' => $booking_data['bookingStart'],  // "YYYY-MM-DD HH:mm" format
             'notifyParticipants' => 1,
             'providerId' => absint($booking_data['providerId']),
-            'serviceId' => absint($booking_data['serviceId']),
-            // Flag to identify this as an ART booking - triggers our Amelia filter hook
-            'artBooking' => true,
-            // Tell Amelia to treat this as a backend/admin booking
-            'isBackendOrCabinet' => true
+            'serviceId' => absint($booking_data['serviceId'])
         );
         
         // Only add locationId if provided (Amelia can handle bookings without location)
@@ -438,34 +434,10 @@ class Amelia_CPT_Sync_ART_API_Manager {
             $booking_id = $response['data']['booking']['id'] ?? null;
         }
         
-        if (!$appointment_id && !$booking_id) {
-            // Check if there's an error message
-            $error_message = $response['message'] ?? 'Unknown error';
-            amelia_cpt_sync_debug_log('ART API: Booking may have failed - ' . $error_message);
-            
-            // Check if it's actually a success but with different structure
-            if (isset($response['data']) && is_array($response['data'])) {
-                amelia_cpt_sync_debug_log('ART API: Response data keys: ' . implode(', ', array_keys($response['data'])));
-            }
-        }
-        
-        // Check for specific error conditions
-        if (isset($response['data']['timeSlotUnavailable']) && $response['data']['timeSlotUnavailable'] === true) {
-            amelia_cpt_sync_debug_log('ART API: Time slot unavailable - booking rejected by Amelia');
-            
-            // Provide a helpful error message
-            $error_msg = 'Time slot is unavailable. ';
-            $error_msg .= 'To allow booking at any time, enable "Allow admin to book over existing appointments" in Amelia → Settings → Roles.';
-            
-            return new WP_Error('time_slot_unavailable', $error_msg);
-        }
-        
         if ($booking_id) {
             amelia_cpt_sync_debug_log('ART API: Successfully created booking #' . $booking_id . ' (appointment #' . $appointment_id . ')');
         } else {
-            // No booking ID and no specific error - something unexpected happened
             amelia_cpt_sync_debug_log('ART API: Warning - Could not extract booking ID from response. Message: ' . ($response['message'] ?? 'none'));
-            return new WP_Error('booking_failed', $response['message'] ?? 'Booking failed - no booking ID returned');
         }
         
         return $response;
