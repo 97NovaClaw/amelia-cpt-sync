@@ -3,7 +3,7 @@
  * Plugin Name: Amelia Expansion Suite
  * Plugin URI: https://github.com/97NovaClaw/amelia-cpt-sync
  * Description: Complete Amelia integration suite: CPT Sync, Dynamic Popups, and Request Triage System
- * Version: 2.10.3
+ * Version: 2.11.3
  * Author: 97NovaClaw
  * Author URI: https://github.com/97NovaClaw
  * License: GPL v2 or later
