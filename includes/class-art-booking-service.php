@@ -105,11 +105,19 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             $customer_data = $booking_info['customer'] ?? array();
             
             // Parse booking start time
-            // IMPORTANT: Amelia stores times in the site's local timezone, NOT UTC
+            // CRITICAL: Amelia stores times in WordPress timezone, NOT server timezone or UTC
+            // We must use WordPress timezone functions, not PHP's date()
             $booking_start = $booking_data['bookingStart'];
             $duration_seconds = absint($booking_info['duration'] ?? 3600);
-            $booking_end = date('Y-m-d H:i:s', strtotime($booking_start) + $duration_seconds);
-            $booking_start_formatted = date('Y-m-d H:i:s', strtotime($booking_start));
+            
+            // Get WordPress timezone
+            $wp_timezone = wp_timezone();
+            $dt_start = new DateTime($booking_start, $wp_timezone);
+            $dt_end = clone $dt_start;
+            $dt_end->modify('+' . $duration_seconds . ' seconds');
+            
+            $booking_start_formatted = $dt_start->format('Y-m-d H:i:s');
+            $booking_end = $dt_end->format('Y-m-d H:i:s');
             
             // Step 1: Find or create customer
             $customer_id = $this->find_or_create_customer($customer_data);
