@@ -105,10 +105,11 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             $customer_data = $booking_info['customer'] ?? array();
             
             // Parse booking start time
+            // IMPORTANT: Amelia stores times in the site's local timezone, NOT UTC
             $booking_start = $booking_data['bookingStart'];
             $duration_seconds = absint($booking_info['duration'] ?? 3600);
-            $booking_end = gmdate('Y-m-d H:i:s', strtotime($booking_start) + $duration_seconds);
-            $booking_start_formatted = gmdate('Y-m-d H:i:s', strtotime($booking_start));
+            $booking_end = date('Y-m-d H:i:s', strtotime($booking_start) + $duration_seconds);
+            $booking_start_formatted = date('Y-m-d H:i:s', strtotime($booking_start));
             
             // Step 1: Find or create customer
             $customer_id = $this->find_or_create_customer($customer_data);
@@ -171,7 +172,7 @@ class Amelia_CPT_Sync_ART_Booking_Service {
                 'phone' => $customer_data['phone'] ?? '',
                 'locale' => 'en_US',
             ));
-            $created_time = current_time('mysql', 1);
+            $created_time = current_time('mysql');
             $price = floatval($booking_info['price'] ?? 0);
             $persons = absint($booking_info['persons'] ?? 1);
             
@@ -205,7 +206,8 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             
             // Step 4: Create payment record
             // Using raw SQL to handle NULL values properly
-            $payment_datetime = current_time('mysql', 1);
+            // IMPORTANT: Use local time, not UTC
+            $payment_datetime = current_time('mysql');
             $payment_amount = floatval($booking_info['price'] ?? 0);
             
             $wpdb->query($wpdb->prepare(
