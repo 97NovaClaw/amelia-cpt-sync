@@ -105,19 +105,23 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             $customer_data = $booking_info['customer'] ?? array();
             
             // Parse booking start time
-            // CRITICAL: Amelia stores times in WordPress timezone, NOT server timezone or UTC
-            // We must use WordPress timezone functions, not PHP's date()
+            // The incoming datetime string is in "Y-m-d H:i" format from the UI
+            // We need to store it in the SAME timezone as it appears in the UI
             $booking_start = $booking_data['bookingStart'];
             $duration_seconds = absint($booking_info['duration'] ?? 3600);
             
-            // Get WordPress timezone
-            $wp_timezone = wp_timezone();
-            $dt_start = new DateTime($booking_start, $wp_timezone);
-            $dt_end = clone $dt_start;
-            $dt_end->modify('+' . $duration_seconds . ' seconds');
+            amelia_cpt_sync_debug_log('ART Booking DB: Received booking start: ' . $booking_start);
+            amelia_cpt_sync_debug_log('ART Booking DB: Duration seconds: ' . $duration_seconds);
+            amelia_cpt_sync_debug_log('ART Booking DB: WordPress timezone: ' . wp_timezone_string());
             
-            $booking_start_formatted = $dt_start->format('Y-m-d H:i:s');
-            $booking_end = $dt_end->format('Y-m-d H:i:s');
+            // Simply format the datetime - no timezone conversion!
+            // The datetime from the UI is already in the correct timezone
+            $booking_start_formatted = $booking_start . ':00'; // Add seconds if not present
+            $end_timestamp = strtotime($booking_start) + $duration_seconds;
+            $booking_end = date('Y-m-d H:i:s', $end_timestamp);
+            
+            amelia_cpt_sync_debug_log('ART Booking DB: Formatted start: ' . $booking_start_formatted);
+            amelia_cpt_sync_debug_log('ART Booking DB: Calculated end: ' . $booking_end);
             
             // Step 1: Find or create customer
             $customer_id = $this->find_or_create_customer($customer_data);
