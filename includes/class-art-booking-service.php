@@ -105,8 +105,8 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             $customer_data = $booking_info['customer'] ?? array();
             
             // Parse booking start time
-            // The incoming datetime string is in "Y-m-d H:i" format from the UI
-            // We need to store it in the SAME timezone as it appears in the UI
+            // CRITICAL: The datetime string from UI is in WordPress timezone
+            // We must preserve it exactly as-is without any conversion
             $booking_start = $booking_data['bookingStart'];
             $duration_seconds = absint($booking_info['duration'] ?? 3600);
             
@@ -114,11 +114,15 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             amelia_cpt_sync_debug_log('ART Booking DB: Duration seconds: ' . $duration_seconds);
             amelia_cpt_sync_debug_log('ART Booking DB: WordPress timezone: ' . wp_timezone_string());
             
-            // Simply format the datetime - no timezone conversion!
-            // The datetime from the UI is already in the correct timezone
-            $booking_start_formatted = $booking_start . ':00'; // Add seconds if not present
-            $end_timestamp = strtotime($booking_start) + $duration_seconds;
-            $booking_end = date('Y-m-d H:i:s', $end_timestamp);
+            // Create DateTime object in WordPress timezone
+            $wp_tz = new DateTimeZone(wp_timezone_string());
+            $dt_start = new DateTime($booking_start, $wp_tz);
+            $dt_end = clone $dt_start;
+            $dt_end->modify('+' . $duration_seconds . ' seconds');
+            
+            // Format for database storage (stays in WordPress timezone)
+            $booking_start_formatted = $dt_start->format('Y-m-d H:i:s');
+            $booking_end = $dt_end->format('Y-m-d H:i:s');
             
             amelia_cpt_sync_debug_log('ART Booking DB: Formatted start: ' . $booking_start_formatted);
             amelia_cpt_sync_debug_log('ART Booking DB: Calculated end: ' . $booking_end);
