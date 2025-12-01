@@ -105,27 +105,32 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             $customer_data = $booking_info['customer'] ?? array();
             
             // Parse booking start time
-            // CRITICAL: The datetime string from UI is in WordPress timezone
-            // We must preserve it exactly as-is without any conversion
+            // CRITICAL: Amelia stores ALL appointment times in UTC in the database
+            // The datetime from UI is in WordPress timezone, we must convert to UTC
             $booking_start = $booking_data['bookingStart'];
             $duration_seconds = absint($booking_info['duration'] ?? 3600);
             
-            amelia_cpt_sync_debug_log('ART Booking DB: Received booking start: ' . $booking_start);
+            amelia_cpt_sync_debug_log('ART Booking DB: Received booking start (WP timezone): ' . $booking_start);
             amelia_cpt_sync_debug_log('ART Booking DB: Duration seconds: ' . $duration_seconds);
             amelia_cpt_sync_debug_log('ART Booking DB: WordPress timezone: ' . wp_timezone_string());
             
             // Create DateTime object in WordPress timezone
             $wp_tz = new DateTimeZone(wp_timezone_string());
+            $utc_tz = new DateTimeZone('UTC');
+            
             $dt_start = new DateTime($booking_start, $wp_tz);
             $dt_end = clone $dt_start;
             $dt_end->modify('+' . $duration_seconds . ' seconds');
             
-            // Format for database storage (stays in WordPress timezone)
+            // Convert to UTC for database storage (Amelia requirement)
+            $dt_start->setTimezone($utc_tz);
+            $dt_end->setTimezone($utc_tz);
+            
             $booking_start_formatted = $dt_start->format('Y-m-d H:i:s');
             $booking_end = $dt_end->format('Y-m-d H:i:s');
             
-            amelia_cpt_sync_debug_log('ART Booking DB: Formatted start: ' . $booking_start_formatted);
-            amelia_cpt_sync_debug_log('ART Booking DB: Calculated end: ' . $booking_end);
+            amelia_cpt_sync_debug_log('ART Booking DB: Formatted start (UTC): ' . $booking_start_formatted);
+            amelia_cpt_sync_debug_log('ART Booking DB: Calculated end (UTC): ' . $booking_end);
             
             // Step 1: Find or create customer
             $customer_id = $this->find_or_create_customer($customer_data);
