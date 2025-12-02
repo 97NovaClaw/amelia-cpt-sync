@@ -216,6 +216,12 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                 $active_booking = null;
                 if (!empty($request->bookings) && is_array($request->bookings)) {
                     $active_booking = $request->bookings[0]; // Most recent booking
+                    amelia_cpt_sync_debug_log('ART Detail Page: Active booking loaded', array(
+                        'booking_id' => $active_booking->amelia_booking_id ?? 'null',
+                        'appointment_id' => $active_booking->amelia_appointment_id ?? 'null'
+                    ));
+                } else {
+                    amelia_cpt_sync_debug_log('ART Detail Page: No active booking found for request #' . $request_id);
                 }
                 ?>
                 

@@ -199,10 +199,12 @@ class Amelia_CPT_Sync_ART_Request_Manager {
         
         // Get booking links
         $booking_sql = $wpdb->prepare(
-            "SELECT * FROM {$booking_table} WHERE request_id = %d ORDER BY linked_at DESC",
+            "SELECT * FROM {$booking_table} WHERE request_id = %d ORDER BY created_at DESC",
             $request_id
         );
         $request->bookings = $wpdb->get_results($booking_sql);
+        
+        amelia_cpt_sync_debug_log('ART Request Manager: Loaded ' . count($request->bookings) . ' booking link(s) for request #' . $request_id);
         
         // Get notes
         $notes_sql = $wpdb->prepare(
