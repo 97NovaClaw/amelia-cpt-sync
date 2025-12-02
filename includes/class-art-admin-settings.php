@@ -799,7 +799,8 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         // Convert to UTC for storage
         $follow_up_utc = null;
         if (!empty($follow_up_date)) {
-            $follow_up_utc = gmdate('Y-m-d H:i:s', strtotime($follow_up_date . ' 00:00:00'));
+            // Store as-is in local timezone (just for display purposes in ART table)
+            $follow_up_utc = date('Y-m-d H:i:s', strtotime($follow_up_date . ' 00:00:00'));
         }
         
         $result = $wpdb->update(
@@ -857,11 +858,13 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         }
         
         if (isset($_POST['start_datetime']) && !empty($_POST['start_datetime'])) {
-            $data['start_datetime'] = gmdate('Y-m-d H:i:s', strtotime($_POST['start_datetime']));
+            // Store in local timezone (for display in ART UI, not sent to Amelia)
+            $data['start_datetime'] = date('Y-m-d H:i:s', strtotime($_POST['start_datetime']));
         }
         
         if (isset($_POST['end_datetime']) && !empty($_POST['end_datetime'])) {
-            $data['end_datetime'] = gmdate('Y-m-d H:i:s', strtotime($_POST['end_datetime']));
+            // Store in local timezone (for display in ART UI, not sent to Amelia)
+            $data['end_datetime'] = date('Y-m-d H:i:s', strtotime($_POST['end_datetime']));
         }
         
         if (isset($_POST['duration_seconds'])) {
@@ -1074,7 +1077,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             'serviceId' => $request->service_id,
             'serviceDuration' => $request->duration_seconds,
             'persons' => $request->persons ?? 1,
-            'startDateTime' => !empty($request->start_datetime) ? gmdate('Y-m-d', strtotime($request->start_datetime)) : gmdate('Y-m-d')
+            'startDateTime' => !empty($request->start_datetime) ? date('Y-m-d', strtotime($request->start_datetime)) : date('Y-m-d')
         );
         
         // Only add locationId if it's set and > 0 (omit if null/0)
@@ -1236,7 +1239,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                 'currency' => 'USD',
                 'data' => (object) array()
             ),
-            'bookingStart' => gmdate('Y-m-d H:i', strtotime($selected_slot_datetime)),  // "YYYY-MM-DD HH:mm"
+            'bookingStart' => $selected_slot_datetime,  // Pass as-is, booking service will convert to UTC
             'notifyParticipants' => 1,
             'providerId' => $selected_provider_id,
             'serviceId' => absint($request->service_id)
@@ -1510,8 +1513,10 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $api_manager = new Amelia_CPT_Sync_ART_API_Manager();
         
         // Update the appointment with new datetime and provider
+        // CRITICAL: Send datetime as-is (in WordPress timezone)
+        // Amelia API will handle conversion to UTC internally
         $update_data = array(
-            'bookingStart' => gmdate('Y-m-d H:i', strtotime($new_datetime)),
+            'bookingStart' => $new_datetime,  // Do NOT convert to UTC here
             'providerId' => $new_provider_id,
             'notifyParticipants' => 1
         );
