@@ -1481,7 +1481,14 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $new_datetime = sanitize_text_field($_POST['new_datetime'] ?? '');
         $new_provider_id = absint($_POST['new_provider_id'] ?? 0);
         
+        amelia_cpt_sync_debug_log('ART Reschedule: Received request', array(
+            'request_id' => $request_id,
+            'new_datetime' => $new_datetime,
+            'new_provider_id' => $new_provider_id
+        ));
+        
         if (!$request_id || !$new_datetime || !$new_provider_id) {
+            amelia_cpt_sync_debug_log('ART Reschedule: Missing required fields');
             wp_send_json_error(array('message' => 'Missing required fields'));
         }
         
@@ -1501,7 +1508,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         
         // Get the active booking link
         $booking_link = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM $booking_links_table WHERE request_id = %d ORDER BY linked_at DESC LIMIT 1",
+            "SELECT * FROM $booking_links_table WHERE request_id = %d ORDER BY created_at DESC LIMIT 1",
             $request_id
         ));
         
@@ -1584,7 +1591,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         
         // Get the active booking link
         $booking_link = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM $booking_links_table WHERE request_id = %d ORDER BY linked_at DESC LIMIT 1",
+            "SELECT * FROM $booking_links_table WHERE request_id = %d ORDER BY created_at DESC LIMIT 1",
             $request_id
         ));
         
