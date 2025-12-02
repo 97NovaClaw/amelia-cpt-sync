@@ -19,7 +19,7 @@ class Amelia_CPT_Sync_ART_Database_Manager {
     /**
      * Database version for schema tracking
      */
-    const DB_VERSION = '1.1.0';  // Updated: Added category_id column to art_requests
+    const DB_VERSION = '1.2.0';  // Updated: Added original_start_datetime, original_end_datetime, original_duration_seconds columns
     
     /**
      * Option name for storing database version
@@ -130,6 +130,9 @@ class Amelia_CPT_Sync_ART_Database_Manager {
             start_datetime datetime DEFAULT NULL,
             end_datetime datetime DEFAULT NULL,
             duration_seconds int(11) DEFAULT 0,
+            original_start_datetime datetime DEFAULT NULL,
+            original_end_datetime datetime DEFAULT NULL,
+            original_duration_seconds int(11) DEFAULT 0,
             final_price decimal(10,2) DEFAULT NULL,
             final_provider_id bigint(20) DEFAULT NULL,
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -328,11 +331,14 @@ class Amelia_CPT_Sync_ART_Database_Manager {
             'start_datetime' => $request_data['start_datetime'] ?? null,
             'end_datetime' => $request_data['end_datetime'] ?? null,
             'duration_seconds' => isset($request_data['duration_seconds']) ? intval($request_data['duration_seconds']) : 0,
+            'original_start_datetime' => $request_data['start_datetime'] ?? null,
+            'original_end_datetime' => $request_data['end_datetime'] ?? null,
+            'original_duration_seconds' => isset($request_data['duration_seconds']) ? intval($request_data['duration_seconds']) : 0,
             'final_price' => isset($request_data['final_price']) ? floatval($request_data['final_price']) : null,
             'final_provider_id' => isset($request_data['final_provider_id']) ? intval($request_data['final_provider_id']) : null
         );
         
-        $format = array('%d', '%s', '%d', '%d', '%d', '%d', '%s', '%s', '%d', '%f', '%d');
+        $format = array('%d', '%s', '%d', '%d', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%d', '%f', '%d');
         
         $inserted = $this->wpdb->insert($table, $data, $format);
         

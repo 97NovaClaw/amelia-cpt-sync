@@ -485,11 +485,12 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                 <?php 
                                 _e('Time & Duration', 'amelia-cpt-sync');
                                 
-                                // Build original requested time display (fault-tolerant)
+                                // Build original requested time display from ORIGINAL form submission data (read-only)
+                                // These columns are NEVER updated, they preserve what the customer originally requested
                                 $original_display = array();
                                 
-                                if (!empty($request->start_datetime) && $request->start_datetime !== '0000-00-00 00:00:00') {
-                                    $start_local = get_date_from_gmt($request->start_datetime);
+                                if (!empty($request->original_start_datetime) && $request->original_start_datetime !== '0000-00-00 00:00:00') {
+                                    $start_local = get_date_from_gmt($request->original_start_datetime);
                                     $date_str = date_i18n('M j', strtotime($start_local));
                                     
                                     // Check if it's just a date (time is 00:00:00)
@@ -503,18 +504,18 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                         // Date and time provided
                                         $time_str = date_i18n('g:i A', strtotime($start_local));
                                         
-                                        if (!empty($request->end_datetime) && $request->end_datetime !== '0000-00-00 00:00:00') {
-                                            $end_local = get_date_from_gmt($request->end_datetime);
+                                        if (!empty($request->original_end_datetime) && $request->original_end_datetime !== '0000-00-00 00:00:00') {
+                                            $end_local = get_date_from_gmt($request->original_end_datetime);
                                             $end_time_str = date_i18n('g:i A', strtotime($end_local));
                                             $original_display[] = "$date_str, $time_str - $end_time_str";
                                         } else {
                                             $original_display[] = "$date_str, $time_str";
                                         }
                                     }
-                                } elseif (!empty($request->duration_seconds) && $request->duration_seconds > 0) {
+                                } elseif (!empty($request->original_duration_seconds) && $request->original_duration_seconds > 0) {
                                     // Only duration provided (Duration Only mode)
-                                    $hours = floor($request->duration_seconds / 3600);
-                                    $mins = floor(($request->duration_seconds % 3600) / 60);
+                                    $hours = floor($request->original_duration_seconds / 3600);
+                                    $mins = floor(($request->original_duration_seconds % 3600) / 60);
                                     if ($hours > 0) {
                                         $original_display[] = __('Duration:', 'amelia-cpt-sync') . " {$hours}h" . ($mins > 0 ? " {$mins}m" : "");
                                     } else {
