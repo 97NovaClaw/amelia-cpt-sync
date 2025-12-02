@@ -154,6 +154,28 @@ foreach ($services as $service_post) {
     }
 }
 
+// Get original service/category names (from form submission, never changes)
+$original_service_name = '';
+$original_category_name = '';
+
+if (!empty($request->original_service_id)) {
+    foreach ($service_options as $svc) {
+        if (intval($svc['id']) === intval($request->original_service_id)) {
+            $original_service_name = $svc['name'];
+            break;
+        }
+    }
+}
+
+if (!empty($request->original_category_id)) {
+    foreach ($category_options as $cat) {
+        if (intval($cat['id']) === intval($request->original_category_id)) {
+            $original_category_name = $cat['name'];
+            break;
+        }
+    }
+}
+
 // Customer name
 $customer_name = trim($request->customer_first_name . ' ' . $request->customer_last_name);
 if (empty($customer_name) || $customer_name === ' ') {
@@ -373,7 +395,26 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                     <!-- Card 1: Core Pillars -->
                     <div class="art-card">
                         <div class="card-header">
-                            <h3><?php _e('Core Pillars', 'amelia-cpt-sync'); ?></h3>
+                            <h3>
+                                <?php 
+                                _e('Core Pillars', 'amelia-cpt-sync');
+                                
+                                // Show original form-submitted service/category (read-only, never changes)
+                                $original_pillars = array();
+                                
+                                if (!empty($original_service_name)) {
+                                    $original_pillars[] = $original_service_name;
+                                }
+                                
+                                if (!empty($original_category_name)) {
+                                    $original_pillars[] = $original_category_name;
+                                }
+                                
+                                if (!empty($original_pillars)) {
+                                    echo ' <span class="original-request-time">(' . __('Requested:', 'amelia-cpt-sync') . ' ' . esc_html(implode(' - ', $original_pillars)) . ')</span>';
+                                }
+                                ?>
+                            </h3>
                         </div>
                         <div class="card-body">
                             <div class="pillar-grid-3">
@@ -615,6 +656,13 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                                min="0"
                                                value="<?php echo esc_attr($request->final_price ?? ''); ?>"
                                                placeholder="0.00">
+                                    </div>
+                                    <div id="price-suggestion" style="display: none; margin-top: 8px; font-size: 13px; color: #64748B;">
+                                        <span class="dashicons dashicons-lightbulb" style="font-size: 14px; vertical-align: middle;"></span>
+                                        <span id="price-suggestion-text"></span>
+                                        <button type="button" id="btn-apply-suggested-price" class="button button-small" style="margin-left: 8px; vertical-align: middle;">
+                                            <?php _e('Apply', 'amelia-cpt-sync'); ?>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -2441,14 +2489,17 @@ jQuery(document).ready(function($) {
     });
     
     /**
-     * Fetch and display service default duration from Amelia API (Phase 5)
+     * Fetch and display service default duration and price from Amelia API (Phase 5)
      */
+    var serviceData = {}; // Cache service data for price calculations
+    
     function fetchServiceDuration() {
         var serviceId = $('#pillar-service').val();
         var durationDisplay = $('#service-duration-display');
         
         if (!serviceId) {
             durationDisplay.hide();
+            $('#price-suggestion').hide();
             return;
         }
         
@@ -2465,6 +2516,15 @@ jQuery(document).ready(function($) {
                 durationDisplay.find('.duration-text').html(
                     'Service default: <strong>' + response.data.duration_display + '</strong>'
                 );
+                
+                // Cache service data for price calculations
+                serviceData = {
+                    duration_seconds: response.data.duration_seconds,
+                    default_price: response.data.default_price
+                };
+                
+                // Calculate suggested price
+                calculateSuggestedPrice();
             } else {
                 durationDisplay.find('.duration-text').html(
                     '<span style="color: #DC3545;">API Error</span>'
@@ -2476,6 +2536,75 @@ jQuery(document).ready(function($) {
             );
         });
     }
+    
+    /**
+     * Calculate and display suggested price based on service default and custom duration
+     */
+    function calculateSuggestedPrice() {
+        var priceInput = $('#pillar-price');
+        var currentPrice = parseFloat(priceInput.val());
+        
+        // If price is already set, don't show suggestion
+        if (currentPrice && currentPrice > 0) {
+            $('#price-suggestion').hide();
+            return;
+        }
+        
+        // Need service data
+        if (!serviceData.default_price || !serviceData.duration_seconds) {
+            $('#price-suggestion').hide();
+            return;
+        }
+        
+        var customDuration = parseInt($('#pillar-duration-seconds').val()) || 0;
+        var suggestedPrice;
+        
+        if (customDuration > 0 && customDuration !== serviceData.duration_seconds) {
+            // Calculate proportional price based on custom duration
+            var ratio = customDuration / serviceData.duration_seconds;
+            suggestedPrice = serviceData.default_price * ratio;
+            
+            var customHours = Math.floor(customDuration / 3600);
+            var customMins = Math.floor((customDuration % 3600) / 60);
+            var customDisplay = customHours > 0 ? customHours + 'h ' + customMins + 'm' : customMins + 'm';
+            
+            $('#price-suggestion-text').html(
+                'Suggested: <strong>$' + suggestedPrice.toFixed(2) + '</strong> (based on ' + customDisplay + ' custom duration)'
+            );
+        } else {
+            // Use default service price
+            suggestedPrice = serviceData.default_price;
+            $('#price-suggestion-text').html(
+                'Suggested: <strong>$' + suggestedPrice.toFixed(2) + '</strong> (service default)'
+            );
+        }
+        
+        // Store suggested price in data attribute
+        $('#btn-apply-suggested-price').data('suggested-price', suggestedPrice.toFixed(2));
+        $('#price-suggestion').slideDown();
+    }
+    
+    // Apply suggested price button
+    $(document).on('click', '#btn-apply-suggested-price', function() {
+        var suggestedPrice = $(this).data('suggested-price');
+        $('#pillar-price').val(suggestedPrice).trigger('change');
+        $('#price-suggestion').slideUp();
+    });
+    
+    // Recalculate price suggestion when duration changes
+    $(document).on('change', '#pillar-duration-seconds, #pillar-duration-selector', function() {
+        if (serviceData.default_price) {
+            calculateSuggestedPrice();
+        }
+    });
+    
+    // Hide suggestion when user manually enters a price
+    $(document).on('input change', '#pillar-price', function() {
+        var val = parseFloat($(this).val());
+        if (val && val > 0) {
+            $('#price-suggestion').slideUp();
+        }
+    });
     
     // Refresh button for service duration
     $(document).on('click', '#service-duration-display .refresh-icon', function(e) {

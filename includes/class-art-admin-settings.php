@@ -1022,10 +1022,14 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             $display = sprintf('%d min%s', $minutes, ($minutes > 1 ? 's' : ''));
         }
         
+        // Get price information
+        $default_price = floatval($service['price'] ?? 0);
+        
         wp_send_json_success(array(
             'duration_seconds' => $duration_seconds,
             'duration_display' => $display,
-            'service_name' => $service['name'] ?? ''
+            'service_name' => $service['name'] ?? '',
+            'default_price' => $default_price
         ));
     }
     
