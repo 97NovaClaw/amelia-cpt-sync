@@ -53,6 +53,11 @@ $duration_max_hours = $global_settings['duration_max_hours'] ?? 12;
 $user_calendar_zoom = get_user_meta(get_current_user_id(), 'art_calendar_zoom', true);
 $user_calendar_zoom = $user_calendar_zoom ? intval($user_calendar_zoom) : 100;
 
+// Get availability engine settings for validation
+$avail_settings = get_option('art_availability_settings', array());
+$location_mode = $avail_settings['location_mode'] ?? 'ignore';
+$location_required_for_availability = ($location_mode === 'strict' || $location_mode === 'soft');
+
 // Generate duration dropdown options
 $duration_options = array();
 $max_seconds = $duration_max_hours * 3600;
@@ -476,7 +481,52 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                     <!-- Card 3: Time & Duration -->
                     <div class="art-card">
                         <div class="card-header">
-                            <h3><?php _e('Time & Duration', 'amelia-cpt-sync'); ?></h3>
+                            <h3>
+                                <?php 
+                                _e('Time & Duration', 'amelia-cpt-sync');
+                                
+                                // Build original requested time display (fault-tolerant)
+                                $original_display = array();
+                                
+                                if (!empty($request->start_datetime) && $request->start_datetime !== '0000-00-00 00:00:00') {
+                                    $start_local = get_date_from_gmt($request->start_datetime);
+                                    $date_str = date_i18n('M j', strtotime($start_local));
+                                    
+                                    // Check if it's just a date (time is 00:00:00)
+                                    $time_parts = explode(' ', $start_local);
+                                    $just_time = $time_parts[1] ?? '00:00:00';
+                                    
+                                    if ($just_time === '00:00:00') {
+                                        // Only date provided (Date Only mode)
+                                        $original_display[] = $date_str;
+                                    } else {
+                                        // Date and time provided
+                                        $time_str = date_i18n('g:i A', strtotime($start_local));
+                                        
+                                        if (!empty($request->end_datetime) && $request->end_datetime !== '0000-00-00 00:00:00') {
+                                            $end_local = get_date_from_gmt($request->end_datetime);
+                                            $end_time_str = date_i18n('g:i A', strtotime($end_local));
+                                            $original_display[] = "$date_str, $time_str - $end_time_str";
+                                        } else {
+                                            $original_display[] = "$date_str, $time_str";
+                                        }
+                                    }
+                                } elseif (!empty($request->duration_seconds) && $request->duration_seconds > 0) {
+                                    // Only duration provided (Duration Only mode)
+                                    $hours = floor($request->duration_seconds / 3600);
+                                    $mins = floor(($request->duration_seconds % 3600) / 60);
+                                    if ($hours > 0) {
+                                        $original_display[] = __('Duration:', 'amelia-cpt-sync') . " {$hours}h" . ($mins > 0 ? " {$mins}m" : "");
+                                    } else {
+                                        $original_display[] = __('Duration:', 'amelia-cpt-sync') . " {$mins}m";
+                                    }
+                                }
+                                
+                                if (!empty($original_display)) {
+                                    echo ' <span class="original-request-time">(' . __('Requested:', 'amelia-cpt-sync') . ' ' . esc_html(implode(', ', $original_display)) . ')</span>';
+                                }
+                                ?>
+                            </h3>
                             <span id="service-duration-display" class="service-duration-badge" style="display: none;">
                                 <button type="button" class="refresh-icon" title="Refresh service duration">↻</button>
                                 <span class="duration-text"></span>
@@ -570,18 +620,17 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                         </div>
                     </div>
                     
-                    <!-- Save Button -->
-                    <div class="form-actions">
-                        <button type="submit" class="btn-primary btn-large">
-                            <span class="dashicons dashicons-saved"></span>
-                            <?php _e('Save Draft', 'amelia-cpt-sync'); ?>
-                        </button>
-                        <span class="save-indicator" style="display: none;"></span>
+                    <!-- Auto-save indicator (button hidden, auto-saves on field changes) -->
+                    <div class="form-actions" style="justify-content: flex-end;">
+                        <span class="save-indicator" style="display: none; font-size: 13px; color: #666;">
+                            <span class="dashicons dashicons-update spin" style="display: none;"></span>
+                            <span class="status-text"></span>
+                        </span>
                     </div>
                 </form>
                 
                 <!-- Panel 3: Availability & Booking Engine -->
-                <div class="art-card">
+                <div class="art-card" id="availability-section">
                     <div class="card-header">
                         <h3><?php _e('Availability & Booking', 'amelia-cpt-sync'); ?></h3>
                         <span class="badge-phase5"><?php _e('Phase 5', 'amelia-cpt-sync'); ?></span>
@@ -1105,6 +1154,13 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     font-weight: 600;
     color: #1E293B;
     margin: 0;
+}
+
+.original-request-time {
+    font-size: 13px;
+    font-weight: normal;
+    color: #64748B;
+    margin-left: 8px;
 }
 
 .badge-coming-soon {
@@ -1973,6 +2029,30 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     font-weight: 500;
 }
 
+/* === AVAILABILITY DISABLED STATE === */
+.availability-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+    position: relative;
+}
+
+.availability-disabled::before {
+    content: "Complete required fields above to check availability";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255,255,255,0.95);
+    padding: 12px 24px;
+    border-radius: 6px;
+    border: 2px dashed #ccc;
+    font-weight: 500;
+    color: #666;
+    z-index: 10;
+    text-align: center;
+    white-space: nowrap;
+}
+
 /* === PLACEHOLDER CONTENT === */
 .placeholder-text {
     color: #64748b;
@@ -2578,9 +2658,13 @@ jQuery(document).ready(function($) {
         });
     });
     
-    // === SAVE PILLARS FORM ===
-    $('#booking-pillars-form').on('submit', function(e) {
-        e.preventDefault();
+    // === AUTO-SAVE PILLARS ===
+    var autoSaveTimer = null;
+    var isSaving = false;
+    
+    // Reusable save function for auto-save
+    function savePillarsAuto(showSuccessNotice) {
+        if (isSaving) return; // Prevent concurrent saves
         
         var formData = {
             action: 'art_save_pillars',
@@ -2596,15 +2680,21 @@ jQuery(document).ready(function($) {
             final_price: $('#pillar-price').val()
         };
         
-        var btn = $(this).find('button[type="submit"]');
-        var originalHtml = btn.html();
+        isSaving = true;
         
-        btn.prop('disabled', true).html('<span class="dashicons dashicons-update spin"></span> Saving...');
+        // Show saving indicator
+        var indicator = $('.save-indicator');
+        indicator.find('.dashicons').show();
+        indicator.find('.status-text').text('Saving...');
+        indicator.show();
         
         $.post(ajaxurl, formData, function(response) {
+            isSaving = false;
+            indicator.find('.dashicons').hide();
+            
             if (response.success) {
-                showNotice('Booking details saved successfully', 'success');
-                $('.save-indicator').text('✓ Saved').show().fadeOut(3000);
+                indicator.find('.status-text').text('✓ Saved');
+                indicator.css('color', '#16A34A');
                 
                 // Update hidden field and dropdown to reflect saved value
                 var savedDuration = formData.duration_seconds;
@@ -2618,16 +2708,90 @@ jQuery(document).ready(function($) {
                 
                 // Update duration display
                 $('#duration-display').text(formatDuration(savedDuration));
+                
+                // Check if availability section should be enabled
+                checkAvailabilityReady();
+                
+                // Fade out after 2 seconds
+                setTimeout(function() {
+                    indicator.fadeOut();
+                }, 2000);
+                
+                if (showSuccessNotice) {
+                    showNotice('Booking details saved successfully', 'success');
+                }
             } else {
+                indicator.find('.status-text').text('✗ Save failed');
+                indicator.css('color', '#DC2626');
                 showNotice('Error: ' + (response.data.message || 'Unknown error'), 'error');
+                
+                setTimeout(function() {
+                    indicator.fadeOut();
+                }, 3000);
             }
-            
-            btn.prop('disabled', false).html(originalHtml);
         }).fail(function() {
-            showNotice('Error: Failed to save (check connection)', 'error');
-            btn.prop('disabled', false).html(originalHtml);
+            isSaving = false;
+            indicator.find('.dashicons').hide();
+            indicator.find('.status-text').text('✗ Connection error');
+            indicator.css('color', '#DC2626');
+            
+            setTimeout(function() {
+                indicator.fadeOut();
+            }, 3000);
         });
+    }
+    
+    // Debounced auto-save on field changes
+    function triggerAutoSave() {
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(function() {
+            savePillarsAuto(false); // Don't show big success notice for auto-save
+        }, 500); // 500ms debounce
+    }
+    
+    // Attach auto-save to all pillar fields
+    $('#pillar-service, #pillar-category, #pillar-location, #pillar-persons').on('change', triggerAutoSave);
+    $('#pillar-duration-selector').on('change', triggerAutoSave);
+    $('#pillar-start, #pillar-end, #pillar-price').on('blur change', triggerAutoSave);
+    
+    // Keep form submit handler as manual trigger (if user presses Enter)
+    $('#booking-pillars-form').on('submit', function(e) {
+        e.preventDefault();
+        clearTimeout(autoSaveTimer);
+        savePillarsAuto(true); // Show success notice for manual save
     });
+    
+    // === AVAILABILITY SECTION VALIDATION ===
+    var locationRequiredForAvailability = <?php echo $location_required_for_availability ? 'true' : 'false'; ?>;
+    
+    function checkAvailabilityReady() {
+        var service = $('#pillar-service').val();
+        var category = $('#pillar-category').val();
+        var duration = $('#pillar-duration-seconds').val();
+        var startTime = $('#pillar-start').val();
+        
+        // Check location only if availability engine requires it
+        var location = $('#pillar-location').val();
+        
+        var isReady = service && category && duration && startTime;
+        if (locationRequiredForAvailability) {
+            isReady = isReady && location;
+        }
+        
+        var availSection = $('#availability-section');
+        
+        if (isReady) {
+            availSection.removeClass('availability-disabled');
+        } else {
+            availSection.addClass('availability-disabled');
+        }
+    }
+    
+    // Check on page load
+    checkAvailabilityReady();
+    
+    // Check after every relevant field change
+    $('#pillar-service, #pillar-category, #pillar-location, #pillar-duration-selector, #pillar-start').on('change', checkAvailabilityReady);
     
     // === LOAD LOCATIONS FROM API ===
     function loadLocations() {
@@ -3307,6 +3471,32 @@ jQuery(document).ready(function($) {
                     provider_name: response.data.provider_name,
                     location_name: response.data.location_name || ''
                 });
+                
+                // Update Time & Duration fields with actual booked times from Amelia
+                if (response.data.booked_start_local) {
+                    $('#pillar-start').val(response.data.booked_start_local);
+                }
+                if (response.data.booked_end_local) {
+                    $('#pillar-end').val(response.data.booked_end_local);
+                }
+                if (response.data.booked_duration_seconds) {
+                    var bookedDuration = response.data.booked_duration_seconds;
+                    $('#pillar-duration-seconds').val(bookedDuration);
+                    
+                    // Update dropdown if exact match exists
+                    var matchingOption = $('#pillar-duration-selector option[value="' + bookedDuration + '"]');
+                    if (matchingOption.length) {
+                        $('#pillar-duration-selector').val(bookedDuration);
+                    }
+                    
+                    // Update duration display
+                    $('#duration-display').text(formatDuration(bookedDuration));
+                }
+                
+                // Auto-save the updated times to database
+                setTimeout(function() {
+                    savePillarsAuto(false);
+                }, 100);
                 
                 // Show toast notification
                 $('#booking-toast-message').text('<?php _e('Amelia booking created successfully!', 'amelia-cpt-sync'); ?>');

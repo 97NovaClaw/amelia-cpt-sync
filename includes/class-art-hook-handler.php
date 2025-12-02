@@ -757,6 +757,20 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
                 amelia_cpt_sync_debug_log('ART Logic: Start-only mode, duration will be set in workbench');
                 break;
                 
+            case 'date_only':
+                // Mode: Form only has date (no specific time), admin fills time/duration in workbench
+                // Start datetime will be set to midnight (00:00:00) of the selected date
+                if (!empty($buckets['request']['start_datetime'])) {
+                    // Ensure time is set to 00:00:00 to indicate "date only"
+                    $date_only = date('Y-m-d', strtotime($buckets['request']['start_datetime']));
+                    $buckets['request']['start_datetime'] = $date_only . ' 00:00:00';
+                    amelia_cpt_sync_debug_log('ART Logic: Date-only mode, set start to: ' . $buckets['request']['start_datetime']);
+                }
+                // End datetime and duration remain NULL (admin fills later)
+                $buckets['request']['end_datetime'] = null;
+                $buckets['request']['duration_seconds'] = 0;
+                break;
+                
             case 'manual':
             default:
                 // Mode: Admin fills everything in workbench

@@ -392,6 +392,14 @@ if ($action === 'delete' && !empty($form_id) && check_admin_referer('art_delete_
                                 <label>
                                     <input type="radio" 
                                            name="logic[duration_mode]" 
+                                           value="date_only" 
+                                           class="duration-mode-radio"
+                                           <?php checked($logic['duration_mode'] ?? 'manual', 'date_only'); ?>>
+                                    Date Only (no specific time selected)
+                                </label><br>
+                                <label>
+                                    <input type="radio" 
+                                           name="logic[duration_mode]" 
                                            value="manual" 
                                            class="duration-mode-radio"
                                            <?php checked($logic['duration_mode'] ?? 'manual', 'manual'); ?>>
@@ -402,6 +410,7 @@ if ($action === 'delete' && !empty($form_id) && check_admin_referer('art_delete_
                                     <strong>Start + Duration:</strong> Form has start time and duration fields (duration can be hours, minutes, seconds, or HH:MM).<br>
                                     <strong>Duration Only:</strong> Form only captures duration (e.g., "10 hour limo rental").<br>
                                     <strong>Start Only:</strong> Form only captures when service should start.<br>
+                                    <strong>Date Only:</strong> Form only captures date (no time). Admin fills time/duration in workbench.<br>
                                     <strong>Manual:</strong> No time/duration from form, admin fills everything.
                                 </p>
                             </td>

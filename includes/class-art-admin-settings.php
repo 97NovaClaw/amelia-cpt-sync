@@ -1367,6 +1367,34 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $formatted_date = date('l, F jS, Y', $booking_timestamp); // e.g., "Friday, November 17th, 2025"
         $formatted_time = date('h:i A', $booking_timestamp); // e.g., "02:00 AM"
         
+        // Fetch actual booked times from Amelia (in UTC) for pillar field updates
+        $booked_start_local = '';
+        $booked_end_local = '';
+        $booked_duration_seconds = 0;
+        
+        if ($appointment_id) {
+            $appointment_data = $wpdb->get_row($wpdb->prepare(
+                "SELECT bookingStart, bookingEnd FROM {$wpdb->prefix}amelia_appointments WHERE id = %d",
+                $appointment_id
+            ));
+            
+            if ($appointment_data) {
+                // Convert UTC to WordPress timezone for display
+                $wp_tz = wp_timezone();
+                $utc_tz = new DateTimeZone('UTC');
+                
+                $dt_start = new DateTime($appointment_data->bookingStart, $utc_tz);
+                $dt_start->setTimezone($wp_tz);
+                
+                $dt_end = new DateTime($appointment_data->bookingEnd, $utc_tz);
+                $dt_end->setTimezone($wp_tz);
+                
+                $booked_start_local = $dt_start->format('Y-m-d\TH:i');
+                $booked_end_local = $dt_end->format('Y-m-d\TH:i');
+                $booked_duration_seconds = strtotime($appointment_data->bookingEnd) - strtotime($appointment_data->bookingStart);
+            }
+        }
+        
         wp_send_json_success(array(
             'message' => 'Booking created successfully!',
             'booking_id' => $booking_id,
@@ -1378,7 +1406,10 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             'location_name' => $location_name,
             'formatted_date' => $formatted_date,
             'formatted_time' => $formatted_time,
-            'raw_datetime' => $selected_slot_datetime
+            'raw_datetime' => $selected_slot_datetime,
+            'booked_start_local' => $booked_start_local,
+            'booked_end_local' => $booked_end_local,
+            'booked_duration_seconds' => $booked_duration_seconds
         ));
     }
     
