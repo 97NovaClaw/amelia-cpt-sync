@@ -227,10 +227,58 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                         
                         if ($appointment_exists) {
                             $active_booking = $potential_booking;
-                            amelia_cpt_sync_debug_log('ART Detail Page: Active booking loaded', array(
-                                'booking_id' => $active_booking->amelia_booking_id,
-                                'appointment_id' => $active_booking->amelia_appointment_id
+                            
+                            // Fetch full appointment details from Amelia
+                            $appointment_full = $wpdb->get_row($wpdb->prepare(
+                                "SELECT a.*, s.name as service_name, s.categoryId as category_id
+                                 FROM {$wpdb->prefix}amelia_appointments a
+                                 LEFT JOIN {$wpdb->prefix}amelia_services s ON a.serviceId = s.id
+                                 WHERE a.id = %d",
+                                $active_booking->amelia_appointment_id
                             ));
+                            
+                            // Get provider name
+                            $provider = $wpdb->get_row($wpdb->prepare(
+                                "SELECT firstName, lastName FROM {$wpdb->prefix}amelia_users WHERE id = %d AND type = 'provider'",
+                                $appointment_full->providerId
+                            ));
+                            
+                            // Get location name if set
+                            $location_name = '';
+                            if ($appointment_full->locationId) {
+                                $location = $wpdb->get_row($wpdb->prepare(
+                                    "SELECT name FROM {$wpdb->prefix}amelia_locations WHERE id = %d",
+                                    $appointment_full->locationId
+                                ));
+                                $location_name = $location ? $location->name : '';
+                            }
+                            
+                            // Get category name if available
+                            $category_name = '';
+                            if ($appointment_full->category_id) {
+                                $category = $wpdb->get_row($wpdb->prepare(
+                                    "SELECT name FROM {$wpdb->prefix}amelia_categories WHERE id = %d",
+                                    $appointment_full->category_id
+                                ));
+                                $category_name = $category ? $category->name : '';
+                            }
+                            
+                            // Attach full details to active_booking object
+                            $active_booking->service_name = $appointment_full->service_name ?? '';
+                            $active_booking->category_name = $category_name;
+                            $active_booking->provider_name = $provider ? trim($provider->firstName . ' ' . $provider->lastName) : '';
+                            $active_booking->location_name = $location_name;
+                            
+                            // Convert UTC booking times to local timezone for display
+                            $wp_tz = wp_timezone();
+                            $utc_tz = new DateTimeZone('UTC');
+                            $dt_start = new DateTime($appointment_full->bookingStart, $utc_tz);
+                            $dt_start->setTimezone($wp_tz);
+                            
+                            $active_booking->formatted_date = $dt_start->format('l, F jS, Y');
+                            $active_booking->formatted_time = $dt_start->format('h:i A');
+                            
+                            amelia_cpt_sync_debug_log('ART Detail Page: Active booking loaded with full details');
                         } else {
                             // Orphaned link - clean it up
                             amelia_cpt_sync_debug_log('ART Detail Page: Cleaning up orphaned booking link (appointment #' . $potential_booking->amelia_appointment_id . ' no longer exists)');
@@ -275,8 +323,43 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                 <span class="detail-label"><?php _e('Appointment ID', 'amelia-cpt-sync'); ?></span>
                                 <span class="detail-value">#<?php echo esc_html($active_booking->amelia_appointment_id); ?></span>
                             </div>
+                            <?php if (!empty($active_booking->service_name)): ?>
+                            <div class="booking-detail-item">
+                                <span class="detail-label"><?php _e('Service', 'amelia-cpt-sync'); ?></span>
+                                <span class="detail-value"><?php echo esc_html($active_booking->service_name); ?></span>
+                            </div>
                             <?php endif; ?>
-                            <!-- Dynamic content will be updated via JavaScript -->
+                            <?php if (!empty($active_booking->category_name)): ?>
+                            <div class="booking-detail-item">
+                                <span class="detail-label"><?php _e('Category', 'amelia-cpt-sync'); ?></span>
+                                <span class="detail-value"><?php echo esc_html($active_booking->category_name); ?></span>
+                            </div>
+                            <?php endif; ?>
+                            <?php if (!empty($active_booking->formatted_date)): ?>
+                            <div class="booking-detail-item">
+                                <span class="detail-label"><?php _e('Date', 'amelia-cpt-sync'); ?></span>
+                                <span class="detail-value"><?php echo esc_html($active_booking->formatted_date); ?></span>
+                            </div>
+                            <?php endif; ?>
+                            <?php if (!empty($active_booking->formatted_time)): ?>
+                            <div class="booking-detail-item">
+                                <span class="detail-label"><?php _e('Time', 'amelia-cpt-sync'); ?></span>
+                                <span class="detail-value"><?php echo esc_html($active_booking->formatted_time); ?></span>
+                            </div>
+                            <?php endif; ?>
+                            <?php if (!empty($active_booking->provider_name)): ?>
+                            <div class="booking-detail-item">
+                                <span class="detail-label"><?php _e('Provider', 'amelia-cpt-sync'); ?></span>
+                                <span class="detail-value"><?php echo esc_html($active_booking->provider_name); ?></span>
+                            </div>
+                            <?php endif; ?>
+                            <?php if (!empty($active_booking->location_name)): ?>
+                            <div class="booking-detail-item">
+                                <span class="detail-label"><?php _e('Location', 'amelia-cpt-sync'); ?></span>
+                                <span class="detail-value"><?php echo esc_html($active_booking->location_name); ?></span>
+                            </div>
+                            <?php endif; ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
