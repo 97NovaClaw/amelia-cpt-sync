@@ -35,6 +35,98 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
         
         // Register hooks for all configured forms
         add_action('init', array($this, 'register_form_hooks'), 20);
+        
+        // Register Amelia cleanup hooks
+        add_action('amelia_after_appointment_deleted', array($this, 'cleanup_after_amelia_delete'), 10, 1);
+        add_action('amelia_after_booking_canceled', array($this, 'cleanup_after_amelia_cancel'), 10, 1);
+    }
+    
+    /**
+     * Clean up ART data when appointment is deleted in Amelia
+     *
+     * @param array|object $appointment Appointment data
+     */
+    public function cleanup_after_amelia_delete($appointment) {
+        global $wpdb;
+        
+        // Get appointment ID from data (could be array or object)
+        $appointment_id = is_array($appointment) ? ($appointment['id'] ?? null) : ($appointment->id ?? null);
+        
+        if (!$appointment_id) {
+            return;
+        }
+        
+        amelia_cpt_sync_debug_log('ART Cleanup: Amelia appointment #' . $appointment_id . ' was deleted externally');
+        
+        // Find and remove booking link
+        $booking_link = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}art_booking_links WHERE amelia_appointment_id = %d",
+            $appointment_id
+        ));
+        
+        if ($booking_link) {
+            // Delete the booking link
+            $wpdb->delete(
+                $wpdb->prefix . 'art_booking_links',
+                array('id' => $booking_link->id),
+                array('%d')
+            );
+            
+            // Update request status back to tentative
+            $wpdb->update(
+                $wpdb->prefix . 'art_requests',
+                array('status_key' => 'tentative'),
+                array('id' => $booking_link->request_id),
+                array('%s'),
+                array('%d')
+            );
+            
+            amelia_cpt_sync_debug_log('ART Cleanup: Removed booking link and reset request #' . $booking_link->request_id . ' to tentative');
+        }
+    }
+    
+    /**
+     * Clean up ART data when booking is canceled in Amelia
+     *
+     * @param array|object $booking Booking data
+     */
+    public function cleanup_after_amelia_cancel($booking) {
+        global $wpdb;
+        
+        // Get booking ID from data
+        $booking_id = is_array($booking) ? ($booking['id'] ?? null) : ($booking->id ?? null);
+        
+        if (!$booking_id) {
+            return;
+        }
+        
+        amelia_cpt_sync_debug_log('ART Cleanup: Amelia booking #' . $booking_id . ' was canceled externally');
+        
+        // Find and remove booking link
+        $booking_link = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}art_booking_links WHERE amelia_booking_id = %d",
+            $booking_id
+        ));
+        
+        if ($booking_link) {
+            // Delete the booking link
+            $wpdb->delete(
+                $wpdb->prefix . 'art_booking_links',
+                array('id' => $booking_link->id),
+                array('%d')
+            );
+            
+            // Update request status back to tentative
+            $wpdb->update(
+                $wpdb->prefix . 'art_requests',
+                array('status_key' => 'tentative'),
+                array('id' => $booking_link->request_id),
+                array('%s'),
+                array('%d')
+            );
+            
+            amelia_cpt_sync_debug_log('ART Cleanup: Removed booking link and reset request #' . $booking_link->request_id . ' to tentative');
+        }
     }
     
     /**

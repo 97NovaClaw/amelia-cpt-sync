@@ -215,13 +215,43 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                 // Check if there's an active Amelia booking
                 $active_booking = null;
                 if (!empty($request->bookings) && is_array($request->bookings)) {
-                    $active_booking = $request->bookings[0]; // Most recent booking
-                    amelia_cpt_sync_debug_log('ART Detail Page: Active booking loaded', array(
-                        'booking_id' => $active_booking->amelia_booking_id ?? 'null',
-                        'appointment_id' => $active_booking->amelia_appointment_id ?? 'null'
-                    ));
+                    $potential_booking = $request->bookings[0]; // Most recent booking
+                    
+                    // Verify appointment still exists in Amelia (prevents orphaned links)
+                    if ($potential_booking->amelia_appointment_id) {
+                        global $wpdb;
+                        $appointment_exists = $wpdb->get_var($wpdb->prepare(
+                            "SELECT id FROM {$wpdb->prefix}amelia_appointments WHERE id = %d",
+                            $potential_booking->amelia_appointment_id
+                        ));
+                        
+                        if ($appointment_exists) {
+                            $active_booking = $potential_booking;
+                            amelia_cpt_sync_debug_log('ART Detail Page: Active booking loaded', array(
+                                'booking_id' => $active_booking->amelia_booking_id,
+                                'appointment_id' => $active_booking->amelia_appointment_id
+                            ));
+                        } else {
+                            // Orphaned link - clean it up
+                            amelia_cpt_sync_debug_log('ART Detail Page: Cleaning up orphaned booking link (appointment #' . $potential_booking->amelia_appointment_id . ' no longer exists)');
+                            $wpdb->delete(
+                                $wpdb->prefix . 'art_booking_links',
+                                array('id' => $potential_booking->id),
+                                array('%d')
+                            );
+                            
+                            // Reset request status to tentative
+                            $wpdb->update(
+                                $wpdb->prefix . 'art_requests',
+                                array('status_key' => 'tentative'),
+                                array('id' => $request_id),
+                                array('%s'),
+                                array('%d')
+                            );
+                        }
+                    }
                 } else {
-                    amelia_cpt_sync_debug_log('ART Detail Page: No active booking found for request #' . $request_id);
+                    amelia_cpt_sync_debug_log('ART Detail Page: No booking links found for request #' . $request_id);
                 }
                 ?>
                 
