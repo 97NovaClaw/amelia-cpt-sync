@@ -4848,10 +4848,11 @@ jQuery(document).ready(function($) {
                               (selectedProviderId != artDetailData.existingBookedProviderId);
         
         // Check if pillar fields changed (service, duration, location, persons)
-        var currentService = $('#pillar-service').val();
-        var currentDuration = $('#pillar-duration-seconds').val();
-        var currentLocation = $('#pillar-location').val();
-        var currentPersons = $('#pillar-persons').val();
+        // Normalize values: undefined, null, empty string all treated as null
+        var currentService = $('#pillar-service').val() || null;
+        var currentDuration = $('#pillar-duration-seconds').val() || null;
+        var currentLocation = $('#pillar-location').val() || null;
+        var currentPersons = $('#pillar-persons').val() || null;
         
         var hasPillarChanges = (currentService != artDetailData.currentService) ||
                               (currentDuration != artDetailData.currentDuration) ||
