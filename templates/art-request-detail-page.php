@@ -3233,26 +3233,43 @@ jQuery(document).ready(function($) {
                 
                 // Auto-select existing booking's date and time if available
                 if (artDetailData.hasActiveBooking && artDetailData.existingBookedDate && artDetailData.existingBookedTime) {
+                    console.log('ART DEBUG: Starting auto-population', {
+                        date: artDetailData.existingBookedDate,
+                        time: artDetailData.existingBookedTime,
+                        providerId: artDetailData.existingBookedProviderId
+                    });
+                    
                     isAutoPopulating = true; // Prevent reset during auto-population
                     
                     setTimeout(function() {
+                        console.log('ART DEBUG: Step 1 - Looking for date button');
+                        
                         // Find and click matching date button
                         var matchingDateBtn = $('.art-picker-date-btn[data-date="' + artDetailData.existingBookedDate + '"]');
+                        console.log('ART DEBUG: Found date button?', matchingDateBtn.length > 0);
+                        
                         if (matchingDateBtn.length) {
+                            console.log('ART DEBUG: Step 2 - Clicking date button');
                             matchingDateBtn.trigger('click');
                             
                             // Convert 12hr to 24hr and fill time input
                             var time24 = convertTo24Hour(artDetailData.existingBookedTime);
+                            console.log('ART DEBUG: Step 3 - Converted time', {
+                                original: artDetailData.existingBookedTime,
+                                converted: time24
+                            });
+                            
                             if (time24) {
+                                console.log('ART DEBUG: Step 4 - Setting time input and triggering change');
                                 $('#custom-time-input').val(time24).trigger('change');
-                                console.log('ART: Auto-selected existing booking - Date: ' + artDetailData.existingBookedDate + ', Time: ' + time24);
                             }
                         }
                         
                         // Reset flag after all auto-population completes
                         setTimeout(function() {
+                            console.log('ART DEBUG: Auto-population complete, resetting flag');
                             isAutoPopulating = false;
-                        }, 500);
+                        }, 2000); // Longer delay to ensure everything completes
                     }, 300); // Delay to ensure date buttons are rendered
                 }
                 
@@ -4229,6 +4246,12 @@ jQuery(document).ready(function($) {
     var isAutoPopulating = false; // Flag to prevent reset during auto-population
     
     function updateProviderList() {
+        console.log('ART DEBUG: updateProviderList() called', {
+            isAutoPopulating: isAutoPopulating,
+            currentSelectedProviderId: selectedProviderId,
+            timestamp: new Date().toISOString()
+        });
+        
         var activeDateBtn = $('#picker-dates-list .art-picker-date-btn.active');
         var providerList = $('#provider-list');
         var confirmSection = $('#picker-confirm-section');
@@ -4237,9 +4260,12 @@ jQuery(document).ready(function($) {
         
         // Reset selection (unless we're auto-populating)
         if (!isAutoPopulating) {
+            console.log('ART DEBUG: Resetting provider selection (not auto-populating)');
             selectedProviderId = null;
             confirmSection.hide();
             $('#btn-use-custom-time').prop('disabled', true);
+        } else {
+            console.log('ART DEBUG: SKIPPING reset - auto-population in progress');
         }
         
         // If no providers loaded yet, show loading
@@ -4411,11 +4437,27 @@ jQuery(document).ready(function($) {
         
         // Auto-select existing booking's provider if available
         if (artDetailData.hasActiveBooking && artDetailData.existingBookedProviderId) {
+            console.log('ART DEBUG: Step 5 - Looking for provider in rendered list');
+            
             setTimeout(function() {
                 var matchingProvider = $('.provider-item[data-provider-id="' + artDetailData.existingBookedProviderId + '"]');
+                console.log('ART DEBUG: Step 6 - Found provider item?', {
+                    found: matchingProvider.length > 0,
+                    providerId: artDetailData.existingBookedProviderId,
+                    allProviders: $('.provider-item').map(function() { return $(this).data('provider-id'); }).get()
+                });
+                
                 if (matchingProvider.length) {
+                    console.log('ART DEBUG: Step 7 - Clicking provider item');
                     matchingProvider.trigger('click');
-                    console.log('ART: Auto-selected existing provider ID: ' + artDetailData.existingBookedProviderId);
+                    
+                    setTimeout(function() {
+                        console.log('ART DEBUG: Step 8 - After click, selection state:', {
+                            selectedProviderId: selectedProviderId,
+                            hasSelectedClass: matchingProvider.hasClass('selected'),
+                            confirmSectionVisible: $('#picker-confirm-section').is(':visible')
+                        });
+                    }, 50);
                 }
             }, 100);
         }
@@ -4556,21 +4598,31 @@ jQuery(document).ready(function($) {
         var item = $(this);
         var providerId = item.data('provider-id');
         
+        console.log('ART DEBUG: Provider item clicked', {
+            providerId: providerId,
+            currentSelected: selectedProviderId,
+            isAutoPopulating: isAutoPopulating
+        });
+        
         // Toggle selection
         if (selectedProviderId == providerId) {
             // Deselect
+            console.log('ART DEBUG: Deselecting provider');
             item.removeClass('selected');
             selectedProviderId = null;
             $('#picker-confirm-section').hide();
             $('#btn-use-custom-time').prop('disabled', true);
         } else {
             // Select this one
+            console.log('ART DEBUG: Selecting provider', providerId);
             $('.provider-item').removeClass('selected');
             item.addClass('selected');
             selectedProviderId = providerId;
             $('#picker-confirm-section').show();
             $('#btn-use-custom-time').prop('disabled', false);
         }
+        
+        console.log('ART DEBUG: After provider click, selectedProviderId =', selectedProviderId);
     });
     
     // Update provider list when custom time changes
