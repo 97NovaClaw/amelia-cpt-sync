@@ -19,7 +19,7 @@ class Amelia_CPT_Sync_ART_Database_Manager {
     /**
      * Database version for schema tracking
      */
-    const DB_VERSION = '1.3.0';  // Updated: Added original_service_id, original_category_id columns
+    const DB_VERSION = '1.4.0';  // Updated: Added booking_type column to art_booking_links
     
     /**
      * Option name for storing database version
@@ -194,10 +194,12 @@ class Amelia_CPT_Sync_ART_Database_Manager {
             request_id bigint(20) UNSIGNED NOT NULL,
             amelia_appointment_id bigint(20) NOT NULL,
             amelia_booking_id bigint(20) DEFAULT NULL,
+            booking_type varchar(20) NOT NULL DEFAULT 'confirmed',
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY request_id (request_id),
             KEY amelia_appointment_id (amelia_appointment_id),
+            KEY booking_type (booking_type),
             KEY created_at (created_at)
         ) $charset_collate;";
         

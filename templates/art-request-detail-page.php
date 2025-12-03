@@ -331,13 +331,19 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                 ?>
                 
                 <!-- Active Booking Info Card (shown when booked) -->
-                <div id="active-booking-card" class="art-card art-booking-card" style="<?php echo $active_booking ? '' : 'display: none;'; ?>">
+                <?php 
+                $booking_type = $active_booking ? ($active_booking->booking_type ?? 'confirmed') : 'confirmed';
+                $is_tentative = ($booking_type === 'tentative');
+                ?>
+                <div id="active-booking-card" class="art-card art-booking-card <?php echo $is_tentative ? 'booking-tentative' : 'booking-confirmed'; ?>" style="<?php echo $active_booking ? '' : 'display: none;'; ?>" data-booking-type="<?php echo esc_attr($booking_type); ?>">
                     <div class="card-header booking-header">
                         <h3>
                             <span class="dashicons dashicons-calendar-alt"></span>
                             <?php _e('Active Amelia Booking', 'amelia-cpt-sync'); ?>
                         </h3>
-                        <span class="booking-status-badge"><?php _e('Confirmed', 'amelia-cpt-sync'); ?></span>
+                        <span class="booking-status-badge <?php echo $is_tentative ? 'badge-tentative' : 'badge-confirmed'; ?>">
+                            <?php echo $is_tentative ? __('Tentative', 'amelia-cpt-sync') : __('Confirmed', 'amelia-cpt-sync'); ?>
+                        </span>
                     </div>
                     <div class="card-body">
                         <div id="active-booking-details" class="booking-details-grid">
@@ -834,10 +840,18 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             </div>
                             
                             <!-- Step 3: Create Booking Actions -->
-                            <div class="placeholder-actions" style="margin-top: 20px;">
-                                <button type="button" id="btn-create-booking" class="btn-primary" disabled>
+                            <div class="booking-actions-grid" style="margin-top: 20px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                                <button type="button" id="btn-tentative-booking" class="btn-warning" disabled>
+                                    <span class="dashicons dashicons-clock"></span>
+                                    <?php _e('Tentative Booking', 'amelia-cpt-sync'); ?>
+                                </button>
+                                <button type="button" id="btn-formal-booking" class="btn-success" disabled>
                                     <span class="dashicons dashicons-yes-alt"></span>
-                                    <?php _e('Create Amelia Booking', 'amelia-cpt-sync'); ?>
+                                    <?php _e('Confirm Booking', 'amelia-cpt-sync'); ?>
+                                </button>
+                                <button type="button" id="btn-cancel-booking" class="btn-danger" style="display: none;">
+                                    <span class="dashicons dashicons-no-alt"></span>
+                                    <?php _e('Cancel Booking', 'amelia-cpt-sync'); ?>
                                 </button>
                                 <button type="button" id="btn-cancel-availability" class="btn-link">
                                     <?php _e('Clear Results', 'amelia-cpt-sync'); ?>
@@ -846,8 +860,8 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                         </div>
                         
                         <!-- Booking Success Toast (temporary notification) -->
-                        <div id="booking-success-toast" style="display: none; margin-top: 20px; padding: 12px 16px; background: #D4EDDA; border: 1px solid #C3E6CB; border-radius: 6px; color: #155724;">
-                            <span class="dashicons dashicons-yes" style="color: #28A745;"></span>
+                        <div id="booking-success-toast" style="display: none; margin-top: 20px; padding: 12px 16px; border-radius: 6px;">
+                            <span class="toast-icon"></span>
                             <span id="booking-toast-message"><?php _e('Booking created successfully!', 'amelia-cpt-sync'); ?></span>
                         </div>
                         
@@ -1098,34 +1112,63 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     background: #F8FAFC;
 }
 
-/* Active Booking Card */
-.art-booking-card {
+/* Active Booking Card - Confirmed State (Green) */
+.art-booking-card.booking-confirmed {
     background: linear-gradient(135deg, #D4EDDA 0%, #C3E6CB 100%);
     border-color: #28A745;
     margin-bottom: 20px;
 }
 
-.art-booking-card .booking-header {
+.art-booking-card.booking-confirmed .booking-header {
     background: rgba(40, 167, 69, 0.1);
+}
+
+.art-booking-card.booking-confirmed .booking-header h3 {
+    color: #155724;
+}
+
+/* Active Booking Card - Tentative State (Orange) */
+.art-booking-card.booking-tentative {
+    background: linear-gradient(135deg, #FFF3CD 0%, #FFECB5 100%);
+    border-color: #F0AD4E;
+    margin-bottom: 20px;
+}
+
+.art-booking-card.booking-tentative .booking-header {
+    background: rgba(240, 173, 78, 0.1);
+}
+
+.art-booking-card.booking-tentative .booking-header h3 {
+    color: #856404;
+}
+
+.art-booking-card .booking-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
 .art-booking-card .booking-header h3 {
-    color: #155724;
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
 .booking-status-badge {
-    background: #28A745;
-    color: #fff;
     padding: 4px 12px;
     border-radius: 20px;
     font-size: 12px;
     font-weight: 600;
+}
+
+.booking-status-badge.badge-confirmed {
+    background: #28A745;
+    color: #fff;
+}
+
+.booking-status-badge.badge-tentative {
+    background: #F0AD4E;
+    color: #fff;
 }
 
 .booking-details-grid {
@@ -1164,7 +1207,59 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     grid-column: 1 / -1;
 }
 
-/* Danger button */
+/* Success button (green - for confirmed bookings) */
+.btn-success {
+    background: #28A745;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s ease;
+}
+
+.btn-success:hover {
+    background: #218838;
+}
+
+.btn-success:disabled {
+    background: #E9ECEF;
+    color: #6C757D;
+    cursor: not-allowed;
+}
+
+/* Warning button (orange - for tentative bookings) */
+.btn-warning {
+    background: #F0AD4E;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s ease;
+}
+
+.btn-warning:hover {
+    background: #EC971F;
+}
+
+.btn-warning:disabled {
+    background: #E9ECEF;
+    color: #6C757D;
+    cursor: not-allowed;
+}
+
+/* Danger button (red - for cancel) */
 .btn-danger {
     background: #DC3545;
     color: #fff;
@@ -3126,7 +3221,7 @@ jQuery(document).ready(function($) {
                     
                     // Reset selection details
                     $('#slot-details').hide();
-                    $('#btn-create-booking').prop('disabled', true);
+                    $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', true);
                 });
                 
                 // Handle Date Click (Delegated)
@@ -3318,8 +3413,8 @@ jQuery(document).ready(function($) {
         $('#slot-summary').html(summary);
         $('#slot-details').slideDown();
         
-        // Enable booking button
-        $('#btn-create-booking').prop('disabled', false);
+        // Enable booking buttons
+        $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', false);
     }
     
     /**
@@ -3392,38 +3487,92 @@ jQuery(document).ready(function($) {
         }
         
         $('#active-booking-details').html(html);
-        $('#active-booking-card').slideDown();
+        
+        // Update card styling based on booking type
+        var card = $('#active-booking-card');
+        var badge = card.find('.booking-status-badge');
+        var bookingType = data.booking_type || 'confirmed';
+        
+        card.removeClass('booking-tentative booking-confirmed');
+        badge.removeClass('badge-tentative badge-confirmed');
+        
+        if (bookingType === 'tentative') {
+            card.addClass('booking-tentative');
+            badge.addClass('badge-tentative').text('<?php _e('Tentative', 'amelia-cpt-sync'); ?>');
+        } else {
+            card.addClass('booking-confirmed');
+            badge.addClass('badge-confirmed').text('<?php _e('Confirmed', 'amelia-cpt-sync'); ?>');
+        }
+        
+        card.attr('data-booking-type', bookingType);
+        card.slideDown();
         
         // Mark that we now have an active booking
         artDetailData.hasActiveBooking = true;
         artDetailData.activeAppointmentId = data.appointment_id;
         artDetailData.activeBookingId = data.booking_id;
+        artDetailData.bookingType = bookingType;
         
-        // Update the Create Booking button to show "Override" text
-        updateCreateBookingButton();
+        // Update booking buttons
+        updateBookingButtons();
     }
     
     /**
-     * Update Create Booking button based on whether booking exists
+     * Show booking toast notification with appropriate styling
      */
-    function updateCreateBookingButton() {
-        var btn = $('#btn-create-booking');
-        if (hasExistingBooking()) {
-            btn.removeClass('btn-primary').addClass('btn-danger');
-            btn.html('<span class="dashicons dashicons-update"></span> <?php _e('Override Previous Booking', 'amelia-cpt-sync'); ?>');
+    function showBookingToast(message, type) {
+        var toast = $('#booking-success-toast');
+        var icon = toast.find('.toast-icon');
+        
+        // Set styling based on type
+        if (type === 'warning') {
+            toast.css({
+                'background': '#FFF3CD',
+                'border': '1px solid #FFECB5',
+                'color': '#856404'
+            });
+            icon.attr('class', 'toast-icon dashicons dashicons-clock').css('color', '#F0AD4E');
+        } else if (type === 'success') {
+            toast.css({
+                'background': '#D4EDDA',
+                'border': '1px solid #C3E6CB',
+                'color': '#155724'
+            });
+            icon.attr('class', 'toast-icon dashicons dashicons-yes').css('color', '#28A745');
         } else {
-            btn.removeClass('btn-danger').addClass('btn-primary');
-            btn.html('<span class="dashicons dashicons-calendar-alt"></span> <?php _e('Create Amelia Booking', 'amelia-cpt-sync'); ?>');
+            toast.css({
+                'background': '#F8D7DA',
+                'border': '1px solid #F5C6CB',
+                'color': '#721C24'
+            });
+            icon.attr('class', 'toast-icon dashicons dashicons-no').css('color', '#DC3545');
+        }
+        
+        $('#booking-toast-message').text(message);
+        toast.slideDown().delay(4000).slideUp();
+    }
+    
+    /**
+     * Update booking buttons based on current state
+     */
+    function updateBookingButtons() {
+        var hasBooking = hasExistingBooking();
+        
+        // Show/hide cancel button based on booking existence
+        if (hasBooking) {
+            $('#btn-cancel-booking').show();
+        } else {
+            $('#btn-cancel-booking').hide();
         }
     }
     
     // Initialize button state on page load
-    updateCreateBookingButton();
+    updateBookingButtons();
     
     /**
-     * Create Booking Button (Updated with reschedule/delete flow)
+     * Tentative Booking Button - Creates booking with 'pending' status
      */
-    $('#btn-create-booking').on('click', function() {
+    $('#btn-tentative-booking').on('click', function() {
         var btn = $(this);
         
         var slotDatetime = $('#selected-slot-datetime').val();
@@ -3443,8 +3592,90 @@ jQuery(document).ready(function($) {
             return;
         }
         
-        // No existing booking - create new
-        createNewBooking(btn, slotDatetime, providerId);
+        // Create tentative booking
+        createNewBooking(btn, slotDatetime, providerId, 'tentative');
+    });
+    
+    /**
+     * Formal/Confirm Booking Button - Creates booking with 'approved' status
+     */
+    $('#btn-formal-booking').on('click', function() {
+        var btn = $(this);
+        
+        var slotDatetime = $('#selected-slot-datetime').val();
+        var providerId = $('#selected-provider-id').val();
+        
+        if (!slotDatetime || !providerId) {
+            showNotice('<?php _e('Please select a time slot first', 'amelia-cpt-sync'); ?>', 'error');
+            return;
+        }
+        
+        // Check if there's an existing booking
+        if (hasExistingBooking()) {
+            // Show the reschedule confirmation section
+            $('#reschedule-confirm-section').slideDown();
+            $('#booking-action-select').val('').trigger('change');
+            $('#slot-details').hide();
+            return;
+        }
+        
+        // Create confirmed booking
+        createNewBooking(btn, slotDatetime, providerId, 'confirmed');
+    });
+    
+    /**
+     * Cancel Booking Button - Deletes any existing booking
+     */
+    $('#btn-cancel-booking').on('click', function() {
+        var btn = $(this);
+        
+        if (!hasExistingBooking()) {
+            showNotice('<?php _e('No booking to cancel', 'amelia-cpt-sync'); ?>', 'error');
+            return;
+        }
+        
+        if (!confirm('<?php _e('Are you sure you want to cancel this booking? This will delete the Amelia appointment.', 'amelia-cpt-sync'); ?>')) {
+            return;
+        }
+        
+        btn.prop('disabled', true);
+        var originalText = btn.html();
+        btn.html('<span class="dashicons dashicons-update spin"></span> <?php _e('Canceling...', 'amelia-cpt-sync'); ?>');
+        
+        $.post(ajaxurl, {
+            action: 'art_delete_booking',
+            nonce: artDetailData.nonce,
+            request_id: artDetailData.requestId
+        }, function(response) {
+            btn.prop('disabled', false);
+            btn.html(originalText);
+            
+            if (response.success) {
+                // Hide the active booking card
+                $('#active-booking-card').slideUp();
+                
+                // Reset booking state
+                artDetailData.hasActiveBooking = false;
+                artDetailData.activeAppointmentId = null;
+                artDetailData.activeBookingId = null;
+                
+                // Update buttons
+                updateBookingButtons();
+                
+                // Update status dropdown to tentative
+                $('#status-dropdown').val('Tentative').trigger('change');
+                
+                // Show toast
+                showBookingToast('<?php _e('Booking canceled successfully', 'amelia-cpt-sync'); ?>', 'warning');
+                showNotice('<?php _e('Booking canceled successfully', 'amelia-cpt-sync'); ?>', 'success');
+            } else {
+                showNotice('<?php _e('Cancel failed:', 'amelia-cpt-sync'); ?> ' + response.data.message, 'error');
+            }
+        }).fail(function() {
+            btn.prop('disabled', false);
+            btn.html(originalText);
+            showNotice('<?php _e('Network error during cancellation', 'amelia-cpt-sync'); ?>', 'error');
+        });
     });
     
     /**
@@ -3573,27 +3804,46 @@ jQuery(document).ready(function($) {
     
     /**
      * Create a new Amelia booking
+     * @param btn - The button element
+     * @param slotDatetime - Selected date/time
+     * @param providerId - Selected provider ID
+     * @param bookingType - 'tentative' or 'confirmed' (default: 'confirmed')
+     * @param callback - Optional callback function
      */
-    function createNewBooking(btn, slotDatetime, providerId, callback) {
+    function createNewBooking(btn, slotDatetime, providerId, bookingType, callback) {
+        // Handle legacy calls where bookingType might be the callback
+        if (typeof bookingType === 'function') {
+            callback = bookingType;
+            bookingType = 'confirmed';
+        }
+        bookingType = bookingType || 'confirmed';
+        
         btn.prop('disabled', true);
         var originalText = btn.html();
-        btn.html('<span class="dashicons dashicons-update spin"></span> <?php _e('Creating booking...', 'amelia-cpt-sync'); ?>');
+        var loadingText = bookingType === 'tentative' 
+            ? '<?php _e('Creating tentative...', 'amelia-cpt-sync'); ?>'
+            : '<?php _e('Confirming booking...', 'amelia-cpt-sync'); ?>';
+        btn.html('<span class="dashicons dashicons-update spin"></span> ' + loadingText);
         
         $.post(ajaxurl, {
             action: 'art_create_booking',
             nonce: artDetailData.nonce,
             request_id: artDetailData.requestId,
             provider_id: providerId,
-            slot_datetime: slotDatetime
+            slot_datetime: slotDatetime,
+            booking_type: bookingType
         }, function(response) {
             btn.prop('disabled', false);
             btn.html(originalText);
             
             if (response.success) {
-                // Update the active booking card with full details
+                var isTentative = (response.data.booking_type === 'tentative');
+                
+                // Update the active booking card with full details and booking type
                 updateActiveBookingCard({
                     booking_id: response.data.booking_id,
                     appointment_id: response.data.appointment_id,
+                    booking_type: response.data.booking_type,
                     service_name: response.data.service_name || $('#pillar-service option:selected').text(),
                     category_name: response.data.category_name || $('#pillar-category option:selected').text(),
                     formatted_date: response.data.formatted_date,
@@ -3628,17 +3878,20 @@ jQuery(document).ready(function($) {
                     savePillarsAuto(false);
                 }, 100);
                 
-                // Show toast notification
-                $('#booking-toast-message').text('<?php _e('Amelia booking created successfully!', 'amelia-cpt-sync'); ?>');
-                $('#booking-success-toast').slideDown().delay(4000).slideUp();
+                // Show toast notification with appropriate styling
+                var toastMessage = isTentative 
+                    ? '<?php _e('Tentative booking created!', 'amelia-cpt-sync'); ?>'
+                    : '<?php _e('Booking confirmed!', 'amelia-cpt-sync'); ?>';
+                showBookingToast(toastMessage, isTentative ? 'warning' : 'success');
                 
                 // Update status dropdown
-                $('#status-dropdown').val('booked').trigger('change');
+                var newStatus = isTentative ? 'Tentative' : 'Booked';
+                $('#status-dropdown').val(newStatus).trigger('change');
                 
-                showNotice('<?php _e('Amelia booking created successfully!', 'amelia-cpt-sync'); ?>', 'success');
+                showNotice(response.data.message, 'success');
                 
-                // Keep availability engine visible but update button
-                updateCreateBookingButton();
+                // Update booking buttons
+                updateBookingButtons();
                 
             } else {
                 showNotice('<?php _e('Booking failed:', 'amelia-cpt-sync'); ?> ' + response.data.message, 'error');
@@ -3671,7 +3924,7 @@ jQuery(document).ready(function($) {
         $('#btn-use-custom-time').prop('disabled', true);
         
         $('#slot-details').hide();
-        $('#btn-create-booking').prop('disabled', true);
+        $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', true);
         availabilityData = null;
     });
     

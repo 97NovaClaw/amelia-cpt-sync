@@ -1198,6 +1198,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         // Get selected provider and slot from POST (user selected from availability results)
         $selected_provider_id = absint($_POST['provider_id'] ?? 0);
         $selected_slot_datetime = sanitize_text_field($_POST['slot_datetime'] ?? '');
+        $booking_type = sanitize_key($_POST['booking_type'] ?? 'confirmed'); // 'tentative' or 'confirmed'
         
         if (!$selected_provider_id) {
             wp_send_json_error(array('message' => 'Please select a provider from availability results'));
@@ -1206,6 +1207,10 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         if (!$selected_slot_datetime) {
             wp_send_json_error(array('message' => 'Please select a time slot'));
         }
+        
+        // Determine Amelia status based on booking type
+        // Tentative = 'pending', Confirmed = 'approved'
+        $amelia_status = ($booking_type === 'tentative') ? 'pending' : 'approved';
         
         // Build booking data in EXACT format from Amelia API docs
         $booking_object = array(
@@ -1226,7 +1231,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                 'externalId' => null
             ),
             'duration' => absint($request->duration_seconds),
-            'status' => 'approved'  // Required when packageBookingFromBackend is true
+            'status' => $amelia_status
         );
         
         // Add price if available
@@ -1291,15 +1296,16 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         // First, delete any existing booking links for this request
         $wpdb->delete($booking_links_table, array('request_id' => $request_id), array('%d'));
         
-        // Insert new booking link
+        // Insert new booking link with booking type
         $wpdb->insert(
             $booking_links_table,
             array(
                 'request_id' => $request_id,
                 'amelia_booking_id' => $booking_id,
-                'amelia_appointment_id' => $appointment_id
+                'amelia_appointment_id' => $appointment_id,
+                'booking_type' => $booking_type
             ),
-            array('%d', '%d', '%d')
+            array('%d', '%d', '%d', '%s')
         );
         
         // Update customer with Amelia customer ID if available
@@ -1399,11 +1405,16 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             }
         }
         
+        $message = ($booking_type === 'tentative') 
+            ? 'Tentative booking created successfully!' 
+            : 'Booking confirmed successfully!';
+        
         wp_send_json_success(array(
-            'message' => 'Booking created successfully!',
+            'message' => $message,
             'booking_id' => $booking_id,
             'appointment_id' => $appointment_id,
             'amelia_customer_id' => $amelia_customer_id,
+            'booking_type' => $booking_type,
             'service_name' => $service_name,
             'category_name' => $category_name,
             'provider_name' => $provider_name,
