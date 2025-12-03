@@ -4612,38 +4612,18 @@ jQuery(document).ready(function($) {
         
         providerList.html(html);
         
-        // Auto-select existing booking's provider if available (only once per page load)
+        // No need to visually select the provider - "Currently Selected Provider" header makes it clear
+        // Just set the selectedProviderId variable so buttons work
         if (artDetailData.hasActiveBooking && artDetailData.existingBookedProviderId && !hasAutoSelectedProvider) {
-            console.log('ART DEBUG: Step 5 - Looking for provider in rendered list');
+            hasAutoSelectedProvider = true;
+            selectedProviderId = artDetailData.existingBookedProviderId;
             
+            console.log('ART DEBUG: Set selectedProviderId from existing booking (no visual selection needed):', selectedProviderId);
+            
+            // Check button states after setting provider
             setTimeout(function() {
-                var matchingProvider = $('.provider-item[data-provider-id="' + artDetailData.existingBookedProviderId + '"]');
-                console.log('ART DEBUG: Step 6 - Found provider item?', {
-                    found: matchingProvider.length > 0,
-                    providerId: artDetailData.existingBookedProviderId,
-                    allProviders: $('.provider-item').map(function() { return $(this).data('provider-id'); }).get()
-                });
-                
-                if (matchingProvider.length && !hasAutoSelectedProvider) {
-                    console.log('ART DEBUG: Step 7 - Clicking provider item (FIRST TIME ONLY)');
-                    hasAutoSelectedProvider = true; // Mark as done
-                    matchingProvider.trigger('click');
-                    
-                    setTimeout(function() {
-                        console.log('ART DEBUG: Step 8 - After click, selection state:', {
-                            selectedProviderId: selectedProviderId,
-                            hasSelectedClass: matchingProvider.hasClass('selected'),
-                            confirmSectionVisible: $('#picker-confirm-section').is(':visible')
-                        });
-                        
-                        // After auto-selection completes, check if there are changes
-                        // This ensures buttons are in correct state
-                        setTimeout(function() {
-                            checkIfSelectionChanged();
-                        }, 50);
-                    }, 50);
-                }
-            }, 100);
+                checkIfSelectionChanged();
+            }, 200);
         }
     }
     
