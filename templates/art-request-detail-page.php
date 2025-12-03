@@ -869,6 +869,24 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             <span id="booking-toast-message"><?php _e('Booking created successfully!', 'amelia-cpt-sync'); ?></span>
                         </div>
                         
+                        <!-- Status Change Confirmation (for upgrade/downgrade) -->
+                        <div id="status-change-confirm-section" style="display: none; margin-top: 16px; padding: 16px; border-radius: 6px;">
+                            <h4 id="status-change-title" style="margin: 0 0 8px 0;">
+                                <span class="dashicons"></span>
+                                <span class="title-text"></span>
+                            </h4>
+                            <p id="status-change-message" style="margin: 0 0 16px 0; font-size: 13px;"></p>
+                            <div style="display: flex; gap: 10px;">
+                                <button type="button" id="btn-confirm-status-change" class="btn-primary">
+                                    <span class="dashicons dashicons-yes"></span>
+                                    <?php _e('Confirm', 'amelia-cpt-sync'); ?>
+                                </button>
+                                <button type="button" id="btn-cancel-status-change" class="btn-link">
+                                    <?php _e('Cancel', 'amelia-cpt-sync'); ?>
+                                </button>
+                            </div>
+                        </div>
+                        
                         <!-- Reschedule Confirmation (hidden by default) -->
                         <div id="reschedule-confirm-section" style="display: none; margin-top: 16px; padding: 16px; background: #FFF3CD; border: 1px solid #FFECB5; border-radius: 6px;">
                             <h4 style="margin: 0 0 12px 0; color: #856404;">
@@ -881,8 +899,8 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             <div class="reschedule-options">
                                 <select id="booking-action-select" class="form-select" style="margin-bottom: 12px;">
                                     <option value=""><?php _e('-- Select Action --', 'amelia-cpt-sync'); ?></option>
-                                    <option value="reschedule"><?php _e('Reschedule - Update existing booking with new time/provider', 'amelia-cpt-sync'); ?></option>
-                                    <option value="delete_and_create"><?php _e('Delete & Create New - Remove old booking and create fresh', 'amelia-cpt-sync'); ?></option>
+                                    <option value="reschedule"><?php _e('Update Time/Provider - Keep same booking, change details', 'amelia-cpt-sync'); ?></option>
+                                    <option value="delete_and_create"><?php _e('Replace Booking - Delete old and create fresh', 'amelia-cpt-sync'); ?></option>
                                 </select>
                                 <div id="action-implications" style="display: none; margin-bottom: 12px; padding: 10px; background: #fff; border-radius: 4px; font-size: 12px;">
                                 </div>
@@ -3580,107 +3598,48 @@ jQuery(document).ready(function($) {
      * Show confirm upgrade dialog (tentative → confirmed)
      */
     function showConfirmUpgradeDialog(btn, slotDatetime, providerId) {
-        var message = '<?php _e('Confirm this tentative booking?', 'amelia-cpt-sync'); ?>\n\n' +
-                     '<?php _e('This will upgrade the tentative reservation to a confirmed booking with the selected time slot.', 'amelia-cpt-sync'); ?>';
+        // Show custom confirmation section
+        var section = $('#status-change-confirm-section');
+        section.css({
+            'background': 'linear-gradient(135deg, #D4EDDA 0%, #C3E6CB 100%)',
+            'border': '1px solid #28A745'
+        });
+        section.find('.dashicons').attr('class', 'dashicons dashicons-yes-alt').css('color', '#28A745');
+        section.find('.title-text').text('<?php _e('Confirm Booking?', 'amelia-cpt-sync'); ?>').css('color', '#155724');
+        section.find('#status-change-message').text('<?php _e('This will upgrade the tentative reservation to a confirmed booking with the selected time slot.', 'amelia-cpt-sync'); ?>').css('color', '#155724');
         
-        if (confirm(message)) {
-            // Use reschedule endpoint but change booking type to confirmed
-            btn.prop('disabled', true);
-            var originalText = btn.html();
-            btn.html('<span class="dashicons dashicons-update spin"></span> <?php _e('Confirming...', 'amelia-cpt-sync'); ?>');
-            
-            $.post(ajaxurl, {
-                action: 'art_reschedule_booking',
-                nonce: artDetailData.nonce,
-                request_id: artDetailData.requestId,
-                new_datetime: slotDatetime,
-                new_provider_id: providerId,
-                upgrade_to_confirmed: true
-            }, function(response) {
-                btn.prop('disabled', false);
-                btn.html(originalText);
-                
-                if (response.success) {
-                    // Update the active booking card
-                    updateActiveBookingCard({
-                        booking_id: artDetailData.activeBookingId,
-                        appointment_id: artDetailData.activeAppointmentId,
-                        booking_type: 'confirmed',
-                        service_name: $('#pillar-service option:selected').text(),
-                        category_name: $('#pillar-category option:selected').text(),
-                        formatted_date: response.data.formatted_date,
-                        formatted_time: response.data.formatted_time,
-                        provider_name: response.data.provider_name,
-                        location_name: $('#pillar-location option:selected').text() || ''
-                    });
-                    
-                    showBookingToast('<?php _e('Booking confirmed successfully!', 'amelia-cpt-sync'); ?>', 'success');
-                    showNotice('<?php _e('Tentative booking upgraded to confirmed!', 'amelia-cpt-sync'); ?>', 'success');
-                    
-                    // Update status
-                    $('#status-dropdown').val('Booked').trigger('change');
-                } else {
-                    showNotice('<?php _e('Upgrade failed:', 'amelia-cpt-sync'); ?> ' + response.data.message, 'error');
-                }
-            }).fail(function() {
-                btn.prop('disabled', false);
-                btn.html(originalText);
-                showNotice('<?php _e('Network error during upgrade', 'amelia-cpt-sync'); ?>', 'error');
-            });
-        }
+        // Store action data
+        section.data('action-type', 'upgrade');
+        section.data('btn', btn);
+        section.data('datetime', slotDatetime);
+        section.data('provider', providerId);
+        
+        section.slideDown();
+        $('#slot-details').hide();
     }
     
     /**
      * Show downgrade dialog (confirmed → tentative)
      */
     function showDowngradeDialog(btn, slotDatetime, providerId) {
-        var message = '<?php _e('Change this booking to tentative status?', 'amelia-cpt-sync'); ?>\n\n' +
-                     '<?php _e('This will downgrade the confirmed booking to tentative. The time slot will remain the same.', 'amelia-cpt-sync'); ?>';
+        // Show custom confirmation section
+        var section = $('#status-change-confirm-section');
+        section.css({
+            'background': 'linear-gradient(135deg, #FFF3CD 0%, #FFECB5 100%)',
+            'border': '1px solid #F0AD4E'
+        });
+        section.find('.dashicons').attr('class', 'dashicons dashicons-clock').css('color', '#F0AD4E');
+        section.find('.title-text').text('<?php _e('Change to Tentative?', 'amelia-cpt-sync'); ?>').css('color', '#856404');
+        section.find('#status-change-message').text('<?php _e('This will change the confirmed booking to tentative status. The time slot will remain the same.', 'amelia-cpt-sync'); ?>').css('color', '#856404');
         
-        if (confirm(message)) {
-            btn.prop('disabled', true);
-            var originalText = btn.html();
-            btn.html('<span class="dashicons dashicons-update spin"></span> <?php _e('Changing status...', 'amelia-cpt-sync'); ?>');
-            
-            $.post(ajaxurl, {
-                action: 'art_reschedule_booking',
-                nonce: artDetailData.nonce,
-                request_id: artDetailData.requestId,
-                new_datetime: slotDatetime,
-                new_provider_id: providerId,
-                downgrade_to_tentative: true
-            }, function(response) {
-                btn.prop('disabled', false);
-                btn.html(originalText);
-                
-                if (response.success) {
-                    // Update the active booking card
-                    updateActiveBookingCard({
-                        booking_id: artDetailData.activeBookingId,
-                        appointment_id: artDetailData.activeAppointmentId,
-                        booking_type: 'tentative',
-                        service_name: $('#pillar-service option:selected').text(),
-                        category_name: $('#pillar-category option:selected').text(),
-                        formatted_date: response.data.formatted_date,
-                        formatted_time: response.data.formatted_time,
-                        provider_name: response.data.provider_name,
-                        location_name: $('#pillar-location option:selected').text() || ''
-                    });
-                    
-                    showBookingToast('<?php _e('Status changed to tentative', 'amelia-cpt-sync'); ?>', 'warning');
-                    showNotice('<?php _e('Booking downgraded to tentative status', 'amelia-cpt-sync'); ?>', 'success');
-                    
-                    // Update status
-                    $('#status-dropdown').val('Tentative').trigger('change');
-                } else {
-                    showNotice('<?php _e('Status change failed:', 'amelia-cpt-sync'); ?> ' + response.data.message, 'error');
-                }
-            }).fail(function() {
-                btn.prop('disabled', false);
-                btn.html(originalText);
-                showNotice('<?php _e('Network error during status change', 'amelia-cpt-sync'); ?>', 'error');
-            });
-        }
+        // Store action data
+        section.data('action-type', 'downgrade');
+        section.data('btn', btn);
+        section.data('datetime', slotDatetime);
+        section.data('provider', providerId);
+        
+        section.slideDown();
+        $('#slot-details').hide();
     }
     
     /**
@@ -3930,6 +3889,113 @@ jQuery(document).ready(function($) {
                 '<?php _e('The existing Amelia appointment will be permanently deleted. A completely new booking will be created. This cannot be undone.', 'amelia-cpt-sync'); ?>'
             ).show();
         }
+    });
+    
+    /**
+     * Confirm status change (upgrade or downgrade)
+     */
+    $('#btn-confirm-status-change').on('click', function() {
+        var section = $('#status-change-confirm-section');
+        var actionType = section.data('action-type');
+        var btn = section.data('btn');
+        var slotDatetime = section.data('datetime');
+        var providerId = section.data('provider');
+        
+        if (!actionType || !btn) return;
+        
+        var originalText = btn.html();
+        btn.prop('disabled', true);
+        
+        if (actionType === 'upgrade') {
+            btn.html('<span class="dashicons dashicons-update spin"></span> <?php _e('Confirming...', 'amelia-cpt-sync'); ?>');
+            
+            $.post(ajaxurl, {
+                action: 'art_reschedule_booking',
+                nonce: artDetailData.nonce,
+                request_id: artDetailData.requestId,
+                new_datetime: slotDatetime,
+                new_provider_id: providerId,
+                upgrade_to_confirmed: true
+            }, function(response) {
+                btn.prop('disabled', false);
+                btn.html(originalText);
+                section.slideUp();
+                $('#slot-details').slideDown();
+                
+                if (response.success) {
+                    updateActiveBookingCard({
+                        booking_id: artDetailData.activeBookingId,
+                        appointment_id: artDetailData.activeAppointmentId,
+                        booking_type: 'confirmed',
+                        service_name: $('#pillar-service option:selected').text(),
+                        category_name: $('#pillar-category option:selected').text(),
+                        formatted_date: response.data.formatted_date,
+                        formatted_time: response.data.formatted_time,
+                        provider_name: response.data.provider_name,
+                        location_name: $('#pillar-location option:selected').text() || ''
+                    });
+                    
+                    showBookingToast('<?php _e('Booking confirmed successfully!', 'amelia-cpt-sync'); ?>', 'success');
+                    showNotice('<?php _e('Tentative booking upgraded to confirmed!', 'amelia-cpt-sync'); ?>', 'success');
+                    $('#status-dropdown').val('Booked').trigger('change');
+                } else {
+                    showNotice('<?php _e('Upgrade failed:', 'amelia-cpt-sync'); ?> ' + response.data.message, 'error');
+                }
+            }).fail(function() {
+                btn.prop('disabled', false);
+                btn.html(originalText);
+                showNotice('<?php _e('Network error during upgrade', 'amelia-cpt-sync'); ?>', 'error');
+            });
+            
+        } else if (actionType === 'downgrade') {
+            btn.html('<span class="dashicons dashicons-update spin"></span> <?php _e('Changing status...', 'amelia-cpt-sync'); ?>');
+            
+            $.post(ajaxurl, {
+                action: 'art_reschedule_booking',
+                nonce: artDetailData.nonce,
+                request_id: artDetailData.requestId,
+                new_datetime: slotDatetime,
+                new_provider_id: providerId,
+                downgrade_to_tentative: true
+            }, function(response) {
+                btn.prop('disabled', false);
+                btn.html(originalText);
+                section.slideUp();
+                $('#slot-details').slideDown();
+                
+                if (response.success) {
+                    updateActiveBookingCard({
+                        booking_id: artDetailData.activeBookingId,
+                        appointment_id: artDetailData.activeAppointmentId,
+                        booking_type: 'tentative',
+                        service_name: $('#pillar-service option:selected').text(),
+                        category_name: $('#pillar-category option:selected').text(),
+                        formatted_date: response.data.formatted_date,
+                        formatted_time: response.data.formatted_time,
+                        provider_name: response.data.provider_name,
+                        location_name: $('#pillar-location option:selected').text() || ''
+                    });
+                    
+                    showBookingToast('<?php _e('Status changed to tentative', 'amelia-cpt-sync'); ?>', 'warning');
+                    showNotice('<?php _e('Booking downgraded to tentative status', 'amelia-cpt-sync'); ?>', 'success');
+                    $('#status-dropdown').val('Tentative').trigger('change');
+                } else {
+                    showNotice('<?php _e('Status change failed:', 'amelia-cpt-sync'); ?> ' + response.data.message, 'error');
+                }
+            }).fail(function() {
+                btn.prop('disabled', false);
+                btn.html(originalText);
+                showNotice('<?php _e('Network error during status change', 'amelia-cpt-sync'); ?>', 'error');
+            });
+        }
+    });
+    
+    /**
+     * Cancel status change
+     */
+    $('#btn-cancel-status-change').on('click', function() {
+        $('#status-change-confirm-section').slideUp();
+        $('#slot-details').slideDown();
     });
     
     /**
