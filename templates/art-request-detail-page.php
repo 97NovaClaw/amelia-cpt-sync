@@ -3776,6 +3776,15 @@ jQuery(document).ready(function($) {
                 // Update buttons
                 updateBookingButtons();
                 
+                // Scroll to top to show Active Booking card
+                $('html, body').animate({ scrollTop: 0 }, 500);
+                
+                // Reload Amelia calendar iframe to show new/updated appointment
+                var iframe = $('#amelia-calendar-frame');
+                if (iframe.length) {
+                    iframe.attr('src', iframe.attr('src'));
+                }
+                
             } else {
                 showNotice(response.data.message, 'error');
             }
@@ -3845,6 +3854,15 @@ jQuery(document).ready(function($) {
                 // Show toast
                 showBookingToast('<?php _e('Booking canceled successfully', 'amelia-cpt-sync'); ?>', 'warning');
                 showNotice('<?php _e('Booking canceled successfully', 'amelia-cpt-sync'); ?>', 'success');
+                
+                // Scroll to top
+                $('html, body').animate({ scrollTop: 0 }, 500);
+                
+                // Reload Amelia calendar iframe
+                var iframe = $('#amelia-calendar-frame');
+                if (iframe.length) {
+                    iframe.attr('src', iframe.attr('src'));
+                }
             } else {
                 showNotice('<?php _e('Cancel failed:', 'amelia-cpt-sync'); ?> ' + response.data.message, 'error');
             }
@@ -3944,6 +3962,15 @@ jQuery(document).ready(function($) {
                     var toastType = (artDetailData.bookingType === 'tentative') ? 'warning' : 'success';
                     showBookingToast('<?php _e('Booking details updated!', 'amelia-cpt-sync'); ?>', toastType);
                     showNotice('<?php _e('Booking details updated successfully!', 'amelia-cpt-sync'); ?>', 'success');
+                    
+                    // Scroll to top
+                    $('html, body').animate({ scrollTop: 0 }, 500);
+                    
+                    // Reload Amelia calendar iframe
+                    var iframe = $('#amelia-calendar-frame');
+                    if (iframe.length) {
+                        iframe.attr('src', iframe.attr('src'));
+                    }
                 } else {
                     showNotice('<?php _e('Reschedule failed:', 'amelia-cpt-sync'); ?> ' + response.data.message, 'error');
                 }
