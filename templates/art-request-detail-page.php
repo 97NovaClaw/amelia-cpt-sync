@@ -3233,6 +3233,8 @@ jQuery(document).ready(function($) {
                 
                 // Auto-select existing booking's date and time if available
                 if (artDetailData.hasActiveBooking && artDetailData.existingBookedDate && artDetailData.existingBookedTime) {
+                    isAutoPopulating = true; // Prevent reset during auto-population
+                    
                     setTimeout(function() {
                         // Find and click matching date button
                         var matchingDateBtn = $('.art-picker-date-btn[data-date="' + artDetailData.existingBookedDate + '"]');
@@ -3246,6 +3248,11 @@ jQuery(document).ready(function($) {
                                 console.log('ART: Auto-selected existing booking - Date: ' + artDetailData.existingBookedDate + ', Time: ' + time24);
                             }
                         }
+                        
+                        // Reset flag after all auto-population completes
+                        setTimeout(function() {
+                            isAutoPopulating = false;
+                        }, 500);
                     }, 300); // Delay to ensure date buttons are rendered
                 }
                 
@@ -4219,6 +4226,7 @@ jQuery(document).ready(function($) {
      */
     var selectedProviderId = null;
     var availabilityEngineEnabled = true; // Set to false to use old slots-based logic
+    var isAutoPopulating = false; // Flag to prevent reset during auto-population
     
     function updateProviderList() {
         var activeDateBtn = $('#picker-dates-list .art-picker-date-btn.active');
@@ -4227,10 +4235,12 @@ jQuery(document).ready(function($) {
         
         var providerCount = artDetailData.providers ? Object.keys(artDetailData.providers).length : 0;
         
-        // Reset selection
-        selectedProviderId = null;
-        confirmSection.hide();
-        $('#btn-use-custom-time').prop('disabled', true);
+        // Reset selection (unless we're auto-populating)
+        if (!isAutoPopulating) {
+            selectedProviderId = null;
+            confirmSection.hide();
+            $('#btn-use-custom-time').prop('disabled', true);
+        }
         
         // If no providers loaded yet, show loading
         if (providerCount === 0) {
