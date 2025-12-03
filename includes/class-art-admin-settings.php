@@ -1527,12 +1527,14 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         $new_datetime = sanitize_text_field($_POST['new_datetime'] ?? '');
         $new_provider_id = absint($_POST['new_provider_id'] ?? 0);
         $upgrade_to_confirmed = isset($_POST['upgrade_to_confirmed']) && $_POST['upgrade_to_confirmed'];
+        $downgrade_to_tentative = isset($_POST['downgrade_to_tentative']) && $_POST['downgrade_to_tentative'];
         
         amelia_cpt_sync_debug_log('ART Reschedule: Received request', array(
             'request_id' => $request_id,
             'new_datetime' => $new_datetime,
             'new_provider_id' => $new_provider_id,
-            'upgrade_to_confirmed' => $upgrade_to_confirmed
+            'upgrade_to_confirmed' => $upgrade_to_confirmed,
+            'downgrade_to_tentative' => $downgrade_to_tentative
         ));
         
         if (!$request_id || !$new_datetime || !$new_provider_id) {
@@ -1605,6 +1607,26 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             );
             
             amelia_cpt_sync_debug_log('ART: Upgraded tentative booking to confirmed for request #' . $request_id);
+        }
+        
+        // If downgrading confirmed to tentative, update appointment status and booking_type
+        if ($downgrade_to_tentative) {
+            $status_result = $booking_service->update_appointment_status($booking_link->amelia_appointment_id, 'pending');
+            
+            if (is_wp_error($status_result)) {
+                amelia_cpt_sync_debug_log('ART: Warning - Could not downgrade status to pending: ' . $status_result->get_error_message());
+            }
+            
+            // Update booking_type in art_booking_links
+            $wpdb->update(
+                $booking_links_table,
+                array('booking_type' => 'tentative'),
+                array('request_id' => $request_id),
+                array('%s'),
+                array('%d')
+            );
+            
+            amelia_cpt_sync_debug_log('ART: Downgraded confirmed booking to tentative for request #' . $request_id);
         }
         
         // Format datetime for response

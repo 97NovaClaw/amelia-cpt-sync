@@ -3631,6 +3631,59 @@ jQuery(document).ready(function($) {
     }
     
     /**
+     * Show downgrade dialog (confirmed → tentative)
+     */
+    function showDowngradeDialog(btn, slotDatetime, providerId) {
+        var message = '<?php _e('Change this booking to tentative status?', 'amelia-cpt-sync'); ?>\n\n' +
+                     '<?php _e('This will downgrade the confirmed booking to tentative. The time slot will remain the same.', 'amelia-cpt-sync'); ?>';
+        
+        if (confirm(message)) {
+            btn.prop('disabled', true);
+            var originalText = btn.html();
+            btn.html('<span class="dashicons dashicons-update spin"></span> <?php _e('Changing status...', 'amelia-cpt-sync'); ?>');
+            
+            $.post(ajaxurl, {
+                action: 'art_reschedule_booking',
+                nonce: artDetailData.nonce,
+                request_id: artDetailData.requestId,
+                new_datetime: slotDatetime,
+                new_provider_id: providerId,
+                downgrade_to_tentative: true
+            }, function(response) {
+                btn.prop('disabled', false);
+                btn.html(originalText);
+                
+                if (response.success) {
+                    // Update the active booking card
+                    updateActiveBookingCard({
+                        booking_id: artDetailData.activeBookingId,
+                        appointment_id: artDetailData.activeAppointmentId,
+                        booking_type: 'tentative',
+                        service_name: $('#pillar-service option:selected').text(),
+                        category_name: $('#pillar-category option:selected').text(),
+                        formatted_date: response.data.formatted_date,
+                        formatted_time: response.data.formatted_time,
+                        provider_name: response.data.provider_name,
+                        location_name: $('#pillar-location option:selected').text() || ''
+                    });
+                    
+                    showBookingToast('<?php _e('Status changed to tentative', 'amelia-cpt-sync'); ?>', 'warning');
+                    showNotice('<?php _e('Booking downgraded to tentative status', 'amelia-cpt-sync'); ?>', 'success');
+                    
+                    // Update status
+                    $('#status-dropdown').val('Tentative').trigger('change');
+                } else {
+                    showNotice('<?php _e('Status change failed:', 'amelia-cpt-sync'); ?> ' + response.data.message, 'error');
+                }
+            }).fail(function() {
+                btn.prop('disabled', false);
+                btn.html(originalText);
+                showNotice('<?php _e('Network error during status change', 'amelia-cpt-sync'); ?>', 'error');
+            });
+        }
+    }
+    
+    /**
      * Show booking toast notification with appropriate styling
      */
     function showBookingToast(message, type) {
@@ -3734,10 +3787,26 @@ jQuery(document).ready(function($) {
         
         // Check if there's an existing booking
         if (hasExistingBooking()) {
-            // Show the reschedule confirmation section
-            $('#reschedule-confirm-section').slideDown();
-            $('#booking-action-select').val('').trigger('change');
-            $('#slot-details').hide();
+            var currentBookingType = artDetailData.bookingType || 'confirmed';
+            
+            // If already tentative, treat as reschedule
+            if (currentBookingType === 'tentative') {
+                // Check if date/time/provider changed
+                var hasChanges = (slotDatetime !== artDetailData.existingBookedDateTime) || 
+                                (providerId != artDetailData.existingBookedProviderId);
+                
+                if (hasChanges) {
+                    // Show reschedule confirmation
+                    $('#reschedule-confirm-section').slideDown();
+                    $('#booking-action-select').val('').trigger('change');
+                    $('#slot-details').hide();
+                } else {
+                    showNotice('<?php _e('Tentative booking already set with these details', 'amelia-cpt-sync'); ?>', 'info');
+                }
+            } else {
+                // Downgrading confirmed to tentative
+                showDowngradeDialog(btn, slotDatetime, providerId);
+            }
             return;
         }
         
