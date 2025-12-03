@@ -304,6 +304,8 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             
                             $active_booking->formatted_date = $dt_start->format('l, F jS, Y');
                             $active_booking->formatted_time = $dt_start->format('h:i A');
+                            $active_booking->formatted_date_time = $dt_start->format('Y-m-d\TH:i'); // For datetime-local input
+                            $active_booking->provider_id = $appointment_full->providerId;
                             
                             amelia_cpt_sync_debug_log('ART Detail Page: Active booking loaded with full details');
                         } else {
@@ -2493,7 +2495,22 @@ jQuery(document).ready(function($) {
         showTimeslotsGrid: <?php echo $show_timeslots_grid ? 'true' : 'false'; ?>,
         hasActiveBooking: <?php echo (!empty($active_booking) && !empty($active_booking->amelia_appointment_id)) ? 'true' : 'false'; ?>,
         activeAppointmentId: <?php echo (!empty($active_booking) && !empty($active_booking->amelia_appointment_id)) ? intval($active_booking->amelia_appointment_id) : 'null'; ?>,
-        activeBookingId: <?php echo (!empty($active_booking) && !empty($active_booking->amelia_booking_id)) ? intval($active_booking->amelia_booking_id) : 'null'; ?>
+        activeBookingId: <?php echo (!empty($active_booking) && !empty($active_booking->amelia_booking_id)) ? intval($active_booking->amelia_booking_id) : 'null'; ?>,
+        bookingType: <?php echo (!empty($active_booking) && !empty($active_booking->booking_type)) ? wp_json_encode($active_booking->booking_type) : wp_json_encode('confirmed'); ?>,
+        existingBookedDateTime: <?php 
+            if (!empty($active_booking) && !empty($active_booking->formatted_date_time)) {
+                echo wp_json_encode($active_booking->formatted_date_time);
+            } else {
+                echo 'null';
+            }
+        ?>,
+        existingBookedProviderId: <?php 
+            if (!empty($active_booking) && !empty($active_booking->provider_id)) {
+                echo intval($active_booking->provider_id);
+            } else {
+                echo 'null';
+            }
+        ?>
     };
     
     // === HELPER: Show Notice ===
@@ -3524,6 +3541,60 @@ jQuery(document).ready(function($) {
     }
     
     /**
+     * Show confirm upgrade dialog (tentative → confirmed)
+     */
+    function showConfirmUpgradeDialog(btn, slotDatetime, providerId) {
+        var message = '<?php _e('Confirm this tentative booking?', 'amelia-cpt-sync'); ?>\n\n' +
+                     '<?php _e('This will upgrade the tentative reservation to a confirmed booking with the selected time slot.', 'amelia-cpt-sync'); ?>';
+        
+        if (confirm(message)) {
+            // Use reschedule endpoint but change booking type to confirmed
+            btn.prop('disabled', true);
+            var originalText = btn.html();
+            btn.html('<span class="dashicons dashicons-update spin"></span> <?php _e('Confirming...', 'amelia-cpt-sync'); ?>');
+            
+            $.post(ajaxurl, {
+                action: 'art_reschedule_booking',
+                nonce: artDetailData.nonce,
+                request_id: artDetailData.requestId,
+                new_datetime: slotDatetime,
+                new_provider_id: providerId,
+                upgrade_to_confirmed: true
+            }, function(response) {
+                btn.prop('disabled', false);
+                btn.html(originalText);
+                
+                if (response.success) {
+                    // Update the active booking card
+                    updateActiveBookingCard({
+                        booking_id: artDetailData.activeBookingId,
+                        appointment_id: artDetailData.activeAppointmentId,
+                        booking_type: 'confirmed',
+                        service_name: $('#pillar-service option:selected').text(),
+                        category_name: $('#pillar-category option:selected').text(),
+                        formatted_date: response.data.formatted_date,
+                        formatted_time: response.data.formatted_time,
+                        provider_name: response.data.provider_name,
+                        location_name: $('#pillar-location option:selected').text() || ''
+                    });
+                    
+                    showBookingToast('<?php _e('Booking confirmed successfully!', 'amelia-cpt-sync'); ?>', 'success');
+                    showNotice('<?php _e('Tentative booking upgraded to confirmed!', 'amelia-cpt-sync'); ?>', 'success');
+                    
+                    // Update status
+                    $('#status-dropdown').val('Booked').trigger('change');
+                } else {
+                    showNotice('<?php _e('Upgrade failed:', 'amelia-cpt-sync'); ?> ' + response.data.message, 'error');
+                }
+            }).fail(function() {
+                btn.prop('disabled', false);
+                btn.html(originalText);
+                showNotice('<?php _e('Network error during upgrade', 'amelia-cpt-sync'); ?>', 'error');
+            });
+        }
+    }
+    
+    /**
      * Show booking toast notification with appropriate styling
      */
     function showBookingToast(message, type) {
@@ -3576,6 +3647,32 @@ jQuery(document).ready(function($) {
     updateBookingButtons();
     
     /**
+     * Auto-populate availability engine with existing booking details on page load
+     */
+    if (artDetailData.hasActiveBooking && artDetailData.existingBookedDateTime && artDetailData.existingBookedProviderId) {
+        // Set the hidden slot details fields
+        $('#selected-slot-datetime').val(artDetailData.existingBookedDateTime);
+        $('#selected-provider-id').val(artDetailData.existingBookedProviderId);
+        
+        // Show the slot details section with existing booking info
+        var existingDate = new Date(artDetailData.existingBookedDateTime);
+        var dateStr = existingDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        var timeStr = existingDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        
+        $('#slot-date-display').text(dateStr);
+        $('#slot-time-display').text(timeStr);
+        $('#slot-provider-display').text('Provider ID: ' + artDetailData.existingBookedProviderId);
+        
+        $('#slot-details').show();
+        $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', false);
+        
+        console.log('ART: Auto-populated availability engine with existing booking:', {
+            datetime: artDetailData.existingBookedDateTime,
+            provider: artDetailData.existingBookedProviderId
+        });
+    }
+    
+    /**
      * Tentative Booking Button - Creates booking with 'pending' status
      */
     $('#btn-tentative-booking').on('click', function() {
@@ -3618,10 +3715,17 @@ jQuery(document).ready(function($) {
         
         // Check if there's an existing booking
         if (hasExistingBooking()) {
-            // Show the reschedule confirmation section
-            $('#reschedule-confirm-section').slideDown();
-            $('#booking-action-select').val('').trigger('change');
-            $('#slot-details').hide();
+            var currentBookingType = artDetailData.bookingType || 'confirmed';
+            
+            // Special case: Upgrading tentative to confirmed
+            if (currentBookingType === 'tentative') {
+                showConfirmUpgradeDialog(btn, slotDatetime, providerId);
+            } else {
+                // Regular reschedule flow
+                $('#reschedule-confirm-section').slideDown();
+                $('#booking-action-select').val('').trigger('change');
+                $('#slot-details').hide();
+            }
             return;
         }
         
