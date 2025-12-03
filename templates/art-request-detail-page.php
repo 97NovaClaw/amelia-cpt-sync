@@ -306,6 +306,8 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             $active_booking->formatted_time = $dt_start->format('h:i A');
                             $active_booking->formatted_date_time = $dt_start->format('Y-m-d\TH:i'); // For datetime-local input
                             $active_booking->provider_id = $appointment_full->providerId;
+                            $active_booking->location_id = $appointment_full->locationId ?? null;
+                            $active_booking->date_only = $dt_start->format('Y-m-d');
                             
                             amelia_cpt_sync_debug_log('ART Detail Page: Active booking loaded with full details');
                         } else {
@@ -2497,20 +2499,12 @@ jQuery(document).ready(function($) {
         activeAppointmentId: <?php echo (!empty($active_booking) && !empty($active_booking->amelia_appointment_id)) ? intval($active_booking->amelia_appointment_id) : 'null'; ?>,
         activeBookingId: <?php echo (!empty($active_booking) && !empty($active_booking->amelia_booking_id)) ? intval($active_booking->amelia_booking_id) : 'null'; ?>,
         bookingType: <?php echo (!empty($active_booking) && !empty($active_booking->booking_type)) ? wp_json_encode($active_booking->booking_type) : wp_json_encode('confirmed'); ?>,
-        existingBookedDateTime: <?php 
-            if (!empty($active_booking) && !empty($active_booking->formatted_date_time)) {
-                echo wp_json_encode($active_booking->formatted_date_time);
-            } else {
-                echo 'null';
-            }
-        ?>,
-        existingBookedProviderId: <?php 
-            if (!empty($active_booking) && !empty($active_booking->provider_id)) {
-                echo intval($active_booking->provider_id);
-            } else {
-                echo 'null';
-            }
-        ?>
+        existingBookedDateTime: <?php echo !empty($active_booking->formatted_date_time) ? wp_json_encode($active_booking->formatted_date_time) : 'null'; ?>,
+        existingBookedDate: <?php echo !empty($active_booking->date_only) ? wp_json_encode($active_booking->date_only) : 'null'; ?>,
+        existingBookedTime: <?php echo !empty($active_booking->formatted_time) ? wp_json_encode($active_booking->formatted_time) : 'null'; ?>,
+        existingBookedProviderId: <?php echo !empty($active_booking->provider_id) ? intval($active_booking->provider_id) : 'null'; ?>,
+        existingBookedProviderName: <?php echo !empty($active_booking->provider_name) ? wp_json_encode($active_booking->provider_name) : 'null'; ?>,
+        existingBookedLocationId: <?php echo !empty($active_booking->location_id) ? intval($active_booking->location_id) : 'null'; ?>
     };
     
     // === HELPER: Show Notice ===
@@ -3649,27 +3643,14 @@ jQuery(document).ready(function($) {
     /**
      * Auto-populate availability engine with existing booking details on page load
      */
-    if (artDetailData.hasActiveBooking && artDetailData.existingBookedDateTime && artDetailData.existingBookedProviderId) {
-        // Set the hidden slot details fields
-        $('#selected-slot-datetime').val(artDetailData.existingBookedDateTime);
-        $('#selected-provider-id').val(artDetailData.existingBookedProviderId);
-        
-        // Show the slot details section with existing booking info
-        var existingDate = new Date(artDetailData.existingBookedDateTime);
-        var dateStr = existingDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        var timeStr = existingDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        
-        $('#slot-date-display').text(dateStr);
-        $('#slot-time-display').text(timeStr);
-        $('#slot-provider-display').text('Provider ID: ' + artDetailData.existingBookedProviderId);
-        
-        $('#slot-details').show();
-        $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', false);
-        
-        console.log('ART: Auto-populated availability engine with existing booking:', {
+    if (artDetailData.hasActiveBooking && artDetailData.existingBookedDateTime) {
+        artDetailData.providers[artDetailData.existingBookedProviderId] = artDetailData.existingBookedProviderName;
+        selectSlot({
             datetime: artDetailData.existingBookedDateTime,
-            provider: artDetailData.existingBookedProviderId
-        });
+            provider_id: artDetailData.existingBookedProviderId,
+            location_id: artDetailData.existingBookedLocationId || 0,
+            date: artDetailData.existingBookedDate
+        }, artDetailData.existingBookedTime);
     }
     
     /**
