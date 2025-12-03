@@ -4344,7 +4344,30 @@ jQuery(document).ready(function($) {
             '</div>';
         }
         
-        // Group providers by status
+        // Check if we're auto-populating with existing booking provider
+        var existingProvider = null;
+        if (artDetailData.hasActiveBooking && artDetailData.existingBookedProviderId) {
+            existingProvider = providers.find(function(p) { 
+                return p.id == artDetailData.existingBookedProviderId; 
+            });
+            
+            // Remove from main list to show separately
+            providers = providers.filter(function(p) { 
+                return p.id != artDetailData.existingBookedProviderId; 
+            });
+        }
+        
+        // Show currently selected provider first (if exists)
+        if (existingProvider) {
+            html += '<div class="provider-group">';
+            html += '<div class="provider-group-label" style="background: #E0E7FF; color: #4338CA; border-left: 3px solid #4338CA;">' +
+                    '<span class="dashicons dashicons-saved"></span> <?php _e('Currently Selected Provider', 'amelia-cpt-sync'); ?></div>';
+            var conflictText = (existingProvider.conflicts && existingProvider.conflicts.length > 0) ? existingProvider.conflicts.join(', ') : '';
+            html += buildProviderItemWithConflicts(existingProvider.id, existingProvider.name, getInitials(existingProvider.name), existingProvider.status_display, existingProvider.conflicts || []);
+            html += '</div>';
+        }
+        
+        // Group remaining providers by status
         var available = providers.filter(function(p) { return p.status === 'available'; });
         var mightConflict = providers.filter(function(p) { return p.status === 'might_conflict'; });
         var forceBook = providers.filter(function(p) { return p.status === 'force_book' || p.status === 'not_available'; });
