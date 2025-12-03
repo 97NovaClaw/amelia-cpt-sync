@@ -944,16 +944,15 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             </div>
                         </dl>
                         
-                        <!-- Customer Match Check -->
+                        <!-- Customer Match Results (Auto-loads) -->
                         <div class="customer-match-section">
-                            <button type="button" 
-                                    id="check-customer-match" 
-                                    class="btn-secondary btn-small btn-block"
-                                    data-email="<?php echo esc_attr($request->customer_email); ?>">
-                                <span class="dashicons dashicons-search"></span>
-                                <?php _e('Check Amelia Match', 'amelia-cpt-sync'); ?>
-                            </button>
-                            <div id="customer-match-result"></div>
+                            <h4><?php _e('Customer Match', 'amelia-cpt-sync'); ?></h4>
+                            <div id="customer-match-results">
+                                <div class="customer-loading">
+                                    <span class="dashicons dashicons-update spin"></span>
+                                    <?php _e('Searching for existing customers...', 'amelia-cpt-sync'); ?>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2063,13 +2062,148 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     border-top: 1px solid #E0E5F1;
 }
 
-#customer-match-result {
-    margin-top: 12px;
-    padding: 12px;
-    border-radius: 8px;
-    font-size: 13px;
+.customer-match-section h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1E293B;
+    margin: 0 0 12px 0;
 }
 
+#customer-match-results {
+    margin-top: 12px;
+}
+
+.customer-loading,
+.customer-error {
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #64748B;
+    text-align: center;
+}
+
+.customer-loading .dashicons {
+    vertical-align: middle;
+}
+
+.customer-group {
+    margin-bottom: 12px;
+}
+
+.customer-group-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.customer-group-label.exact {
+    background: #D4EDDA;
+    color: #155724;
+    border-left: 3px solid #28A745;
+}
+
+.customer-group-label.high {
+    background: #FFF3CD;
+    color: #856404;
+    border-left: 3px solid #F0AD4E;
+}
+
+.customer-group-label.possible {
+    background: #E0E7FF;
+    color: #4338CA;
+    border-left: 3px solid #6366F1;
+}
+
+.customer-group-label.new {
+    background: #F1F5F9;
+    color: #64748B;
+    border-left: 3px solid #94A3B8;
+}
+
+.customer-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: #fff;
+    border: 2px solid #E0E5F1;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 8px;
+}
+
+.customer-item:hover {
+    border-color: #4338CA;
+    background: #F8FAFC;
+}
+
+.customer-item.selected {
+    border-color: #4338CA;
+    background: #EEF2FF;
+}
+
+.customer-item.selected .customer-check {
+    display: flex;
+}
+
+.customer-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #4338CA;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.customer-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.customer-name {
+    font-weight: 600;
+    color: #1E293B;
+    font-size: 14px;
+}
+
+.customer-details {
+    font-size: 12px;
+    color: #64748B;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.customer-match-reasons {
+    font-size: 11px;
+    color: #16A34A;
+    margin-top: 4px;
+}
+
+.customer-check {
+    display: none;
+    color: #4338CA;
+    flex-shrink: 0;
+}
+
+.customer-item.selected .customer-check {
+    display: flex;
+}
+
+/* Legacy styles (kept for backwards compat) */
 .match-found {
     background: #DCFCE7;
     color: #16A34A;
@@ -2860,47 +2994,129 @@ jQuery(document).ready(function($) {
     }
     
     // === CUSTOMER MATCH CHECK ===
-    $('#check-customer-match').on('click', function() {
-        var email = $(this).data('email');
-        var btn = $(this);
-        var originalText = btn.html();
-        
-        btn.prop('disabled', true).html('<span class="dashicons dashicons-update spin"></span> Checking...');
-        
+    // === CUSTOMER FUZZY MATCHING ===
+    var selectedCustomerId = null; // 0 = create new, >0 = use existing
+    
+    /**
+     * Auto-search for customer matches on page load
+     */
+    function searchCustomerMatches() {
         $.post(ajaxurl, {
-            action: 'art_check_customer_match',
+            action: 'art_find_customer_matches',
             nonce: artDetailData.nonce,
-            email: email
+            email: artDetailData.customerEmail,
+            phone: '<?php echo esc_js($request->customer_phone ?? ''); ?>',
+            first_name: '<?php echo esc_js($request->customer_first_name); ?>',
+            last_name: '<?php echo esc_js($request->customer_last_name); ?>'
         }, function(response) {
-            if (response.success && response.data.customer) {
-                var customer = response.data.customer;
-                $('#customer-match-result').html(
-                    '<div class="match-found">' +
-                    '<span class="dashicons dashicons-yes-alt"></span> ' +
-                    '<span>Found in Amelia: <strong>' + customer.firstName + ' ' + customer.lastName + 
-                    '</strong> (ID: ' + customer.id + ')</span>' +
-                    '</div>'
-                );
+            if (response.success) {
+                renderCustomerMatches(response.data);
             } else {
-                $('#customer-match-result').html(
-                    '<div class="match-not-found">' +
-                    '<span class="dashicons dashicons-info"></span> ' +
-                    '<span>Not found in Amelia - new customer will be created when booking</span>' +
-                    '</div>'
-                );
+                $('#customer-match-results').html('<div class="customer-error">Error searching customers</div>');
             }
-            
-            btn.prop('disabled', false).html(originalText);
         }).fail(function() {
-            $('#customer-match-result').html(
-                '<div class="match-not-found">' +
-                '<span class="dashicons dashicons-warning"></span> ' +
-                '<span>Error checking customer - check API settings</span>' +
-                '</div>'
-            );
-            btn.prop('disabled', false).html(originalText);
+            $('#customer-match-results').html('<div class="customer-error">Network error</div>');
         });
+    }
+    
+    /**
+     * Render customer match results
+     */
+    function renderCustomerMatches(matches) {
+        var html = '';
+        
+        // Exact match (auto-select)
+        if (matches.exact) {
+            selectedCustomerId = matches.exact.customer.id;
+            html += '<div class="customer-group">';
+            html += '<div class="customer-group-label exact"><span class="dashicons dashicons-yes-alt"></span> Exact Match (Auto-Selected)</div>';
+            html += buildCustomerItem(matches.exact.customer, matches.exact.reasons, matches.exact.score, true);
+            html += '</div>';
+        }
+        
+        // High confidence matches
+        if (matches.high && matches.high.length > 0) {
+            html += '<div class="customer-group">';
+            html += '<div class="customer-group-label high"><span class="dashicons dashicons-info"></span> Possible Matches</div>';
+            $.each(matches.high, function(i, match) {
+                html += buildCustomerItem(match.customer, match.reasons, match.score, false);
+            });
+            html += '</div>';
+        }
+        
+        // Possible matches
+        if (matches.possible && matches.possible.length > 0) {
+            html += '<div class="customer-group">';
+            html += '<div class="customer-group-label possible"><span class="dashicons dashicons-search"></span> Low Confidence</div>';
+            $.each(matches.possible, function(i, match) {
+                html += buildCustomerItem(match.customer, match.reasons, match.score, false);
+            });
+            html += '</div>';
+        }
+        
+        // Always show "Create New" option
+        html += '<div class="customer-group">';
+        html += '<div class="customer-group-label new"><span class="dashicons dashicons-plus-alt"></span> Create New Customer</div>';
+        html += '<div class="customer-item create-new' + (!selectedCustomerId ? ' selected' : '') + '" data-customer-id="0">';
+        html += '<div class="customer-avatar">NC</div>';
+        html += '<div class="customer-info">';
+        html += '<div class="customer-name">New Customer</div>';
+        html += '<div class="customer-details">No match found - will create new when booking</div>';
+        html += '</div>';
+        html += '<div class="customer-check"><span class="dashicons dashicons-yes"></span></div>';
+        html += '</div>';
+        html += '</div>';
+        
+        // If no matches at all, auto-select "Create New"
+        if (!matches.exact && (!matches.high || matches.high.length === 0) && (!matches.possible || matches.possible.length === 0)) {
+            selectedCustomerId = 0;
+        }
+        
+        $('#customer-match-results').html(html);
+    }
+    
+    /**
+     * Build customer item HTML
+     */
+    function buildCustomerItem(customer, reasons, score, selected) {
+        var initials = (customer.firstName.charAt(0) + customer.lastName.charAt(0)).toUpperCase();
+        var selectedClass = selected ? 'selected' : '';
+        
+        var html = '<div class="customer-item ' + selectedClass + '" data-customer-id="' + customer.id + '">';
+        html += '<div class="customer-avatar">' + initials + '</div>';
+        html += '<div class="customer-info">';
+        html += '<div class="customer-name">' + customer.firstName + ' ' + customer.lastName + '</div>';
+        html += '<div class="customer-details">';
+        html += customer.email;
+        if (customer.phone) {
+            html += ' • ' + customer.phone;
+        }
+        html += '</div>';
+        if (reasons && reasons.length > 0) {
+            html += '<div class="customer-match-reasons">' + reasons.join(', ') + '</div>';
+        }
+        html += '</div>';
+        html += '<div class="customer-check"><span class="dashicons dashicons-yes"></span></div>';
+        html += '</div>';
+        
+        return html;
+    }
+    
+    /**
+     * Handle customer selection
+     */
+    $(document).on('click', '.customer-item', function() {
+        var customerId = $(this).data('customer-id');
+        
+        $('.customer-item').removeClass('selected');
+        $(this).addClass('selected');
+        selectedCustomerId = customerId;
+        
+        console.log('ART: Selected customer ID:', selectedCustomerId === 0 ? 'Create New' : selectedCustomerId);
     });
+    
+    // Run customer matching on page load
+    searchCustomerMatches();
     
     // === AUTO-SAVE PILLARS ===
     var autoSaveTimer = null;
@@ -3727,7 +3943,8 @@ jQuery(document).ready(function($) {
             provider_id: providerId,
             desired_status: desiredStatus,
             location_id: $('#pillar-location').val() || null,
-            persons: $('#pillar-persons').val() || 1
+            persons: $('#pillar-persons').val() || 1,
+            selected_customer_id: selectedCustomerId // Include fuzzy match selection
         }, function(response) {
             btn.prop('disabled', false);
             btn.html(originalText);

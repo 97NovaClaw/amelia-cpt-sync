@@ -377,26 +377,68 @@ class Amelia_CPT_Sync_ART_Booking_Manager {
         // Build booking data
         $amelia_status = ($status === 'tentative') ? 'pending' : 'approved';
         
-        $booking_object = array(
-            'extras' => array(),
-            'customFields' => (object) array(),
-            'deposit' => false,
-            'locale' => 'en_US',
-            'utcOffset' => null,
-            'persons' => absint($params['persons']),
-            'customerId' => !empty($customer->amelia_customer_id) ? absint($customer->amelia_customer_id) : null,
-            'customer' => array(
-                'id' => !empty($customer->amelia_customer_id) ? absint($customer->amelia_customer_id) : null,
-                'firstName' => $customer->first_name,
-                'lastName' => $customer->last_name,
-                'email' => $customer->email,
-                'phone' => $customer->phone ?? '',
-                'countryPhoneIso' => '',
-                'externalId' => null
-            ),
-            'duration' => absint($params['duration']),
-            'status' => $amelia_status
-        );
+        // Check if user selected an existing Amelia customer (from fuzzy matching)
+        $use_existing_customer_id = !empty($params['selected_customer_id']) && $params['selected_customer_id'] > 0 
+            ? absint($params['selected_customer_id']) 
+            : null;
+        
+        if ($use_existing_customer_id) {
+            // Use selected existing customer from fuzzy matching
+            amelia_cpt_sync_debug_log('ART Booking Manager: Using selected Amelia customer #' . $use_existing_customer_id);
+            
+            $booking_object = array(
+                'extras' => array(),
+                'customFields' => (object) array(),
+                'deposit' => false,
+                'locale' => 'en_US',
+                'utcOffset' => null,
+                'persons' => absint($params['persons']),
+                'customerId' => $use_existing_customer_id,
+                'customer' => array(
+                    'id' => $use_existing_customer_id,
+                    'firstName' => $customer->first_name,
+                    'lastName' => $customer->last_name,
+                    'email' => $customer->email,
+                    'phone' => $customer->phone ?? '',
+                    'countryPhoneIso' => '',
+                    'externalId' => null
+                ),
+                'duration' => absint($params['duration']),
+                'status' => $amelia_status
+            );
+            
+            // Update ART customer record with Amelia ID
+            $wpdb->update(
+                $customers_table,
+                array('amelia_customer_id' => $use_existing_customer_id),
+                array('id' => $customer->id),
+                array('%d'),
+                array('%d')
+            );
+            
+        } else {
+            // Default behavior - use cached amelia_customer_id or let booking service create new
+            $booking_object = array(
+                'extras' => array(),
+                'customFields' => (object) array(),
+                'deposit' => false,
+                'locale' => 'en_US',
+                'utcOffset' => null,
+                'persons' => absint($params['persons']),
+                'customerId' => !empty($customer->amelia_customer_id) ? absint($customer->amelia_customer_id) : null,
+                'customer' => array(
+                    'id' => !empty($customer->amelia_customer_id) ? absint($customer->amelia_customer_id) : null,
+                    'firstName' => $customer->first_name,
+                    'lastName' => $customer->last_name,
+                    'email' => $customer->email,
+                    'phone' => $customer->phone ?? '',
+                    'countryPhoneIso' => '',
+                    'externalId' => null
+                ),
+                'duration' => absint($params['duration']),
+                'status' => $amelia_status
+            );
+        }
         
         $booking_data = array(
             'type' => 'appointment',

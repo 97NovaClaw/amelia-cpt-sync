@@ -37,6 +37,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         add_action('wp_ajax_art_update_follow_up', array($this, 'ajax_update_follow_up'));
         add_action('wp_ajax_art_save_pillars', array($this, 'ajax_save_pillars'));
         add_action('wp_ajax_art_check_customer_match', array($this, 'ajax_check_customer_match'));
+        add_action('wp_ajax_art_find_customer_matches', array($this, 'ajax_find_customer_matches')); // NEW: Fuzzy matching
         add_action('wp_ajax_art_get_locations', array($this, 'ajax_get_locations'));
         add_action('wp_ajax_art_get_service_employees', array($this, 'ajax_get_service_employees'));
         
@@ -896,7 +897,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
     }
     
     /**
-     * AJAX handler for customer match check
+     * AJAX handler for customer match check (Legacy - kept for backwards compat)
      */
     public function ajax_check_customer_match() {
         check_ajax_referer('art_nonce', 'nonce');
@@ -919,6 +920,28 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         } else {
             wp_send_json_success(array('customer' => null));
         }
+    }
+    
+    /**
+     * AJAX: Find customer matches using fuzzy matching
+     */
+    public function ajax_find_customer_matches() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $matcher = new Amelia_Customer_Matcher();
+        
+        $results = $matcher->find_matches(array(
+            'email' => sanitize_email($_POST['email'] ?? ''),
+            'phone' => sanitize_text_field($_POST['phone'] ?? ''),
+            'first_name' => sanitize_text_field($_POST['first_name'] ?? ''),
+            'last_name' => sanitize_text_field($_POST['last_name'] ?? '')
+        ));
+        
+        wp_send_json_success($results);
     }
     
     /**
