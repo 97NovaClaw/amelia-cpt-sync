@@ -4795,31 +4795,8 @@ jQuery(document).ready(function($) {
             item.addClass('selected');
             selectedProviderId = providerId;
             
-            // Check if user is changing from pre-populated booking
-            var hasChanges = false;
-            if (artDetailData.hasActiveBooking) {
-                var currentDate = $('#picker-dates-list .art-picker-date-btn.active').data('date');
-                var currentTime = $('#custom-time-input').val();
-                var time24Existing = convertTo24Hour(artDetailData.existingBookedTime);
-                
-                hasChanges = (currentDate !== artDetailData.existingBookedDate) ||
-                            (currentTime !== time24Existing) ||
-                            (providerId != artDetailData.existingBookedProviderId);
-            }
-            
-            // Only show Confirm Selection button if there are changes (or no existing booking)
-            if (!artDetailData.hasActiveBooking || hasChanges) {
-                $('#picker-confirm-section').show();
-                $('#btn-use-custom-time').prop('disabled', false);
-                
-                // Disable booking buttons until Confirm Selection is clicked
-                $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', true);
-            } else {
-                $('#picker-confirm-section').hide();
-                
-                // Enable booking buttons (pre-populated, no changes)
-                $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', false);
-            }
+            // Check if selection differs from existing booking
+            checkIfSelectionChanged();
         }
         
         console.log('ART DEBUG: After provider click, selectedProviderId =', selectedProviderId);
@@ -4828,14 +4805,50 @@ jQuery(document).ready(function($) {
     // Update provider list when custom time changes
     $('#custom-time-input').on('change input', function() {
         updateProviderList();
+        
+        // Check if changes require Confirm Selection button
+        if (artDetailData.hasActiveBooking && selectedProviderId) {
+            checkIfSelectionChanged();
+        }
     });
     
     // Also update when date is selected
     $(document).on('click', '.art-picker-date-btn', function() {
         setTimeout(function() {
             updateProviderList();
+            
+            // Check if changes require Confirm Selection button
+            if (artDetailData.hasActiveBooking && selectedProviderId) {
+                checkIfSelectionChanged();
+            }
         }, 100);
     });
+    
+    /**
+     * Check if current selection differs from existing booking
+     */
+    function checkIfSelectionChanged() {
+        if (!artDetailData.hasActiveBooking) return;
+        
+        var currentDate = $('#picker-dates-list .art-picker-date-btn.active').data('date');
+        var currentTime = $('#custom-time-input').val();
+        var time24Existing = convertTo24Hour(artDetailData.existingBookedTime);
+        
+        var hasChanges = (currentDate !== artDetailData.existingBookedDate) ||
+                        (currentTime !== time24Existing) ||
+                        (selectedProviderId != artDetailData.existingBookedProviderId);
+        
+        if (hasChanges) {
+            // Show Confirm Selection, disable booking buttons
+            $('#picker-confirm-section').show();
+            $('#btn-use-custom-time').prop('disabled', false);
+            $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', true);
+        } else {
+            // Hide Confirm Selection, enable booking buttons
+            $('#picker-confirm-section').hide();
+            $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', false);
+        }
+    }
     
     // When "Confirm Selection" is clicked
     $('#btn-use-custom-time').on('click', function() {
