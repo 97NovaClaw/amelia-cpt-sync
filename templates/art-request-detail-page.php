@@ -2140,24 +2140,20 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 }
 
 .customer-item:hover {
-    border-color: #4338CA;
+    border-color: #E0E5F1;
     background: #F8FAFC;
 }
 
 .customer-item.selected {
-    border-color: #4338CA;
-    background: #EEF2FF;
-}
-
-.customer-item.selected .customer-check {
-    display: flex;
+    border-color: #1A84EE;
+    background: #EFF6FF;
 }
 
 .customer-avatar {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: #4338CA;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: #fff;
     display: flex;
     align-items: center;
@@ -2194,13 +2190,27 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 }
 
 .customer-check {
-    display: none;
-    color: #4338CA;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #E0E5F1;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
+    transition: all 0.15s ease;
 }
 
 .customer-item.selected .customer-check {
-    display: flex;
+    background: #1A84EE;
+    border-color: #1A84EE;
+    color: #fff;
+}
+
+.customer-item.selected .customer-check .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
 }
 
 /* Legacy styles (kept for backwards compat) */
