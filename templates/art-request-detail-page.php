@@ -3485,6 +3485,9 @@ jQuery(document).ready(function($) {
                         (slot.provider_id != artDetailData.existingBookedProviderId);
         }
         
+        // Get service name
+        var serviceName = $('#pillar-service option:selected').text() || 'Not set';
+        
         // Build summary
         var summary = '<div style="color: #2C3E50;">';
         
@@ -3492,17 +3495,22 @@ jQuery(document).ready(function($) {
             // Show change comparison
             summary += '<strong style="font-size:14px; color: #F0AD4E;">Change Booking Details:</strong><br>';
             summary += '<div style="margin: 8px 0; padding: 8px; background: #FFF3CD; border-radius: 4px;">';
-            summary += '<strong>From:</strong> ' + artDetailData.existingBookedDate + ' at ' + artDetailData.existingBookedTime + '<br>';
-            summary += '<strong>Provider:</strong> ' + (artDetailData.existingBookedProviderName || 'Unknown') + '<br>';
+            summary += '<strong>From:</strong><br>';
+            summary += 'Service: ' + serviceName + '<br>';
+            summary += 'Date: ' + artDetailData.existingBookedDate + ' at ' + artDetailData.existingBookedTime + '<br>';
+            summary += 'Provider: ' + (artDetailData.existingBookedProviderName || 'Unknown');
             summary += '</div>';
             summary += '<div style="margin: 8px 0; padding: 8px; background: #D4EDDA; border-radius: 4px;">';
-            summary += '<strong>To:</strong> ' + slot.date + ' at ' + timeDisplay + '<br>';
-            summary += '<strong>Provider:</strong> ' + providerName + '<br>';
-            summary += '<strong>Location:</strong> ' + locationName;
+            summary += '<strong>To:</strong><br>';
+            summary += 'Service: ' + serviceName + '<br>';
+            summary += 'Date: ' + slot.date + ' at ' + timeDisplay + '<br>';
+            summary += 'Provider: ' + providerName + '<br>';
+            summary += 'Location: ' + locationName;
             summary += '</div>';
         } else {
             // Regular summary
             summary += '<strong style="font-size:14px;">Booking Summary:</strong><br>';
+            summary += '<strong>Service:</strong> ' + serviceName + '<br>';
             summary += '<strong>Date & Time:</strong> ' + slot.date + ' at ' + timeDisplay + '<br>';
             summary += '<strong>Provider:</strong> ' + providerName + '<br>';
             summary += '<strong>Location:</strong> ' + locationName;
@@ -3638,7 +3646,6 @@ jQuery(document).ready(function($) {
         section.data('provider', providerId);
         
         section.slideDown();
-        $('#slot-details').hide();
     }
     
     /**
@@ -3662,7 +3669,6 @@ jQuery(document).ready(function($) {
         section.data('provider', providerId);
         
         section.slideDown();
-        $('#slot-details').hide();
     }
     
     /**
@@ -3771,23 +3777,29 @@ jQuery(document).ready(function($) {
         if (hasExistingBooking()) {
             var currentBookingType = artDetailData.bookingType || 'confirmed';
             
-            // If already tentative, treat as reschedule
+            // Check if date/time/provider changed
+            var hasChanges = (slotDatetime !== artDetailData.existingBookedDateTime) || 
+                            (providerId != artDetailData.existingBookedProviderId);
+            
+            // If already tentative
             if (currentBookingType === 'tentative') {
-                // Check if date/time/provider changed
-                var hasChanges = (slotDatetime !== artDetailData.existingBookedDateTime) || 
-                                (providerId != artDetailData.existingBookedProviderId);
-                
                 if (hasChanges) {
-                    // Show reschedule confirmation
+                    // Show reschedule confirmation (update details)
                     $('#reschedule-confirm-section').slideDown();
                     $('#booking-action-select').val('').trigger('change');
-                    $('#slot-details').hide();
                 } else {
                     showNotice('<?php _e('Tentative booking already set with these details', 'amelia-cpt-sync'); ?>', 'info');
                 }
             } else {
-                // Downgrading confirmed to tentative
-                showDowngradeDialog(btn, slotDatetime, providerId);
+                // Currently confirmed
+                if (hasChanges) {
+                    // Show reschedule confirmation (change details AND downgrade status)
+                    $('#reschedule-confirm-section').slideDown();
+                    $('#booking-action-select').val('').trigger('change');
+                } else {
+                    // No changes, just downgrade status
+                    showDowngradeDialog(btn, slotDatetime, providerId);
+                }
             }
             return;
         }
@@ -4059,10 +4071,11 @@ jQuery(document).ready(function($) {
                 if (response.success) {
                     $('#reschedule-confirm-section').slideUp();
                     
-                    // Update the active booking card with new data
+                    // Update the active booking card with new data (preserve existing booking_type)
                     updateActiveBookingCard({
                         booking_id: artDetailData.activeBookingId,
                         appointment_id: artDetailData.activeAppointmentId,
+                        booking_type: artDetailData.bookingType, // Keep current type (tentative stays tentative, confirmed stays confirmed)
                         service_name: $('#pillar-service option:selected').text(),
                         category_name: $('#pillar-category option:selected').text(),
                         formatted_date: response.data.formatted_date,
@@ -4071,11 +4084,14 @@ jQuery(document).ready(function($) {
                         location_name: $('#pillar-location option:selected').text() || ''
                     });
                     
-                    // Show toast
-                    $('#booking-toast-message').text('<?php _e('Booking rescheduled successfully!', 'amelia-cpt-sync'); ?>');
-                    $('#booking-success-toast').slideDown().delay(4000).slideUp();
+                    // Update artDetailData with new details
+                    artDetailData.existingBookedDateTime = $('#selected-slot-datetime').val();
+                    artDetailData.existingBookedProviderId = selectedProviderId;
                     
-                    showNotice('<?php _e('Amelia booking rescheduled successfully!', 'amelia-cpt-sync'); ?>', 'success');
+                    // Show toast
+                    var toastType = (artDetailData.bookingType === 'tentative') ? 'warning' : 'success';
+                    showBookingToast('<?php _e('Booking details updated!', 'amelia-cpt-sync'); ?>', toastType);
+                    showNotice('<?php _e('Booking details updated successfully!', 'amelia-cpt-sync'); ?>', 'success');
                 } else {
                     showNotice('<?php _e('Reschedule failed:', 'amelia-cpt-sync'); ?> ' + response.data.message, 'error');
                 }
