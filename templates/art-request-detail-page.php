@@ -3054,22 +3054,24 @@ jQuery(document).ready(function($) {
             html += '</div>';
         }
         
-        // Always show "Create New" option
-        html += '<div class="customer-group">';
-        html += '<div class="customer-group-label new"><span class="dashicons dashicons-plus-alt"></span> Create New Customer</div>';
-        html += '<div class="customer-item create-new' + (!selectedCustomerId ? ' selected' : '') + '" data-customer-id="0">';
-        html += '<div class="customer-avatar">NC</div>';
-        html += '<div class="customer-info">';
-        html += '<div class="customer-name">New Customer</div>';
-        html += '<div class="customer-details">No match found - will create new when booking</div>';
-        html += '</div>';
-        html += '<div class="customer-check"><span class="dashicons dashicons-yes"></span></div>';
-        html += '</div>';
-        html += '</div>';
-        
-        // If no matches at all, auto-select "Create New"
-        if (!matches.exact && (!matches.high || matches.high.length === 0) && (!matches.possible || matches.possible.length === 0)) {
-            selectedCustomerId = 0;
+        // Only show "Create New" option if no exact match
+        if (!matches.exact) {
+            html += '<div class="customer-group">';
+            html += '<div class="customer-group-label new"><span class="dashicons dashicons-plus-alt"></span> Create New Customer</div>';
+            html += '<div class="customer-item create-new' + (!selectedCustomerId ? ' selected' : '') + '" data-customer-id="0">';
+            html += '<div class="customer-avatar">NC</div>';
+            html += '<div class="customer-info">';
+            html += '<div class="customer-name">New Customer</div>';
+            html += '<div class="customer-details">No match found - will create new when booking</div>';
+            html += '</div>';
+            html += '<div class="customer-check"><span class="dashicons dashicons-yes"></span></div>';
+            html += '</div>';
+            html += '</div>';
+            
+            // If no fuzzy matches either, auto-select "Create New"
+            if ((!matches.high || matches.high.length === 0) && (!matches.possible || matches.possible.length === 0)) {
+                selectedCustomerId = 0;
+            }
         }
         
         $('#customer-match-results').html(html);
