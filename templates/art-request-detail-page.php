@@ -4811,8 +4811,14 @@ jQuery(document).ready(function($) {
             if (!artDetailData.hasActiveBooking || hasChanges) {
                 $('#picker-confirm-section').show();
                 $('#btn-use-custom-time').prop('disabled', false);
+                
+                // Disable booking buttons until Confirm Selection is clicked
+                $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', true);
             } else {
                 $('#picker-confirm-section').hide();
+                
+                // Enable booking buttons (pre-populated, no changes)
+                $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', false);
             }
         }
         
@@ -4887,6 +4893,10 @@ jQuery(document).ready(function($) {
             displayLabel += ' (FORCED)';
         }
         selectSlot(slot, displayLabel);
+        
+        // After confirming selection, enable booking buttons and hide Confirm Selection button
+        $('#picker-confirm-section').hide();
+        $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', false);
     });
     
     // Enable custom time inputs when date is selected (Updated renderFilteredDates)
