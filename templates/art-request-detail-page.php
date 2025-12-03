@@ -2511,6 +2511,8 @@ jQuery(document).ready(function($) {
         currentCategory: <?php echo wp_json_encode($request->category_id); ?>,
         currentService: <?php echo wp_json_encode($request->service_id); ?>,
         currentLocation: <?php echo wp_json_encode($request->location_id); ?>,
+        currentDuration: <?php echo wp_json_encode($request->duration_seconds); ?>,
+        currentPersons: <?php echo wp_json_encode($request->persons); ?>,
         providers: {}, // Will be populated by fetchServiceEmployees()
         showTimeslotsGrid: <?php echo $show_timeslots_grid ? 'true' : 'false'; ?>,
         hasActiveBooking: <?php echo (!empty($active_booking) && !empty($active_booking->amelia_appointment_id)) ? 'true' : 'false'; ?>,
@@ -4834,9 +4836,23 @@ jQuery(document).ready(function($) {
         var currentTime = $('#custom-time-input').val();
         var time24Existing = convertTo24Hour(artDetailData.existingBookedTime);
         
-        var hasChanges = (currentDate !== artDetailData.existingBookedDate) ||
-                        (currentTime !== time24Existing) ||
-                        (selectedProviderId != artDetailData.existingBookedProviderId);
+        // Check if availability engine selection changed
+        var hasEngineChanges = (currentDate !== artDetailData.existingBookedDate) ||
+                              (currentTime !== time24Existing) ||
+                              (selectedProviderId != artDetailData.existingBookedProviderId);
+        
+        // Check if pillar fields changed (service, duration, location, persons)
+        var currentService = $('#pillar-service').val();
+        var currentDuration = $('#pillar-duration-seconds').val();
+        var currentLocation = $('#pillar-location').val();
+        var currentPersons = $('#pillar-persons').val();
+        
+        var hasPillarChanges = (currentService != artDetailData.currentService) ||
+                              (currentDuration != artDetailData.currentDuration) ||
+                              (currentLocation != artDetailData.currentLocation) ||
+                              (currentPersons != artDetailData.currentPersons);
+        
+        var hasChanges = hasEngineChanges || hasPillarChanges;
         
         if (hasChanges) {
             // Show Confirm Selection, disable booking buttons
@@ -4849,6 +4865,13 @@ jQuery(document).ready(function($) {
             $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', false);
         }
     }
+    
+    // Watch pillar fields for changes (if availability engine is active)
+    $('#pillar-service, #pillar-duration-selector, #pillar-location, #pillar-persons').on('change', function() {
+        if (artDetailData.hasActiveBooking && selectedProviderId) {
+            checkIfSelectionChanged();
+        }
+    });
     
     // When "Confirm Selection" is clicked
     $('#btn-use-custom-time').on('click', function() {
