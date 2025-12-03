@@ -1114,13 +1114,14 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 
 /* Active Booking Card - Confirmed State (Green) */
 .art-booking-card.booking-confirmed {
-    background: linear-gradient(135deg, #D4EDDA 0%, #C3E6CB 100%);
+    background: #fff;
     border-color: #28A745;
+    border-width: 2px;
     margin-bottom: 20px;
 }
 
 .art-booking-card.booking-confirmed .booking-header {
-    background: rgba(40, 167, 69, 0.1);
+    background: linear-gradient(135deg, #D4EDDA 0%, #C3E6CB 100%);
 }
 
 .art-booking-card.booking-confirmed .booking-header h3 {
@@ -1129,13 +1130,14 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 
 /* Active Booking Card - Tentative State (Orange) */
 .art-booking-card.booking-tentative {
-    background: linear-gradient(135deg, #FFF3CD 0%, #FFECB5 100%);
+    background: #fff;
     border-color: #F0AD4E;
+    border-width: 2px;
     margin-bottom: 20px;
 }
 
 .art-booking-card.booking-tentative .booking-header {
-    background: rgba(240, 173, 78, 0.1);
+    background: linear-gradient(135deg, #FFF3CD 0%, #FFECB5 100%);
 }
 
 .art-booking-card.booking-tentative .booking-header h3 {
@@ -1152,6 +1154,10 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.art-booking-card .card-body {
+    background: #fff;
 }
 
 .booking-status-badge {
@@ -1193,14 +1199,14 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #155724;
+    color: #64748B;
     opacity: 0.8;
 }
 
 .booking-detail-item .detail-value {
     font-size: 14px;
     font-weight: 600;
-    color: #155724;
+    color: #1E293B;
 }
 
 .booking-detail-item.full-width {
