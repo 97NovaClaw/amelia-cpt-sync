@@ -4860,12 +4860,33 @@ jQuery(document).ready(function($) {
         
         var hasChanges = hasEngineChanges || hasPillarChanges;
         
+        console.log('ART DEBUG: checkIfSelectionChanged()', {
+            hasEngineChanges: hasEngineChanges,
+            hasPillarChanges: hasPillarChanges,
+            engineComparison: {
+                currentDate: currentDate,
+                existingDate: artDetailData.existingBookedDate,
+                currentTime: currentTime,
+                existingTime: time24Existing,
+                currentProvider: selectedProviderId,
+                existingProvider: artDetailData.existingBookedProviderId
+            },
+            pillarComparison: {
+                service: currentService + ' vs ' + artDetailData.currentService,
+                duration: currentDuration + ' vs ' + artDetailData.currentDuration,
+                location: currentLocation + ' vs ' + artDetailData.currentLocation,
+                persons: currentPersons + ' vs ' + artDetailData.currentPersons
+            }
+        });
+        
         if (hasChanges) {
+            console.log('ART DEBUG: CHANGES DETECTED - Showing Confirm Selection, disabling booking buttons');
             // Show Confirm Selection, disable booking buttons
             $('#picker-confirm-section').show();
             $('#btn-use-custom-time').prop('disabled', false);
             $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', true);
         } else {
+            console.log('ART DEBUG: NO CHANGES - Hiding Confirm Selection, enabling booking buttons');
             // Hide Confirm Selection, enable booking buttons
             $('#picker-confirm-section').hide();
             $('#btn-tentative-booking, #btn-formal-booking').prop('disabled', false);
