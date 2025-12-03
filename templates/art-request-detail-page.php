@@ -4635,6 +4635,12 @@ jQuery(document).ready(function($) {
                             hasSelectedClass: matchingProvider.hasClass('selected'),
                             confirmSectionVisible: $('#picker-confirm-section').is(':visible')
                         });
+                        
+                        // After auto-selection completes, check if there are changes
+                        // This ensures buttons are in correct state
+                        setTimeout(function() {
+                            checkIfSelectionChanged();
+                        }, 50);
                     }, 50);
                 }
             }, 100);
