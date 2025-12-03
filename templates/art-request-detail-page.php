@@ -3231,6 +3231,24 @@ jQuery(document).ready(function($) {
                 // Initial Render
                 renderFilteredDates('all');
                 
+                // Auto-select existing booking's date and time if available
+                if (artDetailData.hasActiveBooking && artDetailData.existingBookedDate && artDetailData.existingBookedTime) {
+                    setTimeout(function() {
+                        // Find and click matching date button
+                        var matchingDateBtn = $('.art-picker-date-btn[data-date="' + artDetailData.existingBookedDate + '"]');
+                        if (matchingDateBtn.length) {
+                            matchingDateBtn.trigger('click');
+                            
+                            // Convert 12hr to 24hr and fill time input
+                            var time24 = convertTo24Hour(artDetailData.existingBookedTime);
+                            if (time24) {
+                                $('#custom-time-input').val(time24).trigger('change');
+                                console.log('ART: Auto-selected existing booking - Date: ' + artDetailData.existingBookedDate + ', Time: ' + time24);
+                            }
+                        }
+                    }, 300); // Delay to ensure date buttons are rendered
+                }
+                
                 // Filter Change Event
                 $('#filter-provider').off('change').on('change', function() {
                     var selected = $(this).val();
@@ -3639,6 +3657,29 @@ jQuery(document).ready(function($) {
     
     // Initialize button state on page load
     updateBookingButtons();
+    
+    /**
+     * Helper: Convert 12-hour time to 24-hour format for time input
+     * e.g., "10:30 AM" -> "10:30", "02:00 PM" -> "14:00"
+     */
+    function convertTo24Hour(time12h) {
+        if (!time12h) return '';
+        
+        var parts = time12h.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (!parts) return '';
+        
+        var hours = parseInt(parts[1]);
+        var minutes = parts[2];
+        var meridiem = parts[3].toUpperCase();
+        
+        if (meridiem === 'PM' && hours !== 12) {
+            hours += 12;
+        } else if (meridiem === 'AM' && hours === 12) {
+            hours = 0;
+        }
+        
+        return String(hours).padStart(2, '0') + ':' + minutes;
+    }
     
     /**
      * Auto-populate availability engine with existing booking details on page load
@@ -4334,6 +4375,17 @@ jQuery(document).ready(function($) {
         }
         
         providerList.html(html);
+        
+        // Auto-select existing booking's provider if available
+        if (artDetailData.hasActiveBooking && artDetailData.existingBookedProviderId) {
+            setTimeout(function() {
+                var matchingProvider = $('.provider-item[data-provider-id="' + artDetailData.existingBookedProviderId + '"]');
+                if (matchingProvider.length) {
+                    matchingProvider.trigger('click');
+                    console.log('ART: Auto-selected existing provider ID: ' + artDetailData.existingBookedProviderId);
+                }
+            }, 100);
+        }
     }
     
     /**
