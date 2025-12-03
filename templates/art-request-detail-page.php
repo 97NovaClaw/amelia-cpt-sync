@@ -4244,6 +4244,7 @@ jQuery(document).ready(function($) {
     var selectedProviderId = null;
     var availabilityEngineEnabled = true; // Set to false to use old slots-based logic
     var isAutoPopulating = false; // Flag to prevent reset during auto-population
+    var hasAutoSelectedProvider = false; // Flag to only auto-select provider once
     
     function updateProviderList() {
         console.log('ART DEBUG: updateProviderList() called', {
@@ -4435,8 +4436,8 @@ jQuery(document).ready(function($) {
         
         providerList.html(html);
         
-        // Auto-select existing booking's provider if available
-        if (artDetailData.hasActiveBooking && artDetailData.existingBookedProviderId) {
+        // Auto-select existing booking's provider if available (only once per page load)
+        if (artDetailData.hasActiveBooking && artDetailData.existingBookedProviderId && !hasAutoSelectedProvider) {
             console.log('ART DEBUG: Step 5 - Looking for provider in rendered list');
             
             setTimeout(function() {
@@ -4447,8 +4448,9 @@ jQuery(document).ready(function($) {
                     allProviders: $('.provider-item').map(function() { return $(this).data('provider-id'); }).get()
                 });
                 
-                if (matchingProvider.length) {
-                    console.log('ART DEBUG: Step 7 - Clicking provider item');
+                if (matchingProvider.length && !hasAutoSelectedProvider) {
+                    console.log('ART DEBUG: Step 7 - Clicking provider item (FIRST TIME ONLY)');
+                    hasAutoSelectedProvider = true; // Mark as done
                     matchingProvider.trigger('click');
                     
                     setTimeout(function() {
