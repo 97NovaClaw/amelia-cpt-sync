@@ -3478,14 +3478,37 @@ jQuery(document).ready(function($) {
             locationName = $('#pillar-location option[value="' + slot.location_id + '"]').text();
         }
         
+        // Check if this is different from existing booking
+        var hasChanges = false;
+        if (artDetailData.hasActiveBooking) {
+            hasChanges = (slot.datetime !== artDetailData.existingBookedDateTime) ||
+                        (slot.provider_id != artDetailData.existingBookedProviderId);
+        }
+        
         // Build summary
-        var summary = 
-            '<div style="color: #2C3E50;">' +
-            '<strong style="font-size:14px;">Booking Summary:</strong><br>' +
-            '<strong>Date & Time:</strong> ' + slot.date + ' at ' + timeDisplay + '<br>' +
-            '<strong>Provider:</strong> ' + providerName + '<br>' +
-            '<strong>Location:</strong> ' + locationName +
-            '</div>';
+        var summary = '<div style="color: #2C3E50;">';
+        
+        if (hasChanges && artDetailData.hasActiveBooking) {
+            // Show change comparison
+            summary += '<strong style="font-size:14px; color: #F0AD4E;">Change Booking Details:</strong><br>';
+            summary += '<div style="margin: 8px 0; padding: 8px; background: #FFF3CD; border-radius: 4px;">';
+            summary += '<strong>From:</strong> ' + artDetailData.existingBookedDate + ' at ' + artDetailData.existingBookedTime + '<br>';
+            summary += '<strong>Provider:</strong> ' + (artDetailData.existingBookedProviderName || 'Unknown') + '<br>';
+            summary += '</div>';
+            summary += '<div style="margin: 8px 0; padding: 8px; background: #D4EDDA; border-radius: 4px;">';
+            summary += '<strong>To:</strong> ' + slot.date + ' at ' + timeDisplay + '<br>';
+            summary += '<strong>Provider:</strong> ' + providerName + '<br>';
+            summary += '<strong>Location:</strong> ' + locationName;
+            summary += '</div>';
+        } else {
+            // Regular summary
+            summary += '<strong style="font-size:14px;">Booking Summary:</strong><br>';
+            summary += '<strong>Date & Time:</strong> ' + slot.date + ' at ' + timeDisplay + '<br>';
+            summary += '<strong>Provider:</strong> ' + providerName + '<br>';
+            summary += '<strong>Location:</strong> ' + locationName;
+        }
+        
+        summary += '</div>';
         
         $('#slot-summary').html(summary);
         $('#slot-details').slideDown();
@@ -4755,8 +4778,26 @@ jQuery(document).ready(function($) {
             $('.provider-item').removeClass('selected');
             item.addClass('selected');
             selectedProviderId = providerId;
-            $('#picker-confirm-section').show();
-            $('#btn-use-custom-time').prop('disabled', false);
+            
+            // Check if user is changing from pre-populated booking
+            var hasChanges = false;
+            if (artDetailData.hasActiveBooking) {
+                var currentDate = $('#picker-dates-list .art-picker-date-btn.active').data('date');
+                var currentTime = $('#custom-time-input').val();
+                var time24Existing = convertTo24Hour(artDetailData.existingBookedTime);
+                
+                hasChanges = (currentDate !== artDetailData.existingBookedDate) ||
+                            (currentTime !== time24Existing) ||
+                            (providerId != artDetailData.existingBookedProviderId);
+            }
+            
+            // Only show Confirm Selection button if there are changes (or no existing booking)
+            if (!artDetailData.hasActiveBooking || hasChanges) {
+                $('#picker-confirm-section').show();
+                $('#btn-use-custom-time').prop('disabled', false);
+            } else {
+                $('#picker-confirm-section').hide();
+            }
         }
         
         console.log('ART DEBUG: After provider click, selectedProviderId =', selectedProviderId);
