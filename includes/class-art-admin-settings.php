@@ -49,6 +49,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         add_action('wp_ajax_art_check_provider_availability', array($this, 'ajax_check_provider_availability'));
         
         // Booking management
+        add_action('wp_ajax_art_manage_booking', array($this, 'ajax_manage_booking')); // NEW: Unified endpoint
         add_action('wp_ajax_art_reschedule_booking', array($this, 'ajax_reschedule_booking'));
         add_action('wp_ajax_art_delete_booking', array($this, 'ajax_delete_booking'));
     }
@@ -1657,6 +1658,38 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             'provider_name' => $provider_name,
             'raw_datetime' => $new_datetime
         ));
+    }
+    
+    /**
+     * AJAX: Unified booking management endpoint (Quick Win)
+     * 
+     * Handles all booking operations through centralized decision engine
+     */
+    public function ajax_manage_booking() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $manager = new Amelia_CPT_Sync_ART_Booking_Manager();
+        
+        $result = $manager->process_booking(array(
+            'request_id' => absint($_POST['request_id'] ?? 0),
+            'service_id' => absint($_POST['service_id'] ?? 0),
+            'duration' => absint($_POST['duration'] ?? 0),
+            'slot_datetime' => sanitize_text_field($_POST['slot_datetime'] ?? ''),
+            'provider_id' => absint($_POST['provider_id'] ?? 0),
+            'desired_status' => sanitize_key($_POST['desired_status'] ?? 'confirmed'),
+            'location_id' => !empty($_POST['location_id']) ? absint($_POST['location_id']) : null,
+            'persons' => absint($_POST['persons'] ?? 1)
+        ));
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(array('message' => $result->get_error_message()));
+        }
+        
+        wp_send_json_success($result);
     }
     
     /**
