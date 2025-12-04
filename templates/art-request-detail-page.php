@@ -3994,6 +3994,19 @@ jQuery(document).ready(function($) {
                 artDetailData.existingBookedDateTime = slotDatetime;
                 artDetailData.existingBookedProviderId = providerId;
                 
+                // Update provider name in cache
+                var selectedProviderName = $('.provider-item[data-provider-id="' + providerId + '"]').find('.provider-name').text();
+                if (selectedProviderName) {
+                    artDetailData.providers[providerId] = selectedProviderName;
+                    artDetailData.existingBookedProviderName = selectedProviderName;
+                }
+                
+                // Refresh provider list to show new "Currently Selected Provider"
+                if (typeof updateProviderList === 'function') {
+                    hasAutoSelectedProvider = false; // Reset flag so it can re-auto-select
+                    updateProviderList();
+                }
+                
                 // Update status dropdown
                 var newStatus = isTentative ? 'Tentative' : 'Booked';
                 $('#status-dropdown').val(newStatus).trigger('change');
