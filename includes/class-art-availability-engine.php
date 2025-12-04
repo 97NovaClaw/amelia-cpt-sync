@@ -265,9 +265,6 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
                     $conflicts[] = sprintf(__('Pending booking - %s', 'amelia-cpt-sync'), $appt_time);
                 }
             }
-        }
-        
-        amelia_cpt_sync_debug_log('=== END OVERLAP CHECK ===');
             
             // e) CHECK BUFFER TIMES
             if ($this->settings['buffer_time_mode'] !== 'ignore') {
@@ -288,6 +285,8 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
                 }
             }
         }
+        
+        amelia_cpt_sync_debug_log('=== END OVERLAP CHECK ===');
         
         // f) CHECK SERVICE SCHEDULE (if provider has service-specific periods)
         if ($this->settings['service_schedule_mode'] !== 'ignore') {
