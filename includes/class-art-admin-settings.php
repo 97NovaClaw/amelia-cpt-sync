@@ -53,6 +53,13 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         add_action('wp_ajax_art_manage_booking', array($this, 'ajax_manage_booking')); // NEW: Unified endpoint
         add_action('wp_ajax_art_reschedule_booking', array($this, 'ajax_reschedule_booking'));
         add_action('wp_ajax_art_delete_booking', array($this, 'ajax_delete_booking'));
+        
+        // Notes System
+        add_action('wp_ajax_art_add_note', array($this, 'ajax_add_note'));
+        add_action('wp_ajax_art_update_note', array($this, 'ajax_update_note'));
+        add_action('wp_ajax_art_delete_note', array($this, 'ajax_delete_note'));
+        add_action('wp_ajax_art_get_notes', array($this, 'ajax_get_notes'));
+        add_action('wp_ajax_art_log_customer_match', array($this, 'ajax_log_customer_match'));
     }
     
     /**
@@ -1713,6 +1720,124 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         }
         
         wp_send_json_success($result);
+    }
+    
+    /**
+     * AJAX: Add a manual note
+     */
+    public function ajax_add_note() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $notes_manager = new ART_Notes_Manager();
+        $note_id = $notes_manager->add_manual_note(
+            absint($_POST['request_id'] ?? 0),
+            $_POST['note_content'] ?? '', // Will be sanitized in manager
+            get_current_user_id()
+        );
+        
+        if (is_wp_error($note_id)) {
+            wp_send_json_error(array('message' => $note_id->get_error_message()));
+        }
+        
+        // Return the newly created note with user data
+        $note = $notes_manager->get_note_by_id($note_id);
+        wp_send_json_success(array('note' => $note));
+    }
+    
+    /**
+     * AJAX: Update a manual note
+     */
+    public function ajax_update_note() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $notes_manager = new ART_Notes_Manager();
+        $result = $notes_manager->update_note(
+            absint($_POST['note_id'] ?? 0),
+            $_POST['note_content'] ?? '', // Will be sanitized in manager
+            get_current_user_id()
+        );
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(array('message' => $result->get_error_message()));
+        }
+        
+        wp_send_json_success(array('message' => 'Note updated successfully'));
+    }
+    
+    /**
+     * AJAX: Delete a note
+     */
+    public function ajax_delete_note() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $notes_manager = new ART_Notes_Manager();
+        $result = $notes_manager->delete_note(
+            absint($_POST['note_id'] ?? 0),
+            get_current_user_id()
+        );
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(array('message' => $result->get_error_message()));
+        }
+        
+        wp_send_json_success(array('message' => 'Note deleted successfully'));
+    }
+    
+    /**
+     * AJAX: Get notes for a request (paginated)
+     */
+    public function ajax_get_notes() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $notes_manager = new ART_Notes_Manager();
+        $request_id = absint($_POST['request_id'] ?? 0);
+        $offset = absint($_POST['offset'] ?? 0);
+        $limit = absint($_POST['limit'] ?? 20);
+        
+        $notes = $notes_manager->get_notes($request_id, $offset, $limit);
+        $total = $notes_manager->get_note_count($request_id);
+        
+        wp_send_json_success(array(
+            'notes' => $notes,
+            'total' => $total,
+            'has_more' => ($offset + count($notes)) < $total
+        ));
+    }
+    
+    /**
+     * AJAX: Log customer match selection
+     */
+    public function ajax_log_customer_match() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $notes_manager = new ART_Notes_Manager();
+        $notes_manager->add_system_note(
+            absint($_POST['request_id'] ?? 0),
+            sprintf(__('Customer matched to existing Amelia customer #%d', 'amelia-cpt-sync'), absint($_POST['customer_id'] ?? 0)),
+            array('customer_id' => absint($_POST['customer_id'] ?? 0))
+        );
+        
+        wp_send_json_success();
     }
     
     /**

@@ -3,7 +3,7 @@
  * Plugin Name: Amelia Expansion Suite
  * Plugin URI: https://github.com/97NovaClaw/amelia-cpt-sync
  * Description: Complete Amelia integration suite: CPT Sync, Dynamic Popups, and Request Triage System
- * Version: 2.21.5-debug
+ * Version: 2.22.0
  * Author: 97NovaClaw
  * Author URI: https://github.com/97NovaClaw
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('WPINC')) {
 /**
  * Current plugin version.
  */
-define('AMELIA_CPT_SYNC_VERSION', '2.21.5-debug');
+define('AMELIA_CPT_SYNC_VERSION', '2.22.0');
 define('AMELIA_CPT_SYNC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AMELIA_CPT_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -145,6 +145,7 @@ require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-api-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-booking-service.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-booking-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-customer-matcher.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-notes-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-availability-settings.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-availability-engine.php';
 

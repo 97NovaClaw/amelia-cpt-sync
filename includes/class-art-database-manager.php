@@ -19,7 +19,7 @@ class Amelia_CPT_Sync_ART_Database_Manager {
     /**
      * Database version for schema tracking
      */
-    const DB_VERSION = '1.4.0';  // Updated: Added booking_type column to art_booking_links
+    const DB_VERSION = '1.5.0';  // Updated: Enhanced art_notes table for Notes System
     
     /**
      * Option name for storing database version
@@ -33,7 +33,7 @@ class Amelia_CPT_Sync_ART_Database_Manager {
     private $table_requests = 'art_requests';
     private $table_intake_fields = 'art_intake_fields';
     private $table_booking_links = 'art_booking_links';
-    private $table_request_notes = 'art_request_notes';
+    private $table_notes = 'art_notes';
     
     /**
      * WordPress database object
@@ -74,7 +74,7 @@ class Amelia_CPT_Sync_ART_Database_Manager {
         $this->create_requests_table($charset_collate);
         $this->create_intake_fields_table($charset_collate);
         $this->create_booking_links_table($charset_collate);
-        $this->create_request_notes_table($charset_collate);
+        $this->create_notes_table($charset_collate);
         
         // Update version
         update_option(self::DB_VERSION_OPTION, self::DB_VERSION);
@@ -209,25 +209,27 @@ class Amelia_CPT_Sync_ART_Database_Manager {
     }
     
     /**
-     * Create art_request_notes table
+     * Create art_notes table (Notes System)
      *
      * @param string $charset_collate Database charset
      */
-    private function create_request_notes_table($charset_collate) {
-        $table_name = $this->wpdb->prefix . $this->table_request_notes;
+    private function create_notes_table($charset_collate) {
+        $table_name = $this->wpdb->prefix . $this->table_notes;
         
         $sql = "CREATE TABLE $table_name (
             id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
             request_id bigint(20) UNSIGNED NOT NULL,
-            user_id bigint(20) UNSIGNED NOT NULL,
-            note_type varchar(50) NOT NULL DEFAULT 'user',
-            note_text text NOT NULL,
+            note_type varchar(50) NOT NULL DEFAULT 'manual',
+            note_content text NOT NULL,
+            created_by bigint(20) UNSIGNED DEFAULT NULL,
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT NULL,
+            metadata text DEFAULT NULL,
             PRIMARY KEY (id),
             KEY request_id (request_id),
-            KEY user_id (user_id),
+            KEY created_at (created_at),
             KEY note_type (note_type),
-            KEY created_at (created_at)
+            KEY created_by (created_by)
         ) $charset_collate;";
         
         dbDelta($sql);

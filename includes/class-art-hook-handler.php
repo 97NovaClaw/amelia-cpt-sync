@@ -128,6 +128,14 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
             );
             
             amelia_cpt_sync_debug_log('ART Cleanup: Removed booking link and reset request #' . $booking_link->request_id . ' to tentative');
+            
+            // Log external cancellation event
+            $notes_manager = new ART_Notes_Manager();
+            $notes_manager->add_system_note(
+                $booking_link->request_id,
+                __('Booking canceled externally in Amelia', 'amelia-cpt-sync'),
+                array('booking_id' => $booking_id)
+            );
         }
     }
     
@@ -141,13 +149,33 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
      * @param array $update_data Updated data
      */
     public function sync_after_amelia_update($appointment_id, $update_data) {
+        global $wpdb;
+        
         amelia_cpt_sync_debug_log('ART Sync: Amelia appointment #' . $appointment_id . ' was updated externally', array(
             'updated_fields' => array_keys($update_data ?? array())
         ));
         
+        // Find associated request
+        $booking_link = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}art_booking_links WHERE amelia_appointment_id = %d",
+            $appointment_id
+        ));
+        
+        if ($booking_link) {
+            // Log external update event
+            $notes_manager = new ART_Notes_Manager();
+            $notes_manager->add_system_note(
+                $booking_link->request_id,
+                __('Booking details updated in Amelia', 'amelia-cpt-sync'),
+                array(
+                    'appointment_id' => $appointment_id,
+                    'updated_fields' => array_keys($update_data ?? array())
+                )
+            );
+        }
+        
         // Currently we don't need to update anything in ART tables
         // The booking link remains valid, and Amelia holds the source of truth
-        // This hook is here for logging and future enhancements (e.g., notifications)
     }
     
     /**
@@ -157,7 +185,28 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
      * @param array $time_data Time update data
      */
     public function sync_after_amelia_time_update($appointment_id, $time_data) {
+        global $wpdb;
+        
         amelia_cpt_sync_debug_log('ART Sync: Amelia appointment #' . $appointment_id . ' time was updated externally', $time_data);
+        
+        // Find associated request
+        $booking_link = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}art_booking_links WHERE amelia_appointment_id = %d",
+            $appointment_id
+        ));
+        
+        if ($booking_link) {
+            // Log external time update event
+            $notes_manager = new ART_Notes_Manager();
+            $notes_manager->add_system_note(
+                $booking_link->request_id,
+                __('Booking time updated in Amelia', 'amelia-cpt-sync'),
+                array(
+                    'appointment_id' => $appointment_id,
+                    'time_data' => $time_data
+                )
+            );
+        }
         
         // Currently we don't need to update anything in ART tables
         // The booking link remains valid, Amelia is the source of truth for times

@@ -496,6 +496,22 @@ class Amelia_CPT_Sync_ART_Booking_Manager {
             array('%d', '%d', '%d', '%s')
         );
         
+        // Log booking created event
+        $notes_manager = new ART_Notes_Manager();
+        $notes_manager->add_booking_event(
+            $params['request_id'],
+            'booking_created',
+            array(
+                'status' => ucfirst($status),
+                'provider_id' => $params['provider_id'],
+                'service_id' => $params['service_id'],
+                'datetime' => $params['slot_datetime'],
+                'location_id' => $params['location_id'] ?? null,
+                'duration' => $params['duration']
+            ),
+            get_current_user_id()
+        );
+        
         return array(
             'action_taken' => 'created',
             'booking_type' => $status,
@@ -528,6 +544,20 @@ class Amelia_CPT_Sync_ART_Booking_Manager {
         if (is_wp_error($result)) {
             return $result;
         }
+        
+        // Log reschedule event
+        $notes_manager = new ART_Notes_Manager();
+        $notes_manager->add_booking_event(
+            $params['request_id'],
+            'booking_rescheduled',
+            array(
+                'from_datetime' => $existing['datetime'],
+                'to_datetime' => $params['slot_datetime'],
+                'from_provider' => $existing['provider_id'],
+                'to_provider' => $params['provider_id']
+            ),
+            get_current_user_id()
+        );
         
         return array(
             'action_taken' => 'rescheduled',
@@ -573,6 +603,19 @@ class Amelia_CPT_Sync_ART_Booking_Manager {
         );
         
         $action_word = ($new_status === 'confirmed') ? 'upgraded' : 'downgraded';
+        
+        // Log status change event
+        $notes_manager = new ART_Notes_Manager();
+        $event_type = ($new_status === 'confirmed') ? 'status_upgraded' : 'status_downgraded';
+        $notes_manager->add_booking_event(
+            $request_id,
+            $event_type,
+            array(
+                'from_status' => $existing['booking_type'],
+                'to_status' => $new_status
+            ),
+            get_current_user_id()
+        );
         
         return array(
             'action_taken' => $action_word,

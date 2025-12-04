@@ -954,6 +954,9 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- Notes & Activity -->
+                        <?php include AMELIA_CPT_SYNC_PLUGIN_DIR . 'templates/components/art-notes-card.php'; ?>
                     </div>
                 </div>
                 
@@ -2625,6 +2628,305 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
         grid-template-columns: 1fr;
     }
 }
+
+/* ========================================================================
+   NOTES SYSTEM STYLES
+   ======================================================================== */
+
+/* Notes Card */
+.art-notes-card {
+    margin-top: 16px;
+}
+
+.art-notes-list {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 12px;
+    background: #F8FAFC;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    scroll-behavior: smooth;
+}
+
+.art-note-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 10px;
+    background: #fff;
+    border-radius: 6px;
+    border-left: 3px solid transparent;
+}
+
+.art-note-item[data-note-type="manual"] {
+    border-left-color: #667eea;
+}
+
+.art-note-item[data-note-type="system"] {
+    border-left-color: #1A84EE;
+}
+
+.art-note-item[data-note-type="booking_event"] {
+    border-left-color: #F59E0B;
+}
+
+.note-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.note-icon-manual {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+}
+
+.note-icon-system {
+    background: #EFF6FF;
+    color: #1A84EE;
+}
+
+.note-icon-booking {
+    background: #FEF3C7;
+    color: #F59E0B;
+}
+
+.note-content-wrapper {
+    flex: 1;
+    min-width: 0;
+}
+
+.note-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+.note-author {
+    font-weight: 600;
+    color: #1E293B;
+}
+
+.note-timestamp {
+    color: #64748B;
+}
+
+.note-edited {
+    color: #94A3B8;
+    font-style: italic;
+}
+
+.note-content {
+    font-size: 13px;
+    color: #334155;
+    line-height: 1.5;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.note-content ul {
+    margin: 8px 0;
+    padding-left: 20px;
+}
+
+.note-content li {
+    margin: 4px 0;
+}
+
+.note-actions-inline {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.note-action-btn {
+    background: none;
+    border: none;
+    color: #1A84EE;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.note-action-btn:hover {
+    text-decoration: underline;
+}
+
+/* Note Composer (Input at Bottom) */
+.art-note-composer {
+    border-top: 1px solid #E0E5F1;
+    padding-top: 12px;
+}
+
+.note-toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.format-btn {
+    background: #F1F5F9;
+    border: 1px solid #E0E5F1;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.format-btn:hover {
+    background: #E0E7FF;
+    border-color: #1A84EE;
+}
+
+.format-btn.active {
+    background: #1A84EE;
+    color: #fff;
+    border-color: #1A84EE;
+}
+
+.char-counter {
+    margin-left: auto;
+    font-size: 11px;
+    color: #64748B;
+}
+
+.char-counter.over-limit {
+    color: #DC2626;
+    font-weight: 600;
+}
+
+.note-input-wrapper {
+    position: relative;
+}
+
+.note-input {
+    min-height: 60px;
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 10px;
+    border: 2px solid #E0E5F1;
+    border-radius: 6px;
+    background: #fff;
+    font-size: 13px;
+    line-height: 1.5;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.note-input:focus {
+    border-color: #1A84EE;
+}
+
+.note-input[data-placeholder]:empty:before {
+    content: attr(data-placeholder);
+    color: #94A3B8;
+}
+
+.note-actions {
+    margin-top: 8px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+#btn-add-note {
+    background: #1A84EE;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+}
+
+#btn-add-note:hover:not(:disabled) {
+    background: #1570CD;
+}
+
+#btn-add-note:disabled {
+    background: #E0E5F1;
+    color: #94A3B8;
+    cursor: not-allowed;
+}
+
+/* Edit Mode */
+.note-edit-wrapper {
+    margin-top: 8px;
+}
+
+.note-edit-wrapper .note-input {
+    margin-bottom: 8px;
+}
+
+.note-edit-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.note-save-btn,
+.note-cancel-btn {
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    border: none;
+}
+
+.note-save-btn {
+    background: #1A84EE;
+    color: #fff;
+}
+
+.note-save-btn:hover {
+    background: #1570CD;
+}
+
+.note-cancel-btn {
+    background: #F1F5F9;
+    color: #64748B;
+}
+
+.note-cancel-btn:hover {
+    background: #E0E5F1;
+}
+
+/* Loading States */
+.notes-loading-initial,
+.notes-loading-more {
+    text-align: center;
+    padding: 20px;
+    color: #64748B;
+    font-size: 13px;
+}
+
+.notes-loading-initial .dashicons,
+.notes-loading-more .dashicons {
+    animation: spin 1s linear infinite;
+}
+
+.notes-end {
+    text-align: center;
+    padding: 10px;
+    color: #94A3B8;
+    font-size: 11px;
+    font-style: italic;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 </style>
 
 <!-- JavaScript for Interactivity -->
@@ -2632,6 +2934,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 jQuery(document).ready(function($) {
     var artDetailData = {
         requestId: <?php echo $request_id; ?>,
+        currentUserId: <?php echo get_current_user_id(); ?>,
         customerEmail: <?php echo wp_json_encode($request->customer_email); ?>,
         nonce: <?php echo wp_json_encode(wp_create_nonce('art_nonce')); ?>,
         currentCategory: <?php echo wp_json_encode($request->category_id); ?>,
@@ -4007,6 +4310,11 @@ jQuery(document).ready(function($) {
                     updateProviderList();
                 }
                 
+                // Refresh notes to show booking event
+                if (typeof artRefreshNotes === 'function') {
+                    artRefreshNotes(artDetailData.requestId, true);
+                }
+                
                 // Update status dropdown
                 var newStatus = isTentative ? 'Tentative' : 'Booked';
                 $('#status-dropdown').val(newStatus).trigger('change');
@@ -5335,6 +5643,377 @@ jQuery(document).ready(function($) {
     
     // === SPINNING ANIMATION FOR DASHICONS ===
     $('<style>.dashicons.spin { animation: spin 1s linear infinite; } @keyframes spin { 100% { transform: rotate(360deg); } }</style>').appendTo('head');
+    
+    // ========================================================================
+    // NOTES SYSTEM
+    // ========================================================================
+    
+    var artNotesState = {
+        offset: 0,
+        limit: 20,
+        loading: false,
+        hasMore: true,
+        allNotes: []
+    };
+    
+    /**
+     * Initialize rich text note composer
+     */
+    function initNoteComposer() {
+        var input = $('#note-input');
+        var addBtn = $('#btn-add-note');
+        var charCounter = $('.char-counter');
+        
+        if (!input.length) return; // Notes card not present
+        
+        // Format buttons
+        $('.format-btn').on('click', function(e) {
+            e.preventDefault();
+            var command = $(this).data('command');
+            
+            if (command === 'bold') {
+                document.execCommand('bold', false, null);
+            } else if (command === 'list') {
+                document.execCommand('insertUnorderedList', false, null);
+            }
+            
+            input.focus();
+            updateCharCount();
+        });
+        
+        // Character counter
+        input.on('input', updateCharCount);
+        input.on('keyup', updateCharCount);
+        input.on('paste', function() {
+            setTimeout(updateCharCount, 10);
+        });
+        
+        function updateCharCount() {
+            var text = input.text().trim();
+            var length = text.length;
+            
+            charCounter.text(length + '/1000');
+            
+            if (length > 1000) {
+                charCounter.addClass('over-limit');
+                addBtn.prop('disabled', true);
+            } else if (length > 0) {
+                charCounter.removeClass('over-limit');
+                addBtn.prop('disabled', false);
+            } else {
+                addBtn.prop('disabled', true);
+            }
+        }
+        
+        // Add note
+        addBtn.on('click', function() {
+            var content = input.html().trim();
+            if (!content) return;
+            
+            addBtn.prop('disabled', true);
+            var originalText = addBtn.text();
+            addBtn.html('<span class="dashicons dashicons-update spin"></span> <?php _e('Adding...', 'amelia-cpt-sync'); ?>');
+            
+            $.post(ajaxurl, {
+                action: 'art_add_note',
+                nonce: artDetailData.nonce,
+                request_id: artDetailData.requestId,
+                note_content: content
+            }, function(response) {
+                addBtn.prop('disabled', false);
+                addBtn.text(originalText);
+                
+                if (response.success) {
+                    // Clear input
+                    input.html('');
+                    updateCharCount();
+                    
+                    // Refresh notes (will auto-scroll to bottom)
+                    artRefreshNotes(artDetailData.requestId, true);
+                } else {
+                    alert('<?php _e('Error: ', 'amelia-cpt-sync'); ?>' + (response.data.message || 'Unknown error'));
+                }
+            });
+        });
+        
+        // Allow Ctrl+Enter to submit
+        input.on('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                addBtn.click();
+            }
+        });
+    }
+    
+    /**
+     * Render notes in the list
+     */
+    function renderNotes(notes, prepend) {
+        var container = $('#art-notes-list');
+        
+        if (!prepend) {
+            container.empty();
+            artNotesState.allNotes = notes;
+        } else {
+            // Prepend older notes to the top
+            artNotesState.allNotes = notes.concat(artNotesState.allNotes);
+        }
+        
+        if (artNotesState.allNotes.length === 0) {
+            container.html('<div class="notes-loading-initial" style="color: #94A3B8;"><?php _e('No activity yet', 'amelia-cpt-sync'); ?></div>');
+            return;
+        }
+        
+        var html = '';
+        
+        $.each(artNotesState.allNotes, function(i, note) {
+            html += buildNoteHTML(note);
+        });
+        
+        container.html(html);
+        
+        // Auto-scroll to bottom if new notes added (not infinite scroll)
+        if (!prepend) {
+            scrollNotesToBottom();
+        }
+    }
+    
+    /**
+     * Build HTML for a single note
+     */
+    function buildNoteHTML(note) {
+        var iconHTML = '';
+        var typeClass = 'note-icon-' + note.note_type;
+        
+        if (note.note_type === 'manual') {
+            var initials = note.author_initials || 'U';
+            iconHTML = '<span class="user-initials">' + initials + '</span>';
+        } else if (note.note_type === 'system') {
+            iconHTML = '<span class="dashicons dashicons-info"></span>';
+        } else {
+            iconHTML = '<span class="dashicons dashicons-calendar-alt"></span>';
+        }
+        
+        var canEdit = note.note_type === 'manual' && note.created_by == artDetailData.currentUserId;
+        
+        var html = '<div class="art-note-item" data-note-id="' + note.id + '" data-note-type="' + note.note_type + '">';
+        html += '<div class="note-icon ' + typeClass + '">' + iconHTML + '</div>';
+        html += '<div class="note-content-wrapper">';
+        html += '<div class="note-meta">';
+        html += '<span class="note-author">' + (note.author_name || '<?php _e('System', 'amelia-cpt-sync'); ?>') + '</span>';
+        html += '<span class="note-timestamp">' + note.time_ago + '</span>';
+        if (note.updated_at) {
+            html += '<span class="note-edited"><?php _e('(edited)', 'amelia-cpt-sync'); ?></span>';
+        }
+        html += '</div>';
+        html += '<div class="note-content">' + note.note_content + '</div>';
+        
+        if (canEdit) {
+            html += '<div class="note-actions-inline">';
+            html += '<button class="note-action-btn" data-action="edit"><?php _e('Edit', 'amelia-cpt-sync'); ?></button>';
+            html += '<button class="note-action-btn" data-action="delete"><?php _e('Delete', 'amelia-cpt-sync'); ?></button>';
+            html += '</div>';
+        }
+        
+        html += '</div></div>';
+        
+        return html;
+    }
+    
+    /**
+     * Scroll notes container to bottom
+     */
+    function scrollNotesToBottom() {
+        var container = $('#art-notes-list');
+        if (container.length && container[0].scrollHeight) {
+            container.scrollTop(container[0].scrollHeight);
+        }
+    }
+    
+    /**
+     * Global refresh function - can be called from anywhere
+     */
+    window.artRefreshNotes = function(requestId, scrollToBottom) {
+        $.post(ajaxurl, {
+            action: 'art_get_notes',
+            nonce: artDetailData.nonce,
+            request_id: requestId,
+            offset: 0,
+            limit: artNotesState.limit
+        }, function(response) {
+            if (response.success) {
+                artNotesState.offset = response.data.notes.length;
+                artNotesState.hasMore = response.data.has_more;
+                
+                renderNotes(response.data.notes, false);
+                
+                if (scrollToBottom) {
+                    setTimeout(scrollNotesToBottom, 100);
+                }
+            }
+        });
+    };
+    
+    /**
+     * Initialize infinite scroll (load older notes on scroll up)
+     */
+    function initInfiniteScroll() {
+        var container = $('#art-notes-list');
+        
+        if (!container.length) return;
+        
+        container.on('scroll', function() {
+            // Detect scroll to TOP (load older notes)
+            if (container.scrollTop() <= 50 && !artNotesState.loading && artNotesState.hasMore) {
+                loadOlderNotes();
+            }
+        });
+    }
+    
+    /**
+     * Load older notes (prepend to top)
+     */
+    function loadOlderNotes() {
+        artNotesState.loading = true;
+        
+        // Save current scroll position
+        var container = $('#art-notes-list');
+        var oldScrollHeight = container[0].scrollHeight;
+        
+        // Show loading indicator
+        container.prepend('<div class="notes-loading-more"><span class="dashicons dashicons-update spin"></span> <?php _e('Loading older notes...', 'amelia-cpt-sync'); ?></div>');
+        
+        $.post(ajaxurl, {
+            action: 'art_get_notes',
+            nonce: artDetailData.nonce,
+            request_id: artDetailData.requestId,
+            offset: artNotesState.offset,
+            limit: artNotesState.limit
+        }, function(response) {
+            $('.notes-loading-more').remove();
+            artNotesState.loading = false;
+            
+            if (response.success && response.data.notes.length > 0) {
+                artNotesState.offset += response.data.notes.length;
+                artNotesState.hasMore = response.data.has_more;
+                
+                renderNotes(response.data.notes, true); // Prepend
+                
+                // Restore scroll position (prevent jump)
+                var newScrollHeight = container[0].scrollHeight;
+                container.scrollTop(newScrollHeight - oldScrollHeight);
+            } else {
+                artNotesState.hasMore = false;
+                if (artNotesState.allNotes.length > 0) {
+                    container.prepend('<div class="notes-end"><?php _e('No more notes', 'amelia-cpt-sync'); ?></div>');
+                }
+            }
+        });
+    }
+    
+    /**
+     * Initialize note action handlers (edit/delete)
+     */
+    function initNoteActions() {
+        $(document).on('click', '.note-action-btn', function() {
+            var action = $(this).data('action');
+            var noteItem = $(this).closest('.art-note-item');
+            var noteId = noteItem.data('note-id');
+            
+            if (action === 'edit') {
+                enterEditMode(noteItem);
+            } else if (action === 'delete') {
+                if (confirm('<?php _e('Delete this note? This cannot be undone.', 'amelia-cpt-sync'); ?>')) {
+                    deleteNote(noteId);
+                }
+            }
+        });
+    }
+    
+    /**
+     * Enter edit mode for a note
+     */
+    function enterEditMode(noteItem) {
+        var noteId = noteItem.data('note-id');
+        var contentDiv = noteItem.find('.note-content');
+        var currentContent = contentDiv.html();
+        
+        // Replace with editable version
+        var editHTML = '<div class="note-edit-wrapper">';
+        editHTML += '<div class="note-input" contenteditable="true">' + currentContent + '</div>';
+        editHTML += '<div class="note-edit-actions">';
+        editHTML += '<button class="note-save-btn" data-note-id="' + noteId + '"><?php _e('Save', 'amelia-cpt-sync'); ?></button>';
+        editHTML += '<button class="note-cancel-btn"><?php _e('Cancel', 'amelia-cpt-sync'); ?></button>';
+        editHTML += '</div>';
+        editHTML += '</div>';
+        
+        contentDiv.replaceWith(editHTML);
+        noteItem.find('.note-actions-inline').hide();
+        
+        // Focus the editable div
+        noteItem.find('.note-input').focus();
+    }
+    
+    /**
+     * Save edited note
+     */
+    $(document).on('click', '.note-save-btn', function() {
+        var noteId = $(this).data('note-id');
+        var newContent = $(this).closest('.note-edit-wrapper').find('.note-input').html();
+        
+        var btn = $(this);
+        btn.prop('disabled', true).text('<?php _e('Saving...', 'amelia-cpt-sync'); ?>');
+        
+        $.post(ajaxurl, {
+            action: 'art_update_note',
+            nonce: artDetailData.nonce,
+            note_id: noteId,
+            note_content: newContent
+        }, function(response) {
+            if (response.success) {
+                artRefreshNotes(artDetailData.requestId, false);
+            } else {
+                alert('<?php _e('Error: ', 'amelia-cpt-sync'); ?>' + (response.data.message || 'Unknown error'));
+                btn.prop('disabled', false).text('<?php _e('Save', 'amelia-cpt-sync'); ?>');
+            }
+        });
+    });
+    
+    /**
+     * Cancel note edit
+     */
+    $(document).on('click', '.note-cancel-btn', function() {
+        artRefreshNotes(artDetailData.requestId, false);
+    });
+    
+    /**
+     * Delete note
+     */
+    function deleteNote(noteId) {
+        $.post(ajaxurl, {
+            action: 'art_delete_note',
+            nonce: artDetailData.nonce,
+            note_id: noteId
+        }, function(response) {
+            if (response.success) {
+                artRefreshNotes(artDetailData.requestId, false);
+            } else {
+                alert('<?php _e('Error: ', 'amelia-cpt-sync'); ?>' + (response.data.message || 'Unknown error'));
+            }
+        });
+    }
+    
+    /**
+     * Initialize notes system on page load
+     */
+    if ($('#art-notes-list').length) {
+        initNoteComposer();
+        initInfiniteScroll();
+        initNoteActions();
+        
+        // Load initial notes
+        artRefreshNotes(artDetailData.requestId, true);
+    }
 });
 </script>
 
