@@ -4875,6 +4875,10 @@ jQuery(document).ready(function($) {
             console.log('ART DEBUG: Deselecting provider');
             item.removeClass('selected');
             selectedProviderId = null;
+            
+            // Clear hidden inputs
+            $('#selected-provider-id').val('');
+            
             $('#picker-confirm-section').hide();
             $('#btn-use-custom-time').prop('disabled', true);
         } else {
@@ -4883,6 +4887,20 @@ jQuery(document).ready(function($) {
             $('.provider-item').removeClass('selected');
             item.addClass('selected');
             selectedProviderId = providerId;
+            
+            // UPDATE: Set hidden inputs for booking manager
+            $('#selected-provider-id').val(providerId);
+            
+            // Also update datetime from current selections
+            var activeDateBtn = $('#picker-dates-list .art-picker-date-btn.active');
+            var customTime = $('#custom-time-input').val();
+            if (activeDateBtn.length && customTime) {
+                var dateStr = activeDateBtn.data('date');
+                var datetimeStr = dateStr + ' ' + customTime;
+                $('#selected-slot-datetime').val(datetimeStr);
+                console.log('ART DEBUG: Updated hidden datetime to:', datetimeStr);
+            }
+            
             $('#picker-confirm-section').show();
             $('#btn-use-custom-time').prop('disabled', false);
         }
@@ -4893,12 +4911,32 @@ jQuery(document).ready(function($) {
     // Update provider list when custom time changes
     $('#custom-time-input').on('change input', function() {
         updateProviderList();
+        
+        // UPDATE: Also update hidden datetime input
+        var activeDateBtn = $('#picker-dates-list .art-picker-date-btn.active');
+        var customTime = $(this).val();
+        if (activeDateBtn.length && customTime && selectedProviderId) {
+            var dateStr = activeDateBtn.data('date');
+            var datetimeStr = dateStr + ' ' + customTime;
+            $('#selected-slot-datetime').val(datetimeStr);
+            console.log('ART DEBUG: Time changed, updated hidden datetime to:', datetimeStr);
+        }
     });
     
     // Also update when date is selected
     $(document).on('click', '.art-picker-date-btn', function() {
         setTimeout(function() {
             updateProviderList();
+            
+            // UPDATE: Also update hidden datetime input
+            var activeDateBtn = $('#picker-dates-list .art-picker-date-btn.active');
+            var customTime = $('#custom-time-input').val();
+            if (activeDateBtn.length && customTime && selectedProviderId) {
+                var dateStr = activeDateBtn.data('date');
+                var datetimeStr = dateStr + ' ' + customTime;
+                $('#selected-slot-datetime').val(datetimeStr);
+                console.log('ART DEBUG: Date changed, updated hidden datetime to:', datetimeStr);
+            }
         }, 100);
     });
     
