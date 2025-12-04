@@ -229,14 +229,34 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
             return intval($appt['providerId']) === intval($provider_id);
         });
         
+        amelia_cpt_sync_debug_log('=== OVERLAP CHECK DEBUG ===');
+        amelia_cpt_sync_debug_log('ART Availability: Provider #' . $provider_id . ' has ' . count($provider_appointments) . ' existing appointments');
+        amelia_cpt_sync_debug_log('ART Availability: Request time window', array(
+            'start_minutes' => $request_start,
+            'end_minutes' => $request_end,
+            'start_time' => $this->minutes_to_time($request_start),
+            'end_time' => $this->minutes_to_time($request_end)
+        ));
+        
         foreach ($provider_appointments as $appt) {
             $appt_start = $this->datetime_to_minutes($appt['bookingStart']);
             $appt_end = $this->datetime_to_minutes($appt['bookingEnd']);
             $appt_status = $appt['status'] ?? 'approved';
             
+            amelia_cpt_sync_debug_log('ART Availability: Checking appointment #' . ($appt['id'] ?? 'N/A'), array(
+                'bookingStart_raw' => $appt['bookingStart'],
+                'bookingEnd_raw' => $appt['bookingEnd'],
+                'start_minutes' => $appt_start,
+                'end_minutes' => $appt_end,
+                'status' => $appt_status,
+                'overlaps' => $this->times_overlap($request_start, $request_end, $appt_start, $appt_end)
+            ));
+            
             // Check for overlap
             if ($this->times_overlap($request_start, $request_end, $appt_start, $appt_end)) {
                 $appt_time = $this->format_time_range($appt['bookingStart'], $appt['bookingEnd']);
+                
+                amelia_cpt_sync_debug_log('ART Availability: OVERLAP DETECTED! Status: ' . $appt_status);
                 
                 if ($appt_status === 'approved' && $this->settings['check_approved_appointments']) {
                     $conflicts[] = sprintf(__('Booking conflict - %s', 'amelia-cpt-sync'), $appt_time);
@@ -245,6 +265,9 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
                     $conflicts[] = sprintf(__('Pending booking - %s', 'amelia-cpt-sync'), $appt_time);
                 }
             }
+        }
+        
+        amelia_cpt_sync_debug_log('=== END OVERLAP CHECK ===');
             
             // e) CHECK BUFFER TIMES
             if ($this->settings['buffer_time_mode'] !== 'ignore') {
@@ -376,11 +399,22 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
      * @return array|WP_Error Appointments array
      */
     private function get_appointments_for_date($date) {
+        amelia_cpt_sync_debug_log('=== AVAILABILITY ENGINE DEBUG: Fetching Appointments ===');
+        amelia_cpt_sync_debug_log('ART Availability: Requested date: ' . $date);
+        
         $response = $this->api_request('/appointments&dates=' . $date . ',' . $date . '&skipServices=1&skipProviders=1');
         
         if (is_wp_error($response)) {
+            amelia_cpt_sync_debug_log('ART Availability: API request failed: ' . $response->get_error_message());
             return $response;
         }
+        
+        amelia_cpt_sync_debug_log('ART Availability: API response received');
+        amelia_cpt_sync_debug_log('ART Availability: Response structure', array(
+            'has_data' => isset($response['data']),
+            'has_appointments' => isset($response['data']['appointments']),
+            'appointments_keys' => isset($response['data']['appointments']) ? array_keys($response['data']['appointments']) : array()
+        ));
         
         $appointments_data = $response['data']['appointments'] ?? array();
         
@@ -388,9 +422,26 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
         $appointments = array();
         foreach ($appointments_data as $date_key => $date_data) {
             if (isset($date_data['appointments'])) {
+                amelia_cpt_sync_debug_log('ART Availability: Found ' . count($date_data['appointments']) . ' appointments for date key: ' . $date_key);
+                
+                // Log first appointment as sample
+                if (!empty($date_data['appointments'])) {
+                    $sample = $date_data['appointments'][0];
+                    amelia_cpt_sync_debug_log('ART Availability: Sample appointment from API', array(
+                        'id' => $sample['id'] ?? 'N/A',
+                        'providerId' => $sample['providerId'] ?? 'N/A',
+                        'bookingStart' => $sample['bookingStart'] ?? 'N/A',
+                        'bookingEnd' => $sample['bookingEnd'] ?? 'N/A',
+                        'status' => $sample['status'] ?? 'N/A'
+                    ));
+                }
+                
                 $appointments = array_merge($appointments, $date_data['appointments']);
             }
         }
+        
+        amelia_cpt_sync_debug_log('ART Availability: Total appointments after flattening: ' . count($appointments));
+        amelia_cpt_sync_debug_log('=== END AVAILABILITY ENGINE DEBUG ===');
         
         return $appointments;
     }
