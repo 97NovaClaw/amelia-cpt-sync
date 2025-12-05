@@ -512,6 +512,9 @@ class Amelia_CPT_Sync_ART_Booking_Manager {
             get_current_user_id()
         );
         
+        // Trigger hook for resource assignment
+        do_action('art_booking_created', $params['request_id'], $appointment_id, $params);
+        
         return array(
             'action_taken' => 'created',
             'booking_type' => $status,
@@ -558,6 +561,9 @@ class Amelia_CPT_Sync_ART_Booking_Manager {
             ),
             get_current_user_id()
         );
+        
+        // Trigger hook for resource update
+        do_action('art_booking_updated', $params['request_id'], $existing['appointment_id'], $params);
         
         return array(
             'action_taken' => 'rescheduled',

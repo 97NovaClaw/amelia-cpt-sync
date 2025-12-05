@@ -461,6 +461,18 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                     </select>
                                 </div>
                                 
+                                <!-- Resource Section (Conditional based on service config) -->
+                                <div id="resource-section" class="form-field" style="display: none;">
+                                    <label>
+                                        <?php _e('Resource', 'amelia-cpt-sync'); ?>
+                                        <span id="resource-mode-badge" class="mode-badge"></span>
+                                    </label>
+                                    <div id="resource-content" class="resource-content">
+                                        <!-- Mode-specific content will be rendered via JavaScript -->
+                                    </div>
+                                    <div id="resource-status" class="resource-status-message"></div>
+                                </div>
+                                
                                 <!-- Location (Conditional display) -->
                                 <?php if ($show_location): ?>
                                     <div class="form-field">
@@ -4026,6 +4038,13 @@ jQuery(document).ready(function($) {
             // Regular summary
             summary += '<strong style="font-size:14px;">Booking Summary:</strong><br>';
             summary += '<strong>Service:</strong> ' + serviceName + '<br>';
+            
+            // Add resource info if exists
+            var resourceInfo = getResourceSummary();
+            if (resourceInfo) {
+                summary += '<strong>Resource:</strong> ' + resourceInfo + '<br>';
+            }
+            
             summary += '<strong>Date & Time:</strong> ' + slot.date + ' at ' + timeDisplay + '<br>';
             summary += '<strong>Provider:</strong> ' + providerName + '<br>';
             summary += '<strong>Location:</strong> ' + locationName;
@@ -4078,6 +4097,14 @@ jQuery(document).ready(function($) {
             html += '<div class="booking-detail-item">';
             html += '<span class="detail-label"><?php _e('Category', 'amelia-cpt-sync'); ?></span>';
             html += '<span class="detail-value">' + data.category_name + '</span>';
+            html += '</div>';
+        }
+        
+        // Resources (if any)
+        if (data.resources && data.resources.length > 0) {
+            html += '<div class="booking-detail-item full-width">';
+            html += '<span class="detail-label"><?php _e('Resources', 'amelia-cpt-sync'); ?></span>';
+            html += '<span class="detail-value">' + data.resources.join(', ') + '</span>';
             html += '</div>';
         }
         
@@ -6014,8 +6041,331 @@ jQuery(document).ready(function($) {
         // Load initial notes
         artRefreshNotes(artDetailData.requestId, true);
     }
+    
+    // ========================================
+    // RESOURCE SYSTEM (Phase 1)
+    // ========================================
+    
+    var resourceState = {
+        mode: 'none',
+        config: null,
+        selectedResources: [],
+        currentStatus: null
+    };
+    
+    /**
+     * Load resource config when service changes
+     */
+    $('#pillar-service').on('change', function() {
+        var serviceId = $(this).val();
+        
+        if (!serviceId) {
+            $('#resource-section').hide();
+            return;
+        }
+        
+        $.post(ajaxurl, {
+            action: 'art_get_service_resource_config',
+            nonce: artDetailData.nonce,
+            service_id: serviceId
+        }, function(response) {
+            if (response.success && response.data.config) {
+                resourceState.config = response.data.config;
+                resourceState.mode = response.data.config.resource_mode || 'none';
+                
+                renderResourceSection();
+            } else {
+                // No config - default to none
+                resourceState.mode = 'none';
+                $('#resource-section').hide();
+            }
+        });
+    });
+    
+    /**
+     * Render resource section based on mode
+     */
+    function renderResourceSection() {
+        if (resourceState.mode === 'none') {
+            $('#resource-section').hide();
+            return;
+        }
+        
+        $('#resource-section').show();
+        $('#resource-mode-badge').text(getModeBadgeText(resourceState.mode));
+        
+        switch (resourceState.mode) {
+            case 'mirrored':
+                renderModeMirrored();
+                break;
+            default:
+                $('#resource-content').html('<p style="color: #94A3B8; font-style: italic;">Mode not implemented yet</p>');
+        }
+    }
+    
+    /**
+     * Render Mode 1: Mirrored resource (info card)
+     */
+    function renderModeMirrored() {
+        var settings = resourceState.config.mode_settings || {};
+        var resourceId = settings.mirrored_resource_id;
+        
+        if (!resourceId) {
+            $('#resource-content').html(
+                '<div class="resource-alert warning">' +
+                '<span class="dashicons dashicons-warning"></span> ' +
+                '<span>Resource not configured for this service</span>' +
+                '</div>'
+            );
+            return;
+        }
+        
+        // Fetch resource details
+        $.post(ajaxurl, {
+            action: 'art_get_all_resources',
+            nonce: artDetailData.nonce
+        }, function(response) {
+            if (response.success) {
+                var resource = response.data.resources.find(function(r) {
+                    return parseInt(r.id) === parseInt(resourceId);
+                });
+                
+                if (resource) {
+                    var html = '<div class="resource-info-card">' +
+                               '<div class="resource-icon">🔧</div>' +
+                               '<div class="resource-details">' +
+                               '<div class="resource-name">' + resource.name + '</div>' +
+                               '<div class="resource-meta">Auto-assigned with this service</div>' +
+                               '</div>' +
+                               '<div class="resource-status-badge pending">Will check on date/time</div>' +
+                               '</div>';
+                    
+                    $('#resource-content').html(html);
+                } else {
+                    $('#resource-content').html(
+                        '<div class="resource-alert error">' +
+                        '<span class="dashicons dashicons-no"></span> ' +
+                        '<span>Resource #' + resourceId + ' not found</span>' +
+                        '</div>'
+                    );
+                }
+            }
+        });
+    }
+    
+    /**
+     * Get mode badge text
+     */
+    function getModeBadgeText(mode) {
+        var badges = {
+            'none': '',
+            'mirrored': '1:1 Auto',
+            'shared_pool': 'Shared',
+            'quantity_pool': 'Quantity',
+            'provider_bound': 'Per Provider',
+            'location_bound': 'Per Location',
+            'composite': 'Multiple',
+            'hybrid': 'Custom'
+        };
+        return badges[mode] || mode;
+    }
+    
+    /**
+     * Get selected resources (helper for booking)
+     */
+    function getSelectedResources() {
+        if (resourceState.mode === 'none') {
+            return [];
+        }
+        
+        if (resourceState.mode === 'mirrored') {
+            var settings = resourceState.config?.mode_settings || {};
+            return settings.mirrored_resource_id ? [settings.mirrored_resource_id] : [];
+        }
+        
+        return resourceState.selectedResources;
+    }
+    
+    /**
+     * Get resource summary for booking display
+     */
+    function getResourceSummary() {
+        if (resourceState.mode === 'none') {
+            return null;
+        }
+        
+        if (resourceState.mode === 'mirrored') {
+            var resourceName = $('#resource-content .resource-name').text();
+            return resourceName || 'Resource assigned';
+        }
+        
+        return null;
+    }
 });
 </script>
+
+<style>
+/* ========================================
+   RESOURCE SYSTEM CSS
+   ======================================== */
+
+#resource-section {
+    margin: 16px 0;
+    padding: 16px;
+    background: #F8FAFC;
+    border: 1px solid #E0E5F1;
+    border-radius: 6px;
+}
+
+.mode-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #EFF6FF;
+    color: #1A84EE;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 10px;
+    margin-left: 8px;
+    text-transform: uppercase;
+}
+
+.resource-content {
+    margin-top: 12px;
+}
+
+.resource-info-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: #fff;
+    border: 1px solid #E0E5F1;
+    border-radius: 6px;
+}
+
+.resource-icon {
+    font-size: 24px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #EFF6FF;
+    border-radius: 50%;
+}
+
+.resource-details {
+    flex: 1;
+}
+
+.resource-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1E293B;
+}
+
+.resource-meta {
+    font-size: 12px;
+    color: #64748B;
+    margin-top: 2px;
+}
+
+.resource-status-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.resource-status-badge.available {
+    background: #D1FAE5;
+    color: #065F46;
+}
+
+.resource-status-badge.unavailable {
+    background: #FEE2E2;
+    color: #991B1B;
+}
+
+.resource-status-badge.warning {
+    background: #FEF3C7;
+    color: #92400E;
+}
+
+.resource-status-badge.pending {
+    background: #E0E7FF;
+    color: #3730A3;
+}
+
+.resource-alert {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.resource-alert .dashicons {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+
+.resource-alert.error {
+    background: #FEE2E2;
+    color: #991B1B;
+}
+
+.resource-alert.warning {
+    background: #FEF3C7;
+    color: #92400E;
+}
+
+.resource-alert.info {
+    background: #EFF6FF;
+    color: #1E40AF;
+}
+
+.resource-status-message {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #64748B;
+}
+
+/* Resource Block Alert */
+.resource-block-alert {
+    margin: 16px 0;
+    padding: 16px;
+    background: #FEF3C7;
+    border: 2px solid #F59E0B;
+    border-radius: 8px;
+}
+
+.resource-block-alert h4 {
+    margin: 0 0 8px 0;
+    color: #92400E;
+    font-size: 14px;
+}
+
+.resource-block-alert p {
+    margin: 0 0 12px 0;
+    color: #78350F;
+    font-size: 13px;
+}
+
+.resource-block-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.resource-block-actions button {
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+</style>
 
 
 

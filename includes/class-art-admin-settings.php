@@ -60,6 +60,13 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         add_action('wp_ajax_art_delete_note', array($this, 'ajax_delete_note'));
         add_action('wp_ajax_art_get_notes', array($this, 'ajax_get_notes'));
         add_action('wp_ajax_art_log_customer_match', array($this, 'ajax_log_customer_match'));
+        
+        // Resource System (Phase 1)
+        add_action('wp_ajax_art_check_booking_availability', array($this, 'ajax_check_booking_availability'));
+        add_action('wp_ajax_art_get_all_resources', array($this, 'ajax_get_all_resources'));
+        add_action('wp_ajax_art_get_service_resource_config', array($this, 'ajax_get_service_resource_config'));
+        add_action('wp_ajax_art_save_service_resource_config', array($this, 'ajax_save_service_resource_config'));
+        add_action('wp_ajax_art_get_resource_assignments', array($this, 'ajax_get_resource_assignments'));
     }
     
     /**
@@ -96,6 +103,16 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             array($this, 'render_settings_page')
         );
         
+        // Add submenu: Resource Settings
+        add_submenu_page(
+            'amelia-cpt-sync',
+            __('Resource Settings', 'amelia-cpt-sync'),
+            __('Resource Settings', 'amelia-cpt-sync'),
+            'manage_options',
+            'art-resource-settings',
+            array($this, 'render_resource_settings_page')
+        );
+        
         // Add hidden submenu: Request Detail (accessed via link, not menu)
         add_submenu_page(
             null,  // No parent = hidden from menu
@@ -115,6 +132,12 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             'art_settings_group',
             $this->option_name,
             array($this, 'sanitize_settings')
+        );
+        
+        // Resource settings
+        register_setting(
+            'art_resource_settings_group',
+            'art_resource_settings'
         );
     }
     
@@ -725,6 +748,18 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             }
         </style>
         <?php
+    }
+    
+    /**
+     * Render the Resource Settings page
+     */
+    public function render_resource_settings_page() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        
+        // Include the template
+        include AMELIA_CPT_SYNC_PLUGIN_DIR . 'templates/art-resource-settings-page.php';
     }
     
     /**
@@ -1891,12 +1926,161 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             array('%d')
         );
         
+        // Trigger hook for resource release
+        do_action('art_booking_deleted', $request_id);
+        
         amelia_cpt_sync_debug_log('ART: Successfully deleted appointment #' . $booking_link->amelia_appointment_id . ' for request #' . $request_id);
         
         wp_send_json_success(array(
             'message' => 'Previous booking deleted. You can now create a new booking.',
             'deleted_appointment_id' => $booking_link->amelia_appointment_id
         ));
+    }
+    
+    // ========================================
+    // RESOURCE SYSTEM AJAX HANDLERS
+    // ========================================
+    
+    /**
+     * AJAX: Check full booking availability (Orchestrator)
+     *
+     * Main endpoint that coordinates resource and provider availability
+     */
+    public function ajax_check_booking_availability() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $orchestrator = new ART_Booking_Orchestrator();
+        
+        $params = array(
+            'service_id' => absint($_POST['service_id'] ?? 0),
+            'date' => sanitize_text_field($_POST['date'] ?? ''),
+            'time' => sanitize_text_field($_POST['time'] ?? ''),
+            'duration' => absint($_POST['duration'] ?? 0),
+            'location_id' => absint($_POST['location_id'] ?? 0),
+            'persons' => absint($_POST['persons'] ?? 1),
+            'selected_resources' => $_POST['selected_resources'] ?? array(),
+            'selected_provider_id' => absint($_POST['selected_provider_id'] ?? 0)
+        );
+        
+        $result = $orchestrator->check_full_availability($params);
+        
+        wp_send_json_success($result);
+    }
+    
+    /**
+     * AJAX: Get all resources from Amelia
+     */
+    public function ajax_get_all_resources() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $resource_api = new ART_Resource_API();
+        $resources = $resource_api->get_resources(false); // Fresh fetch
+        
+        if (is_wp_error($resources)) {
+            wp_send_json_error(array('message' => $resources->get_error_message()));
+        }
+        
+        wp_send_json_success(array('resources' => $resources));
+    }
+    
+    /**
+     * AJAX: Get resource configuration for a service
+     */
+    public function ajax_get_service_resource_config() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $service_id = absint($_POST['service_id'] ?? 0);
+        
+        if (!$service_id) {
+            wp_send_json_error(array('message' => 'Service ID required'));
+        }
+        
+        $resource_manager = new ART_Resource_Manager();
+        $config = $resource_manager->get_service_config($service_id);
+        
+        wp_send_json_success(array('config' => $config));
+    }
+    
+    /**
+     * AJAX: Save resource configuration for a service
+     */
+    public function ajax_save_service_resource_config() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $service_id = absint($_POST['service_id'] ?? 0);
+        $resource_mode = sanitize_text_field($_POST['resource_mode'] ?? 'none');
+        $mode_settings = $_POST['mode_settings'] ?? array();
+        $conflict_handling = sanitize_text_field($_POST['conflict_handling'] ?? 'strict');
+        
+        if (!$service_id) {
+            wp_send_json_error(array('message' => 'Service ID required'));
+        }
+        
+        // Handle Mode 1 (mirrored) - auto-create resource if requested
+        if ($resource_mode === 'mirrored' && !empty($mode_settings['auto_create'])) {
+            $resource_manager = new ART_Resource_Manager();
+            $resource_id = $resource_manager->auto_create_mirrored_resource($service_id);
+            
+            if (is_wp_error($resource_id)) {
+                wp_send_json_error(array('message' => 'Failed to create resource: ' . $resource_id->get_error_message()));
+            }
+            
+            $mode_settings['mirrored_resource_id'] = $resource_id;
+        }
+        
+        $resource_manager = new ART_Resource_Manager();
+        $result = $resource_manager->save_service_config($service_id, array(
+            'resource_mode' => $resource_mode,
+            'mode_settings' => $mode_settings,
+            'conflict_handling' => $conflict_handling
+        ));
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(array('message' => $result->get_error_message()));
+        }
+        
+        wp_send_json_success(array(
+            'message' => 'Configuration saved successfully',
+            'config_id' => $result
+        ));
+    }
+    
+    /**
+     * AJAX: Get resource assignments for a request
+     */
+    public function ajax_get_resource_assignments() {
+        check_ajax_referer('art_nonce', 'nonce');
+        
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $request_id = absint($_POST['request_id'] ?? 0);
+        
+        if (!$request_id) {
+            wp_send_json_error(array('message' => 'Request ID required'));
+        }
+        
+        $resource_manager = new ART_Resource_Manager();
+        $assignments = $resource_manager->get_assignments($request_id);
+        
+        wp_send_json_success(array('assignments' => $assignments));
     }
 }
 

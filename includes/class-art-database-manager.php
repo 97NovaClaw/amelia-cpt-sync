@@ -19,7 +19,7 @@ class Amelia_CPT_Sync_ART_Database_Manager {
     /**
      * Database version for schema tracking
      */
-    const DB_VERSION = '1.5.0';  // Updated: Enhanced art_notes table for Notes System
+    const DB_VERSION = '1.7.0';  // Updated: Resource management tables for Resource System
     
     /**
      * Option name for storing database version
@@ -34,6 +34,8 @@ class Amelia_CPT_Sync_ART_Database_Manager {
     private $table_intake_fields = 'art_intake_fields';
     private $table_booking_links = 'art_booking_links';
     private $table_notes = 'art_notes';
+    private $table_resource_configs = 'art_resource_configs';
+    private $table_resource_assignments = 'art_resource_assignments';
     
     /**
      * WordPress database object
@@ -75,6 +77,8 @@ class Amelia_CPT_Sync_ART_Database_Manager {
         $this->create_intake_fields_table($charset_collate);
         $this->create_booking_links_table($charset_collate);
         $this->create_notes_table($charset_collate);
+        $this->create_resource_configs_table($charset_collate);
+        $this->create_resource_assignments_table($charset_collate);
         
         // Update version
         update_option(self::DB_VERSION_OPTION, self::DB_VERSION);
@@ -238,6 +242,62 @@ class Amelia_CPT_Sync_ART_Database_Manager {
     }
     
     /**
+     * Create art_resource_configs table (Resource System)
+     *
+     * @param string $charset_collate Database charset
+     */
+    private function create_resource_configs_table($charset_collate) {
+        $table_name = $this->wpdb->prefix . $this->table_resource_configs;
+        
+        $sql = "CREATE TABLE $table_name (
+            id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            amelia_service_id int(11) NOT NULL,
+            resource_mode varchar(50) NOT NULL DEFAULT 'none',
+            mode_settings text DEFAULT NULL,
+            conflict_handling varchar(20) NOT NULL DEFAULT 'strict',
+            created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY service_id (amelia_service_id),
+            KEY resource_mode (resource_mode)
+        ) $charset_collate;";
+        
+        dbDelta($sql);
+        
+        amelia_cpt_sync_debug_log('ART Database: Created/updated table ' . $table_name);
+    }
+    
+    /**
+     * Create art_resource_assignments table (Resource System)
+     *
+     * @param string $charset_collate Database charset
+     */
+    private function create_resource_assignments_table($charset_collate) {
+        $table_name = $this->wpdb->prefix . $this->table_resource_assignments;
+        
+        $sql = "CREATE TABLE $table_name (
+            id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            request_id bigint(20) UNSIGNED NOT NULL,
+            amelia_appointment_id int(11) DEFAULT NULL,
+            amelia_resource_id int(11) NOT NULL,
+            quantity_used int(11) NOT NULL DEFAULT 1,
+            assignment_type varchar(20) NOT NULL DEFAULT 'automatic',
+            status varchar(20) NOT NULL DEFAULT 'active',
+            assigned_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            released_at datetime DEFAULT NULL,
+            PRIMARY KEY (id),
+            KEY request_id (request_id),
+            KEY appointment_id (amelia_appointment_id),
+            KEY resource_id (amelia_resource_id),
+            KEY status (status)
+        ) $charset_collate;";
+        
+        dbDelta($sql);
+        
+        amelia_cpt_sync_debug_log('ART Database: Created/updated table ' . $table_name);
+    }
+    
+    /**
      * Drop all ART module tables
      * Used for testing/development or uninstall
      *
@@ -245,8 +305,10 @@ class Amelia_CPT_Sync_ART_Database_Manager {
      */
     public function drop_tables() {
         $tables = array(
+            $this->wpdb->prefix . $this->table_resource_assignments,
+            $this->wpdb->prefix . $this->table_resource_configs,
             $this->wpdb->prefix . $this->table_booking_links,
-            $this->wpdb->prefix . $this->table_request_notes,
+            $this->wpdb->prefix . $this->table_notes,
             $this->wpdb->prefix . $this->table_intake_fields,
             $this->wpdb->prefix . $this->table_requests,
             $this->wpdb->prefix . $this->table_customers
@@ -468,7 +530,9 @@ class Amelia_CPT_Sync_ART_Database_Manager {
             $this->wpdb->prefix . $this->table_requests,
             $this->wpdb->prefix . $this->table_intake_fields,
             $this->wpdb->prefix . $this->table_booking_links,
-            $this->wpdb->prefix . $this->table_request_notes
+            $this->wpdb->prefix . $this->table_notes,
+            $this->wpdb->prefix . $this->table_resource_configs,
+            $this->wpdb->prefix . $this->table_resource_assignments
         );
         
         foreach ($tables as $table) {

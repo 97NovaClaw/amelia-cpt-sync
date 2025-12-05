@@ -3,7 +3,7 @@
  * Plugin Name: Amelia Expansion Suite
  * Plugin URI: https://github.com/97NovaClaw/amelia-cpt-sync
  * Description: Complete Amelia integration suite: CPT Sync, Dynamic Popups, and Request Triage System
- * Version: 2.22.0
+ * Version: 2.23.0
  * Author: 97NovaClaw
  * Author URI: https://github.com/97NovaClaw
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('WPINC')) {
 /**
  * Current plugin version.
  */
-define('AMELIA_CPT_SYNC_VERSION', '2.22.0');
+define('AMELIA_CPT_SYNC_VERSION', '2.23.0');
 define('AMELIA_CPT_SYNC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AMELIA_CPT_SYNC_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -149,6 +149,12 @@ require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-notes-manager.php'
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-availability-settings.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-availability-engine.php';
 
+// Resource System (Phase 1)
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-resource-api.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-resource-manager.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-booking-orchestrator.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-resource-hooks.php';
+
 /**
  * Initialize the plugin
  */
@@ -170,6 +176,10 @@ function run_amelia_cpt_sync() {
     // Initialize ART hook handler (runs on both frontend and backend)
     $art_hook_handler = new Amelia_CPT_Sync_ART_Hook_Handler();
     $art_hook_handler->init();
+    
+    // Initialize Resource Hooks (runs on both frontend and backend)
+    $art_resource_hooks = new ART_Resource_Hooks();
+    // Constructor auto-registers hooks
     
     // Initialize sync handler (runs on both frontend and backend)
     $sync_handler = new Amelia_CPT_Sync_Handler();
