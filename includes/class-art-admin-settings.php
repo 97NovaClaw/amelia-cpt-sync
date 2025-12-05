@@ -1953,22 +1953,37 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
         
-        $orchestrator = new ART_Booking_Orchestrator();
-        
-        $params = array(
-            'service_id' => absint($_POST['service_id'] ?? 0),
-            'date' => sanitize_text_field($_POST['date'] ?? ''),
-            'time' => sanitize_text_field($_POST['time'] ?? ''),
-            'duration' => absint($_POST['duration'] ?? 0),
-            'location_id' => absint($_POST['location_id'] ?? 0),
-            'persons' => absint($_POST['persons'] ?? 1),
-            'selected_resources' => $_POST['selected_resources'] ?? array(),
-            'selected_provider_id' => absint($_POST['selected_provider_id'] ?? 0)
-        );
-        
-        $result = $orchestrator->check_full_availability($params);
-        
-        wp_send_json_success($result);
+        try {
+            $orchestrator = new ART_Booking_Orchestrator();
+            
+            $params = array(
+                'service_id' => absint($_POST['service_id'] ?? 0),
+                'date' => sanitize_text_field($_POST['date'] ?? ''),
+                'time' => sanitize_text_field($_POST['time'] ?? ''),
+                'duration' => absint($_POST['duration'] ?? 0),
+                'location_id' => absint($_POST['location_id'] ?? 0),
+                'persons' => absint($_POST['persons'] ?? 1),
+                'selected_resources' => $_POST['selected_resources'] ?? array(),
+                'selected_provider_id' => absint($_POST['selected_provider_id'] ?? 0)
+            );
+            
+            amelia_cpt_sync_debug_log('ART Orchestrator AJAX: Params received - ' . wp_json_encode($params));
+            
+            $result = $orchestrator->check_full_availability($params);
+            
+            amelia_cpt_sync_debug_log('ART Orchestrator AJAX: Result - ' . wp_json_encode($result));
+            
+            wp_send_json_success($result);
+            
+        } catch (Exception $e) {
+            amelia_cpt_sync_debug_log('ART Orchestrator AJAX: Exception - ' . $e->getMessage());
+            amelia_cpt_sync_debug_log('ART Orchestrator AJAX: Stack trace - ' . $e->getTraceAsString());
+            
+            wp_send_json_error(array(
+                'message' => 'Orchestrator error: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ));
+        }
     }
     
     /**
