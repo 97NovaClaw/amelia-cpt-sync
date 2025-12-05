@@ -166,6 +166,7 @@ class ART_Resource_Manager {
      */
     public function is_resource_available($resource_id, $date, $time, $duration) {
         amelia_cpt_sync_debug_log('ART Resource: Checking availability for resource #' . $resource_id);
+        amelia_cpt_sync_debug_log('ART Resource: Check params - date: ' . $date . ', time: ' . $time . ', duration: ' . $duration);
         
         // Get existing appointments for this date
         $appointments = $this->get_appointments_for_date($date);
@@ -176,28 +177,40 @@ class ART_Resource_Manager {
             return false;
         }
         
+        amelia_cpt_sync_debug_log('ART Resource: Found ' . count($appointments) . ' appointments on ' . $date);
+        
         // Convert time to minutes for comparison
         $request_start = $this->time_to_minutes($time);
         $request_end = $request_start + ($duration / 60);
         
+        amelia_cpt_sync_debug_log('ART Resource: Request window - ' . $request_start . ' to ' . $request_end . ' minutes');
+        
         // Check each appointment to see if it uses this resource
+        $checked_count = 0;
         foreach ($appointments as $appt) {
+            $checked_count++;
+            
             // Check if this appointment uses this resource
             if (!$this->appointment_uses_resource($appt, $resource_id)) {
                 continue;
             }
             
+            amelia_cpt_sync_debug_log('ART Resource: Appointment #' . $appt['id'] . ' uses this resource');
+            
             // Check time overlap
             $appt_start = $this->datetime_to_minutes($appt['bookingStart']);
             $appt_end = $this->datetime_to_minutes($appt['bookingEnd']);
             
+            amelia_cpt_sync_debug_log('ART Resource: Appointment window - ' . $appt_start . ' to ' . $appt_end . ' minutes');
+            
             if ($this->times_overlap($request_start, $request_end, $appt_start, $appt_end)) {
-                amelia_cpt_sync_debug_log('ART Resource: Resource #' . $resource_id . ' is booked (appointment #' . $appt['id'] . ')');
+                amelia_cpt_sync_debug_log('ART Resource: OVERLAP DETECTED - Resource #' . $resource_id . ' is booked (appointment #' . $appt['id'] . ')');
                 return false;
             }
         }
         
-        amelia_cpt_sync_debug_log('ART Resource: Resource #' . $resource_id . ' is available');
+        amelia_cpt_sync_debug_log('ART Resource: Checked ' . $checked_count . ' appointments, no conflicts found');
+        amelia_cpt_sync_debug_log('ART Resource: Resource #' . $resource_id . ' is AVAILABLE');
         return true;
     }
     

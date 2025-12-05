@@ -235,17 +235,28 @@ class ART_Booking_Orchestrator {
         }
         
         amelia_cpt_sync_debug_log('ART Orchestrator: Mirrored resource AVAILABLE - ' . $resource_name);
+        amelia_cpt_sync_debug_log('ART Orchestrator: Proceeding to provider availability check');
         
         // Resource available, proceed with provider check
-        $provider_result = $this->availability_engine->check_availability(
-            $params['date'],
-            $params['time'],
-            $params['service_id'],
-            $params['duration'],
-            $params['location_id'] ?? null
-        );
+        try {
+            $provider_result = $this->availability_engine->check_availability(
+                $params['date'],
+                $params['time'],
+                $params['service_id'],
+                $params['duration'],
+                $params['location_id'] ?? null
+            );
+            
+            amelia_cpt_sync_debug_log('ART Orchestrator: Provider check complete - ' . count($provider_result['providers'] ?? []) . ' providers');
+            
+            $result['providers'] = $provider_result['providers'] ?? array();
+            
+        } catch (Exception $e) {
+            amelia_cpt_sync_debug_log('ART Orchestrator: Provider check FAILED - ' . $e->getMessage());
+            $result['providers'] = array();
+        }
         
-        $result['providers'] = $provider_result['providers'] ?? array();
+        amelia_cpt_sync_debug_log('ART Orchestrator: Returning mirrored mode result');
         
         return $result;
     }
