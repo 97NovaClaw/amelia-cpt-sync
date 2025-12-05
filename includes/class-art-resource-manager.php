@@ -416,18 +416,19 @@ class ART_Resource_Manager {
         $service = $this->api_manager->get_service($service_id);
         
         if (is_wp_error($service)) {
+            amelia_cpt_sync_debug_log('ART Resource: Failed to fetch service - ' . $service->get_error_message());
             return $service;
         }
         
-        $service_data = $service['data']['service'] ?? null;
-        
-        if (!$service_data) {
+        // get_service() returns the service object directly (not wrapped in data.service)
+        if (!isset($service['name'])) {
+            amelia_cpt_sync_debug_log('ART Resource: Service data invalid - ' . wp_json_encode($service));
             return new WP_Error('no_service', 'Service not found');
         }
         
         // Create resource
         $resource_data = array(
-            'name' => $service_data['name'] . ' (Resource)',
+            'name' => $service['name'] . ' (Resource)',
             'quantity' => 1,
             'shared' => null,
             'status' => 'visible',
@@ -440,13 +441,16 @@ class ART_Resource_Manager {
             'countAdditionalPeople' => false
         );
         
+        amelia_cpt_sync_debug_log('ART Resource: Creating resource - ' . wp_json_encode($resource_data));
+        
         $result = $this->resource_api->create_resource($resource_data);
         
         if (is_wp_error($result)) {
+            amelia_cpt_sync_debug_log('ART Resource: Failed to create resource - ' . $result->get_error_message());
             return $result;
         }
         
-        amelia_cpt_sync_debug_log('ART Resource: Created mirrored resource #' . $result['id']);
+        amelia_cpt_sync_debug_log('ART Resource: Successfully created mirrored resource #' . $result['id']);
         
         return $result['id'];
     }
