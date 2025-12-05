@@ -461,18 +461,6 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                     </select>
                                 </div>
                                 
-                                <!-- Resource Section (Conditional based on service config) -->
-                                <div id="resource-section" class="form-field" style="display: none;">
-                                    <label>
-                                        <?php _e('Resource', 'amelia-cpt-sync'); ?>
-                                        <span id="resource-mode-badge" class="mode-badge"></span>
-                                    </label>
-                                    <div id="resource-content" class="resource-content">
-                                        <!-- Mode-specific content will be rendered via JavaScript -->
-                                    </div>
-                                    <div id="resource-status" class="resource-status-message"></div>
-                                </div>
-                                
                                 <!-- Location (Conditional display) -->
                                 <?php if ($show_location): ?>
                                     <div class="form-field">
@@ -824,6 +812,19 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                     </div>
                                 </div>
                                 
+                                <!-- Column: Resource Availability (NEW - Phase 1) -->
+                                <div class="art-picker-resources" id="resource-availability-column">
+                                    <div class="art-picker-column-header">
+                                        <span class="dashicons dashicons-admin-tools"></span>
+                                        <?php _e('Resource Availability', 'amelia-cpt-sync'); ?>
+                                    </div>
+                                    <div class="art-resource-list" id="resource-status-list">
+                                        <div class="resource-placeholder">
+                                            <?php _e('Select date & time to check', 'amelia-cpt-sync'); ?>
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <!-- Column: Provider Selection -->
                                 <div class="art-picker-providers">
                                     <div class="art-picker-column-header">
@@ -831,7 +832,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                     </div>
                                     <div class="art-provider-list" id="provider-list">
                                         <div class="provider-placeholder">
-                                            <?php _e('Select a date and time first', 'amelia-cpt-sync'); ?>
+                                            <?php _e('Select resource first', 'amelia-cpt-sync'); ?>
                                         </div>
                                     </div>
                                 </div>
@@ -1410,14 +1411,32 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     margin-top: 16px;
 }
 
-/* 4-column layout (with time grid): Dates | Time Grid | Time Entry | Providers */
+/* 5-column layout (with time grid): Dates | Time Grid | Time Entry | Resources | Providers */
 .art-picker-container.with-timegrid {
-    grid-template-columns: 15% 1fr 20% 35%;
+    grid-template-columns: 12% 1fr 16% 25% 25%;
+    /* Dates 12% | Time Grid (flex) | Time Entry 16% | Resources 25% | Providers 25% | Gap 1% */
 }
 
-/* 3-column layout (no time grid - default): Dates 25% | Time Entry 25% | Providers 50% */
+/* 4-column layout (no time grid - default): Dates | Time Entry | Resources | Providers */
 .art-picker-container.no-timegrid {
-    grid-template-columns: 25% 25% 50%;
+    grid-template-columns: 15% 15% 30% 30%;
+    /* Dates 15% | Time Entry 15% | Resources 30% | Providers 30% | Gap 10% */
+}
+
+/* Mode-specific adjustments: Hide resource column for modes that don't use it */
+.art-picker-container.mode-none .art-picker-resources,
+.art-picker-container.mode-provider-bound .art-picker-resources {
+    display: none;
+}
+
+.art-picker-container.mode-none.no-timegrid {
+    grid-template-columns: 20% 20% 60%;
+    /* No resources column */
+}
+
+.art-picker-container.mode-none.with-timegrid {
+    grid-template-columns: 15% 1fr 20% 35%;
+    /* No resources column */
 }
 
 .art-picker-container.no-timegrid .art-picker-dates {
@@ -1805,10 +1824,189 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
         border-left: none;
         border-bottom: 1px solid #E0E5F1;
     }
+    .art-picker-resources {
+        border-left: none;
+        border-bottom: 1px solid #E0E5F1;
+        max-height: 400px;
+    }
     .art-picker-providers {
         border-left: none;
         max-height: 300px;
     }
+}
+
+/* ========================================
+   RESOURCE COLUMN STYLES (NEW - Phase 1)
+   ======================================== */
+
+.art-picker-resources {
+    background: #F8FAFC;
+    border-right: 1px solid #E0E5F1;
+    padding: 16px;
+    overflow-y: auto;
+    max-height: 500px;
+}
+
+.art-resource-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.resource-placeholder {
+    text-align: center;
+    padding: 40px 20px;
+    color: #94A3B8;
+    font-size: 13px;
+    font-style: italic;
+}
+
+/* Resource Cards (same pattern as providers) */
+.resource-card {
+    padding: 14px;
+    background: #fff;
+    border: 2px solid #E0E5F1;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.resource-card.selected {
+    border-color: #1A84EE;
+    background: #EFF6FF;
+    box-shadow: 0 2px 8px rgba(26, 132, 238, 0.15);
+}
+
+.resource-card.status-available {
+    border-left: 4px solid #10B981;
+}
+
+.resource-card.status-unavailable {
+    border-left: 4px solid #EF4444;
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.resource-card:not(.status-unavailable):hover {
+    border-color: #1A84EE;
+    box-shadow: 0 2px 8px rgba(26, 132, 238, 0.1);
+}
+
+.resource-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.resource-status-icon {
+    font-size: 18px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.resource-status-icon.available {
+    color: #10B981;
+}
+
+.resource-status-icon.unavailable {
+    color: #EF4444;
+}
+
+.resource-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1E293B;
+    flex: 1;
+}
+
+.resource-meta {
+    font-size: 12px;
+    color: #64748B;
+    margin: 4px 0;
+}
+
+.resource-next-available {
+    font-size: 11px;
+    color: #F59E0B;
+    margin-top: 6px;
+    font-weight: 500;
+}
+
+.resource-action {
+    margin-top: 10px;
+}
+
+.resource-action button {
+    width: 100%;
+    padding: 8px 14px;
+    background: #1A84EE;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.resource-action button:hover {
+    background: #1570D1;
+}
+
+.resource-action button:disabled {
+    background: #E0E5F1;
+    color: #94A3B8;
+    cursor: not-allowed;
+}
+
+.resource-blocked-label {
+    display: block;
+    text-align: center;
+    padding: 8px;
+    background: #FEE2E2;
+    color: #991B1B;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+/* Resource Block Alert */
+.resource-block-alert {
+    padding: 14px;
+    background: #FEF3C7;
+    border: 2px solid #F59E0B;
+    border-radius: 6px;
+    margin-top: 12px;
+}
+
+.resource-block-alert h5 {
+    margin: 0 0 6px 0;
+    color: #92400E;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.resource-block-alert p {
+    margin: 0 0 8px 0;
+    font-size: 12px;
+    color: #78350F;
+    line-height: 1.4;
+}
+
+.resource-block-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.resource-block-actions button {
+    flex: 1;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
 }
 
 .card-body {
@@ -4929,43 +5127,54 @@ jQuery(document).ready(function($) {
     }
     
     /**
-     * Check provider availability using the Availability Engine
+     * Check availability using Booking Orchestrator (includes resources + providers)
      */
     function checkProviderAvailabilityEngine(dateStr, timeStr) {
         var providerList = $('#provider-list');
+        var resourceList = $('#resource-status-list');
         var serviceId = $('#pillar-service').val();
         var duration = $('#pillar-duration-hidden').val() || artDetailData.serviceDuration || 3600;
         var locationId = $('#pillar-location').val() || 0;
+        var persons = $('#pillar-persons').val() || 1;
         
         if (!serviceId) {
             providerList.html('<div class="provider-placeholder"><?php _e('Select a service first', 'amelia-cpt-sync'); ?></div>');
             return;
         }
         
-        // Show loading state
+        // Show loading states
         providerList.html(
             '<div class="provider-loading">' +
                 '<span class="dashicons dashicons-update spin"></span> ' +
-                '<?php _e('Checking availability...', 'amelia-cpt-sync'); ?>' +
+                '<?php _e('Checking providers...', 'amelia-cpt-sync'); ?>' +
             '</div>'
         );
         
-        // Call Availability Engine AJAX
+        resourceList.html(
+            '<div class="resource-placeholder">' +
+                '<span class="dashicons dashicons-update spin"></span> ' +
+                '<?php _e('Checking resources...', 'amelia-cpt-sync'); ?>' +
+            '</div>'
+        );
+        
+        // Call Booking Orchestrator (unified availability check)
         $.ajax({
             url: ajaxurl,
             type: 'POST',
             data: {
-                action: 'art_check_provider_availability',
+                action: 'art_check_booking_availability',  // Orchestrator endpoint
                 nonce: artDetailData.nonce,
+                service_id: serviceId,
                 date: dateStr,
                 time: timeStr,
-                service_id: serviceId,
                 duration: duration,
-                location_id: locationId
+                location_id: locationId,
+                persons: persons,
+                selected_resources: getSelectedResources()
             },
             success: function(response) {
                 if (response.success) {
-                    renderAvailabilityEngineResults(response.data.providers, response.data.error, response.data.message);
+                    handleOrchestratorResult(response.data);
                 } else {
                     providerList.html(
                         '<div class="provider-error">' +
@@ -4973,6 +5182,7 @@ jQuery(document).ready(function($) {
                             (response.data.message || '<?php _e('Error checking availability', 'amelia-cpt-sync'); ?>') +
                         '</div>'
                     );
+                    resourceList.html('<div class="resource-placeholder"><?php _e('Error checking resources', 'amelia-cpt-sync'); ?></div>');
                 }
             },
             error: function() {
@@ -4982,8 +5192,106 @@ jQuery(document).ready(function($) {
                         '<?php _e('Network error. Please try again.', 'amelia-cpt-sync'); ?>' +
                     '</div>'
                 );
+                resourceList.html('<div class="resource-placeholder"><?php _e('Network error', 'amelia-cpt-sync'); ?></div>');
             }
         });
+    }
+    
+    /**
+     * Handle unified result from Booking Orchestrator
+     */
+    function handleOrchestratorResult(data) {
+        console.log('Orchestrator result:', data);
+        
+        // Update grid mode class
+        $('.art-picker-container')
+            .removeClass('mode-none mode-mirrored mode-shared-pool mode-quantity-pool mode-provider-bound mode-location-bound mode-composite mode-hybrid')
+            .addClass('mode-' + (data.resource_mode || 'none'));
+        
+        // Render resource column
+        renderResourceColumn(data);
+        
+        // Render provider column (gated by resource availability)
+        if (data.resource_block) {
+            showResourceBlockedProviders(data.resource_message);
+        } else {
+            renderAvailabilityEngineResults(data.providers, data.error, data.message);
+        }
+    }
+    
+    /**
+     * Render resource availability column
+     */
+    function renderResourceColumn(data) {
+        var $container = $('#resource-status-list');
+        
+        if (!data.resources || data.resource_mode === 'none') {
+            $container.html('<div class="resource-placeholder"><?php _e('No resources required', 'amelia-cpt-sync'); ?></div>');
+            return;
+        }
+        
+        var html = '';
+        
+        // Mode 1: Mirrored (single resource)
+        if (data.resource_mode === 'mirrored' && data.resources.assigned) {
+            var resource = data.resources.assigned[0];
+            var isAvailable = resource.status === 'available';
+            
+            html += '<div class="resource-card status-' + resource.status + '">';
+            html += '<div class="resource-card-header">';
+            html += '<span class="resource-status-icon ' + resource.status + '">';
+            html += isAvailable ? '✓' : '✗';
+            html += '</span>';
+            html += '<span class="resource-name">' + resource.name + '</span>';
+            html += '</div>';
+            
+            if (isAvailable) {
+                html += '<div class="resource-meta"><?php _e('Available for this time', 'amelia-cpt-sync'); ?></div>';
+                html += '<div class="resource-action">';
+                html += '<button disabled style="background:#10B981;"><?php _e('AUTO-ASSIGNED', 'amelia-cpt-sync'); ?></button>';
+                html += '</div>';
+            } else {
+                html += '<div class="resource-meta"><?php _e('Booked for this time', 'amelia-cpt-sync'); ?></div>';
+                
+                if (data.resources.next_available) {
+                    html += '<div class="resource-next-available">Next free: ' + data.resources.next_available + '</div>';
+                    html += '<div class="resource-action">';
+                    html += '<button onclick="jumpToTime(\'' + data.resources.next_available + '\')"><?php _e('Jump to Next Time', 'amelia-cpt-sync'); ?></button>';
+                    html += '</div>';
+                }
+            }
+            
+            html += '</div>';
+            
+            // Add block alert if resource unavailable
+            if (data.resource_block) {
+                html += '<div class="resource-block-alert">';
+                html += '<h5>⚠️ <?php _e('Resource Unavailable', 'amelia-cpt-sync'); ?></h5>';
+                html += '<p>' + (data.resource_message || '<?php _e('This resource is booked', 'amelia-cpt-sync'); ?>') + '</p>';
+                html += '<p><?php _e('All providers blocked (resource is the constraint)', 'amelia-cpt-sync'); ?></p>';
+                html += '</div>';
+            }
+        }
+        
+        // Future modes: shared_pool, quantity_pool, etc. will be added here
+        
+        $container.html(html);
+    }
+    
+    /**
+     * Show resource blocked message in provider column
+     */
+    function showResourceBlockedProviders(message) {
+        var html = '<div class="provider-blocked-by-resource">';
+        html += '<div style="text-align: center; padding: 40px 20px;">';
+        html += '<span class="dashicons dashicons-lock" style="font-size: 40px; color: #EF4444; opacity: 0.5;"></span>';
+        html += '<h4 style="color: #EF4444; margin: 16px 0 8px 0;"><?php _e('All Providers Blocked', 'amelia-cpt-sync'); ?></h4>';
+        html += '<p style="color: #64748B; font-size: 13px; margin: 0;">' + (message || '<?php _e('Resource unavailable', 'amelia-cpt-sync'); ?>') + '</p>';
+        html += '<p style="color: #94A3B8; font-size: 12px; margin-top: 12px; font-style: italic;"><?php _e('Providers cannot be assigned without the required resource.', 'amelia-cpt-sync'); ?></p>';
+        html += '</div>';
+        html += '</div>';
+        
+        $('#provider-list').html(html);
     }
     
     /**
@@ -6060,7 +6368,8 @@ jQuery(document).ready(function($) {
         var serviceId = $(this).val();
         
         if (!serviceId) {
-            $('#resource-section').hide();
+            resourceState.mode = 'none';
+            updatePickerModeClass('none');
             return;
         }
         
@@ -6072,15 +6381,41 @@ jQuery(document).ready(function($) {
             if (response.success && response.data.config) {
                 resourceState.config = response.data.config;
                 resourceState.mode = response.data.config.resource_mode || 'none';
-                
-                renderResourceSection();
             } else {
                 // No config - default to none
                 resourceState.mode = 'none';
-                $('#resource-section').hide();
             }
+            
+            updatePickerModeClass(resourceState.mode);
         });
     });
+    
+    /**
+     * Update picker container mode class for grid adjustments
+     */
+    function updatePickerModeClass(mode) {
+        $('.art-picker-container')
+            .removeClass('mode-none mode-mirrored mode-shared-pool mode-quantity-pool mode-provider-bound mode-location-bound mode-composite mode-hybrid')
+            .addClass('mode-' + mode);
+    }
+    
+    /**
+     * Jump to a specific time (from next available suggestion)
+     */
+    function jumpToTime(timeStr) {
+        console.log('Jump to time:', timeStr);
+        
+        // Parse time (format: "HH:MM" or "H:MM AM/PM")
+        var time24 = timeStr;
+        if (timeStr.includes('AM') || timeStr.includes('PM')) {
+            time24 = convertTo24Hour(timeStr);
+        }
+        
+        if (time24) {
+            $('#custom-time-input').val(time24).trigger('change');
+            // This will trigger updateProviderList which calls checkProviderAvailabilityEngine
+        }
+    }
     
     /**
      * Render resource section based on mode
