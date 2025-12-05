@@ -95,6 +95,7 @@ class ART_Resource_Hooks {
     /**
      * Handle service update
      *
+     * Auto-create resource if global default enabled and no resource exists
      * Sync mirrored resource name if configured
      *
      * @param array $service Service data
@@ -109,8 +110,60 @@ class ART_Resource_Hooks {
         
         amelia_cpt_sync_debug_log('ART Resource Hooks: Service #' . $service_id . ' updated');
         
-        // Sync mirrored resource if configured
-        $this->resource_manager->sync_mirrored_resource($service_id, $service_name);
+        // Check if service has a resource configuration
+        $config = $this->resource_manager->get_service_config($service_id);
+        
+        // Get global settings
+        $global_settings = get_option('art_resource_settings', array());
+        $default_mode = $global_settings['default_mode'] ?? 'none';
+        
+        if (!$config && $default_mode === 'mirrored') {
+            // Service updated but no config exists, and global default is mirrored
+            // Auto-create resource and config
+            amelia_cpt_sync_debug_log('ART Resource Hooks: Auto-creating mirrored resource for existing service (global default)');
+            
+            $resource_id = $this->resource_manager->auto_create_mirrored_resource($service_id);
+            
+            if (!is_wp_error($resource_id)) {
+                $this->resource_manager->save_service_config($service_id, array(
+                    'resource_mode' => 'mirrored',
+                    'mode_settings' => array(
+                        'auto_create' => true,
+                        'sync_name' => $global_settings['mirrored']['sync_name'] ?? true,
+                        'mirrored_resource_id' => $resource_id
+                    ),
+                    'conflict_handling' => 'strict'
+                ));
+                
+                amelia_cpt_sync_debug_log('ART Resource Hooks: Auto-created resource #' . $resource_id . ' for existing service #' . $service_id);
+            }
+        } elseif ($config && $config->resource_mode === 'mirrored') {
+            $mirrored_resource_id = $config->mode_settings['mirrored_resource_id'] ?? null;
+            
+            // If config exists but no resource linked, auto-create
+            if (!$mirrored_resource_id) {
+                amelia_cpt_sync_debug_log('ART Resource Hooks: Config exists but no resource linked, auto-creating');
+                
+                $resource_id = $this->resource_manager->auto_create_mirrored_resource($service_id);
+                
+                if (!is_wp_error($resource_id)) {
+                    // Update config with new resource ID
+                    $updated_settings = $config->mode_settings;
+                    $updated_settings['mirrored_resource_id'] = $resource_id;
+                    
+                    $this->resource_manager->save_service_config($service_id, array(
+                        'resource_mode' => 'mirrored',
+                        'mode_settings' => $updated_settings,
+                        'conflict_handling' => $config->conflict_handling
+                    ));
+                    
+                    amelia_cpt_sync_debug_log('ART Resource Hooks: Linked resource #' . $resource_id . ' to service #' . $service_id);
+                }
+            } else {
+                // Resource already linked, just sync name if configured
+                $this->resource_manager->sync_mirrored_resource($service_id, $service_name);
+            }
+        }
     }
     
     /**
