@@ -30,7 +30,7 @@ class ART_Booking_Orchestrator {
     /**
      * Availability Engine instance
      *
-     * @var ART_Availability_Engine
+     * @var Amelia_CPT_Sync_ART_Availability_Engine
      */
     private $availability_engine;
     
@@ -46,7 +46,7 @@ class ART_Booking_Orchestrator {
      */
     public function __construct() {
         $this->resource_manager = new ART_Resource_Manager();
-        $this->availability_engine = new ART_Availability_Engine();
+        $this->availability_engine = new Amelia_CPT_Sync_ART_Availability_Engine();
         $this->api_manager = new Amelia_CPT_Sync_ART_API_Manager();
     }
     
