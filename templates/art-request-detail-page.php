@@ -778,38 +778,39 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             
                             <!-- Date & Time Picker Container -->
                             <div class="art-picker-container <?php echo $show_timeslots_grid ? 'with-timegrid' : 'no-timegrid'; ?>">
-                                <!-- Column 1: Dates -->
-                                <div class="art-picker-dates" id="picker-dates-list">
-                                    <!-- Dates will be injected here -->
-                                    <div style="padding: 20px; text-align: center; color: #94A3B8;">
-                                        Loading dates...
-                                    </div>
-                                </div>
-                                
-                                <?php if ($show_timeslots_grid): ?>
-                                <!-- Column 2: Times (optional - controlled by setting) -->
-                                <div class="art-picker-times">
-                                    <div class="art-picker-times-header" id="picker-times-header">
-                                        Select a date to see times
-                                    </div>
-                                    <div class="art-time-grid" id="picker-times-grid">
-                                        <!-- Times will be injected here -->
-                                    </div>
-                                </div>
-                                <?php endif; ?>
-                                
-                                <!-- Column: Time Entry -->
-                                <div class="art-picker-time-entry">
+                                <!-- Column 1: Date & Time Combined -->
+                                <div class="art-picker-datetime-combined">
+                                    <!-- Time Entry Section (Top) -->
                                     <div class="art-picker-column-header">
-                                        <?php _e('Select Time', 'amelia-cpt-sync'); ?>
+                                        <?php _e('Select Date & Time', 'amelia-cpt-sync'); ?>
                                     </div>
-                                    <div class="art-picker-column-content">
-                                        <div class="time-entry-field">
-                                            <label for="custom-time-input"><?php _e('Enter Time', 'amelia-cpt-sync'); ?></label>
-                                            <input type="time" id="custom-time-input" class="form-input" disabled>
-                                            <p class="field-hint"><?php _e('Reference the calendar above', 'amelia-cpt-sync'); ?></p>
+                                    <div class="datetime-time-section">
+                                        <label for="custom-time-input" style="font-size: 12px; color: #64748B; margin-bottom: 6px; display: block;"><?php _e('Time', 'amelia-cpt-sync'); ?></label>
+                                        <input type="time" id="custom-time-input" class="form-input" disabled style="width: 100%; height: 40px;">
+                                    </div>
+                                    
+                                    <!-- Dates List (Below Time) -->
+                                    <div class="datetime-dates-section">
+                                        <label style="font-size: 12px; color: #64748B; margin: 12px 0 6px 0; display: block;"><?php _e('Date', 'amelia-cpt-sync'); ?></label>
+                                        <div class="art-picker-dates" id="picker-dates-list">
+                                            <!-- Dates will be injected here -->
+                                            <div style="padding: 20px; text-align: center; color: #94A3B8;">
+                                                Loading dates...
+                                            </div>
                                         </div>
                                     </div>
+                                    
+                                    <?php if ($show_timeslots_grid): ?>
+                                    <!-- Optional: Time Grid (can be hidden/shown) -->
+                                    <div class="datetime-timegrid-section" style="display: none;">
+                                        <div class="art-picker-times-header" id="picker-times-header">
+                                            Select a date to see times
+                                        </div>
+                                        <div class="art-time-grid" id="picker-times-grid">
+                                            <!-- Times will be injected here -->
+                                        </div>
+                                    </div>
+                                    <?php endif; ?>
                                 </div>
                                 
                                 <!-- Column: Resource Availability (NEW - Phase 1) -->
@@ -1411,18 +1412,39 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     margin-top: 16px;
 }
 
-/* 5-column layout (with time grid): Dates | Time Grid | Time Entry | Resources | Providers */
-.art-picker-container.with-timegrid {
-    grid-template-columns: 12% 1fr 14% 1fr 1fr;
+/* 3-column layout: Date&Time | Resources | Providers */
+.art-picker-container.with-timegrid,
+.art-picker-container.no-timegrid {
+    grid-template-columns: 30% 35% 35%;
     gap: 0;
-    /* Dates 12% | Time Grid (flex) | Time Entry 14% | Resources (flex) | Providers (flex) = 100% */
+    /* Date&Time 30% | Resources 35% | Providers 35% = 100% exactly */
 }
 
-/* 4-column layout (no time grid - default): Dates | Time Entry | Resources | Providers */
-.art-picker-container.no-timegrid {
-    grid-template-columns: 15% 15% 35% 35%;
-    gap: 0;
-    /* Dates 15% | Time Entry 15% | Resources 35% | Providers 35% = 100% exactly */
+/* Combined Date & Time Column */
+.art-picker-datetime-combined {
+    background: #F8FAFC;
+    border-right: 1px solid #E0E5F1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.datetime-time-section {
+    padding: 12px 16px;
+    border-bottom: 1px solid #E0E5F1;
+    background: #fff;
+}
+
+.datetime-dates-section {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+}
+
+.datetime-dates-section .art-picker-dates {
+    background: transparent;
+    border: none;
+    max-height: none;
 }
 
 /* Mode-specific adjustments: Hide resource column for modes that don't use it */
@@ -1431,14 +1453,10 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     display: none;
 }
 
-.art-picker-container.mode-none.no-timegrid {
-    grid-template-columns: 20% 20% 60%;
-    /* No resources column */
-}
-
+.art-picker-container.mode-none.no-timegrid,
 .art-picker-container.mode-none.with-timegrid {
-    grid-template-columns: 15% 1fr 20% 35%;
-    /* No resources column */
+    grid-template-columns: 35% 65%;
+    /* Date&Time 35% | Providers 65% (no resources) */
 }
 
 .art-picker-container.no-timegrid .art-picker-dates {
