@@ -278,6 +278,7 @@ class ART_Resource_Manager {
         ));
         
         if ($assignment) {
+            amelia_cpt_sync_debug_log('ART Resource: Appointment uses resource (from assignments table)');
             return true;
         }
         
@@ -286,7 +287,25 @@ class ART_Resource_Manager {
         
         foreach ($resources as $resource) {
             if (intval($resource['id'] ?? 0) === intval($resource_id)) {
+                amelia_cpt_sync_debug_log('ART Resource: Appointment uses resource (from Amelia resources field)');
                 return true;
+            }
+        }
+        
+        // For Mode 1 (Mirrored): Check if appointment is for the service that owns this resource
+        // Get resource config to check if it's mirrored mode
+        $resource = $this->get_resource($resource_id);
+        if (!is_wp_error($resource) && isset($resource['entities'])) {
+            foreach ($resource['entities'] as $entity) {
+                if (isset($entity['entityType']) && $entity['entityType'] === 'service') {
+                    $linked_service_id = $entity['entityId'];
+                    $appointment_service_id = $appointment['serviceId'] ?? null;
+                    
+                    if ($linked_service_id && $appointment_service_id && intval($linked_service_id) === intval($appointment_service_id)) {
+                        amelia_cpt_sync_debug_log('ART Resource: Appointment uses resource (Mode 1: service match - service #' . $appointment_service_id . ')');
+                        return true;
+                    }
+                }
             }
         }
         
