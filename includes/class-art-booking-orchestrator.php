@@ -250,15 +250,18 @@ class ART_Booking_Orchestrator {
             
             // Availability Engine returns providers array directly (not wrapped)
             amelia_cpt_sync_debug_log('ART Orchestrator: Provider check complete - ' . count($provider_result) . ' providers returned');
+            amelia_cpt_sync_debug_log('ART Orchestrator: Sample provider - ' . wp_json_encode(array_slice($provider_result, 0, 1)));
             
             $result['providers'] = $provider_result;  // Direct assignment
+            
+            amelia_cpt_sync_debug_log('ART Orchestrator: Assigned to result, count: ' . count($result['providers']));
             
         } catch (Exception $e) {
             amelia_cpt_sync_debug_log('ART Orchestrator: Provider check FAILED - ' . $e->getMessage());
             $result['providers'] = array();
         }
         
-        amelia_cpt_sync_debug_log('ART Orchestrator: Returning mirrored mode result');
+        amelia_cpt_sync_debug_log('ART Orchestrator: Returning mirrored mode result with ' . count($result['providers']) . ' providers');
         
         return $result;
     }
