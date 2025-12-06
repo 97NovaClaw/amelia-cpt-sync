@@ -311,12 +311,13 @@ class ART_Resource_Manager {
         
         $appointments = array();
         
-        // Flatten appointments by date
-        if (isset($response['data']['appointments']) && isset($response['data']['appointments'][$date])) {
-            foreach ($response['data']['appointments'][$date] as $appt) {
-                $appointments[] = $appt;
-            }
+        // Amelia returns appointments grouped by date with nested 'appointments' array
+        // Structure: data.appointments.{date}.appointments[]
+        if (isset($response['data']['appointments'][$date]['appointments'])) {
+            $appointments = $response['data']['appointments'][$date]['appointments'];
         }
+        
+        amelia_cpt_sync_debug_log('ART Resource: Extracted ' . count($appointments) . ' appointments from API response');
         
         return $appointments;
     }
