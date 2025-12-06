@@ -1413,14 +1413,16 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 
 /* 5-column layout (with time grid): Dates | Time Grid | Time Entry | Resources | Providers */
 .art-picker-container.with-timegrid {
-    grid-template-columns: 12% 1fr 16% 25% 25%;
-    /* Dates 12% | Time Grid (flex) | Time Entry 16% | Resources 25% | Providers 25% | Gap 1% */
+    grid-template-columns: 12% 1fr 14% 27% 27%;
+    gap: 1%;
+    /* Dates 12% | Time Grid (flex) | Time Entry 14% | Resources 27% | Providers 27% | Gap 5% */
 }
 
 /* 4-column layout (no time grid - default): Dates | Time Entry | Resources | Providers */
 .art-picker-container.no-timegrid {
-    grid-template-columns: 15% 15% 30% 30%;
-    /* Dates 15% | Time Entry 15% | Resources 30% | Providers 30% | Gap 10% */
+    grid-template-columns: 15% 15% 32% 32%;
+    gap: 1.5%;
+    /* Dates 15% | Time Entry 15% | Resources 32% | Providers 32% | Gap 6% = 100% */
 }
 
 /* Mode-specific adjustments: Hide resource column for modes that don't use it */
@@ -1836,21 +1838,31 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 }
 
 /* ========================================
-   RESOURCE COLUMN STYLES (NEW - Phase 1)
+   RESOURCE COLUMN STYLES (Match Provider Styling)
    ======================================== */
 
 .art-picker-resources {
-    background: #F8FAFC;
+    background: #fff;
     border-right: 1px solid #E0E5F1;
-    padding: 16px;
+    padding: 0;
     overflow-y: auto;
     max-height: 500px;
 }
 
-.art-resource-list {
+.art-picker-column-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #E0E5F1;
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    background: #F8FAFC;
     display: flex;
-    flex-direction: column;
-    gap: 12px;
+    align-items: center;
+    gap: 8px;
+}
+
+.art-resource-list {
+    padding: 12px;
 }
 
 .resource-placeholder {
@@ -1861,152 +1873,109 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     font-style: italic;
 }
 
-/* Resource Cards (same pattern as providers) */
-.resource-card {
-    padding: 14px;
-    background: #fff;
-    border: 2px solid #E0E5F1;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
+/* Resource Groups (match provider groups) */
+.resource-group {
+    margin-bottom: 12px;
 }
 
-.resource-card.selected {
-    border-color: #1A84EE;
-    background: #EFF6FF;
-    box-shadow: 0 2px 8px rgba(26, 132, 238, 0.15);
-}
-
-.resource-card.status-available {
-    border-left: 4px solid #10B981;
-}
-
-.resource-card.status-unavailable {
-    border-left: 4px solid #EF4444;
-    opacity: 0.7;
-    cursor: not-allowed;
-}
-
-.resource-card:not(.status-unavailable):hover {
-    border-color: #1A84EE;
-    box-shadow: 0 2px 8px rgba(26, 132, 238, 0.1);
-}
-
-.resource-card-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 8px;
-}
-
-.resource-status-icon {
-    font-size: 18px;
-    font-weight: bold;
-    line-height: 1;
-}
-
-.resource-status-icon.available {
-    color: #10B981;
-}
-
-.resource-status-icon.unavailable {
-    color: #EF4444;
-}
-
-.resource-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: #1E293B;
-    flex: 1;
-}
-
-.resource-meta {
-    font-size: 12px;
-    color: #64748B;
-    margin: 4px 0;
-}
-
-.resource-next-available {
+.resource-group-label {
     font-size: 11px;
-    color: #F59E0B;
-    margin-top: 6px;
-    font-weight: 500;
-}
-
-.resource-action {
-    margin-top: 10px;
-}
-
-.resource-action button {
-    width: 100%;
-    padding: 8px 14px;
-    background: #1A84EE;
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    font-size: 12px;
     font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 6px 12px;
+    background: #F1F5F9;
+    border-radius: 4px;
+    margin-bottom: 6px;
 }
 
-.resource-action button:hover {
-    background: #1570D1;
+.resource-group-label.available {
+    background: #DCFCE7;
+    color: #166534;
 }
 
-.resource-action button:disabled {
-    background: #E0E5F1;
-    color: #94A3B8;
-    cursor: not-allowed;
+.resource-group-label.warning {
+    background: #FEF3C7;
+    color: #92400E;
 }
 
-.resource-blocked-label {
-    display: block;
-    text-align: center;
-    padding: 8px;
+.resource-group-label.blocked {
     background: #FEE2E2;
     color: #991B1B;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
 }
 
-/* Resource Block Alert */
-.resource-block-alert {
-    padding: 14px;
-    background: #FEF3C7;
-    border: 2px solid #F59E0B;
-    border-radius: 6px;
-    margin-top: 12px;
-}
-
-.resource-block-alert h5 {
-    margin: 0 0 6px 0;
-    color: #92400E;
-    font-size: 13px;
-    font-weight: 600;
-}
-
-.resource-block-alert p {
-    margin: 0 0 8px 0;
-    font-size: 12px;
-    color: #78350F;
-    line-height: 1.4;
-}
-
-.resource-block-actions {
+/* Resource Items (match provider items exactly) */
+.resource-item {
     display: flex;
-    gap: 8px;
-    margin-top: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    margin: 4px 0;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: #fff;
 }
 
-.resource-block-actions button {
-    flex: 1;
-    padding: 6px 12px;
-    border-radius: 4px;
-    font-size: 11px;
+.resource-item:hover {
+    background: #F8FAFC;
+    border-color: #E0E5F1;
+}
+
+.resource-item.selected {
+    background: #EFF6FF;
+    border-color: #1A84EE;
+}
+
+.resource-item .resource-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
     font-weight: 600;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.resource-item .resource-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.resource-item .resource-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #1E293B;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.resource-item .resource-status {
+    font-size: 11px;
+    color: #64748B;
+}
+
+.resource-item .resource-meta {
+    font-size: 10px;
+    color: #94A3B8;
+    margin-top: 2px;
+    line-height: 1.3;
+}
+
+.resource-group.warning .resource-item .resource-meta {
+    color: #B45309;
+}
+
+/* Old resource card styles (legacy, can be removed) */
+.resource-card {
+    display: none; /* Using resource-item instead */
 }
 
 .card-body {
