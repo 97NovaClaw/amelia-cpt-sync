@@ -5189,7 +5189,7 @@ jQuery(document).ready(function($) {
     }
     
     /**
-     * Render resource availability column
+     * Render resource availability column (matches provider styling)
      */
     function renderResourceColumn(data) {
         var $container = $('#resource-status-list');
@@ -5206,38 +5206,37 @@ jQuery(document).ready(function($) {
             var resource = data.resources.assigned[0];
             var isAvailable = resource.status === 'available';
             
-            html += '<div class="resource-card status-' + resource.status + '">';
-            html += '<div class="resource-card-header">';
-            html += '<span class="resource-status-icon ' + resource.status + '">';
-            html += isAvailable ? '✓' : '✗';
-            html += '</span>';
-            html += '<span class="resource-name">' + resource.name + '</span>';
-            html += '</div>';
-            
+            // Group label (like providers)
             if (isAvailable) {
-                html += '<div class="resource-meta"><?php _e('Available for this time', 'amelia-cpt-sync'); ?></div>';
-                html += '<div class="resource-action">';
-                html += '<button disabled style="background:#10B981;"><?php _e('AUTO-ASSIGNED', 'amelia-cpt-sync'); ?></button>';
-                html += '</div>';
+                html += '<div class="resource-group">';
+                html += '<div class="resource-group-label available"><?php _e('✓ Available', 'amelia-cpt-sync'); ?></div>';
             } else {
-                html += '<div class="resource-meta"><?php _e('Booked for this time', 'amelia-cpt-sync'); ?></div>';
-                
-                if (data.resources.next_available) {
-                    html += '<div class="resource-next-available">Next free: ' + data.resources.next_available + '</div>';
-                    html += '<div class="resource-action">';
-                    html += '<button onclick="jumpToTime(\'' + data.resources.next_available + '\')"><?php _e('Jump to Next Time', 'amelia-cpt-sync'); ?></button>';
-                    html += '</div>';
-                }
+                html += '<div class="resource-group">';
+                html += '<div class="resource-group-label blocked"><?php _e('✗ Blocked', 'amelia-cpt-sync'); ?></div>';
+            }
+            
+            // Resource item (matches provider-item structure)
+            html += '<div class="resource-item">';
+            html += '<div class="resource-icon">';
+            html += isAvailable ? '✓' : '✗';
+            html += '</div>';
+            html += '<div class="resource-info">';
+            html += '<div class="resource-name">' + resource.name + '</div>';
+            html += '<div class="resource-status">' + (isAvailable ? '<?php _e('Available', 'amelia-cpt-sync'); ?>' : '<?php _e('Booked', 'amelia-cpt-sync'); ?>') + '</div>';
+            
+            if (!isAvailable && data.resources.next_available) {
+                html += '<div class="resource-meta">Next free: ' + data.resources.next_available + '</div>';
             }
             
             html += '</div>';
+            html += '</div>'; // Close resource-item
+            html += '</div>'; // Close resource-group
             
-            // Add block alert if resource unavailable
+            // Add alert if blocked
             if (data.resource_block) {
-                html += '<div class="resource-block-alert">';
-                html += '<h5>⚠️ <?php _e('Resource Unavailable', 'amelia-cpt-sync'); ?></h5>';
-                html += '<p>' + (data.resource_message || '<?php _e('This resource is booked', 'amelia-cpt-sync'); ?>') + '</p>';
-                html += '<p><?php _e('All providers blocked (resource is the constraint)', 'amelia-cpt-sync'); ?></p>';
+                html += '<div class="resource-block-alert" style="margin: 12px; padding: 12px; background: #FEF3C7; border: 2px solid #F59E0B; border-radius: 6px;">';
+                html += '<div style="color: #92400E; font-weight: 600; font-size: 12px; margin-bottom: 6px;">⚠️ <?php _e('All Providers Blocked', 'amelia-cpt-sync'); ?></div>';
+                html += '<div style="color: #78350F; font-size: 11px;">' + (data.resource_message || '<?php _e('This resource is booked', 'amelia-cpt-sync'); ?>') + '</div>';
                 html += '</div>';
             }
         }
