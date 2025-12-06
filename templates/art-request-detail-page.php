@@ -1413,16 +1413,16 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
 
 /* 5-column layout (with time grid): Dates | Time Grid | Time Entry | Resources | Providers */
 .art-picker-container.with-timegrid {
-    grid-template-columns: 12% 1fr 14% 27% 27%;
-    gap: 1%;
-    /* Dates 12% | Time Grid (flex) | Time Entry 14% | Resources 27% | Providers 27% | Gap 5% */
+    grid-template-columns: 12% 1fr 14% 1fr 1fr;
+    gap: 0;
+    /* Dates 12% | Time Grid (flex) | Time Entry 14% | Resources (flex) | Providers (flex) = 100% */
 }
 
 /* 4-column layout (no time grid - default): Dates | Time Entry | Resources | Providers */
 .art-picker-container.no-timegrid {
-    grid-template-columns: 15% 15% 32% 32%;
-    gap: 1.5%;
-    /* Dates 15% | Time Entry 15% | Resources 32% | Providers 32% | Gap 6% = 100% */
+    grid-template-columns: 15% 15% 35% 35%;
+    gap: 0;
+    /* Dates 15% | Time Entry 15% | Resources 35% | Providers 35% = 100% exactly */
 }
 
 /* Mode-specific adjustments: Hide resource column for modes that don't use it */
