@@ -179,6 +179,11 @@ class ART_Resource_Manager {
         
         amelia_cpt_sync_debug_log('ART Resource: Found ' . count($appointments) . ' appointments on ' . $date);
         
+        // Debug: Log first appointment structure
+        if (count($appointments) > 0) {
+            amelia_cpt_sync_debug_log('ART Resource: Sample appointment structure - ' . wp_json_encode(array_slice($appointments, 0, 1)));
+        }
+        
         // Convert time to minutes for comparison
         $request_start = $this->time_to_minutes($time);
         $request_end = $request_start + ($duration / 60);
@@ -187,8 +192,9 @@ class ART_Resource_Manager {
         
         // Check each appointment to see if it uses this resource
         $checked_count = 0;
-        foreach ($appointments as $appt) {
+        foreach ($appointments as $index => $appt) {
             $checked_count++;
+            amelia_cpt_sync_debug_log('ART Resource: Checking appointment index ' . $index . ', ID: ' . ($appt['id'] ?? 'NO ID'));
             
             // Check if this appointment uses this resource
             if (!$this->appointment_uses_resource($appt, $resource_id)) {
