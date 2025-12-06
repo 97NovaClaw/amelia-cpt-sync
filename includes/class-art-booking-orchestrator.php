@@ -162,7 +162,8 @@ class ART_Booking_Orchestrator {
             $params['location_id'] ?? null
         );
         
-        $result['providers'] = $provider_result['providers'] ?? array();
+        // Availability Engine returns providers array directly
+        $result['providers'] = $provider_result;
         
         return $result;
     }
