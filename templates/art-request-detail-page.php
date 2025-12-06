@@ -5102,7 +5102,7 @@ jQuery(document).ready(function($) {
         var providerList = $('#provider-list');
         var resourceList = $('#resource-status-list');
         var serviceId = $('#pillar-service').val();
-        var duration = $('#pillar-duration-hidden').val() || artDetailData.serviceDuration || 3600;
+        var duration = $('#pillar-duration-seconds').val() || artDetailData.serviceDuration || 3600;
         var locationId = $('#pillar-location').val() || 0;
         var persons = $('#pillar-persons').val() || 1;
         
