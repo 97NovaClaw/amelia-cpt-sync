@@ -247,9 +247,10 @@ class ART_Booking_Orchestrator {
                 $params['location_id'] ?? null
             );
             
-            amelia_cpt_sync_debug_log('ART Orchestrator: Provider check complete - ' . count($provider_result['providers'] ?? []) . ' providers');
+            // Availability Engine returns providers array directly (not wrapped)
+            amelia_cpt_sync_debug_log('ART Orchestrator: Provider check complete - ' . count($provider_result) . ' providers returned');
             
-            $result['providers'] = $provider_result['providers'] ?? array();
+            $result['providers'] = $provider_result;  // Direct assignment
             
         } catch (Exception $e) {
             amelia_cpt_sync_debug_log('ART Orchestrator: Provider check FAILED - ' . $e->getMessage());
