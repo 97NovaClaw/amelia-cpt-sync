@@ -276,6 +276,8 @@ class ART_Resource_Manager {
      * @return bool True if appointment uses this resource
      */
     private function appointment_uses_resource($appointment, $resource_id) {
+        amelia_cpt_sync_debug_log('ART Resource: Checking if appt #' . $appointment['id'] . ' uses resource #' . $resource_id);
+        
         // Check our assignments table first
         $assignments_table = $this->wpdb->prefix . 'art_resource_assignments';
         
@@ -289,6 +291,7 @@ class ART_Resource_Manager {
         ));
         
         if ($assignment) {
+            amelia_cpt_sync_debug_log('ART Resource: MATCH via art_resource_assignments');
             return true;
         }
         
@@ -298,26 +301,45 @@ class ART_Resource_Manager {
         
         foreach ($resources as $resource) {
             if (intval($resource['id'] ?? 0) === intval($resource_id)) {
+                amelia_cpt_sync_debug_log('ART Resource: MATCH via appointment resources field');
                 return true;
             }
         }
         
         // For Mode 1 (Mirrored): Check if appointment is for the service that owns this resource
         $resource = $this->get_resource($resource_id);
-        if (!is_wp_error($resource) && isset($resource['entities'])) {
-            foreach ($resource['entities'] as $entity) {
-                // New DTO format uses snake_case keys
-                if (isset($entity['entity_type']) && $entity['entity_type'] === 'service') {
-                    $linked_service_id = $entity['entity_id'];
-                    $appointment_service_id = $appointment['service_id'] ?? null;
-                    
-                    if ($linked_service_id && $appointment_service_id && intval($linked_service_id) === intval($appointment_service_id)) {
-                        return true;
-                    }
+        
+        amelia_cpt_sync_debug_log('ART Resource: Fetched resource #' . $resource_id . ' - ' . wp_json_encode($resource));
+        
+        if (is_wp_error($resource)) {
+            amelia_cpt_sync_debug_log('ART Resource: ERROR fetching resource - ' . $resource->get_error_message());
+            return false;
+        }
+        
+        if (!isset($resource['entities'])) {
+            amelia_cpt_sync_debug_log('ART Resource: No entities found for resource #' . $resource_id);
+            return false;
+        }
+        
+        amelia_cpt_sync_debug_log('ART Resource: Appointment service_id = ' . ($appointment['service_id'] ?? 'NULL'));
+        amelia_cpt_sync_debug_log('ART Resource: Resource entities = ' . wp_json_encode($resource['entities']));
+        
+        foreach ($resource['entities'] as $entity) {
+            // New DTO format uses snake_case keys
+            if (isset($entity['entity_type']) && $entity['entity_type'] === 'service') {
+                $linked_service_id = $entity['entity_id'];
+                $appointment_service_id = $appointment['service_id'] ?? null;
+                
+                amelia_cpt_sync_debug_log('ART Resource: Comparing service ' . $linked_service_id . ' === ' . $appointment_service_id);
+                
+                if ($linked_service_id && $appointment_service_id && intval($linked_service_id) === intval($appointment_service_id)) {
+                    amelia_cpt_sync_debug_log('ART Resource: MATCH - Appointment uses this resource!');
+                    return true;
                 }
             }
         }
         
+        amelia_cpt_sync_debug_log('ART Resource: NO MATCH - Appointment does not use this resource');
         return false;
     }
     
