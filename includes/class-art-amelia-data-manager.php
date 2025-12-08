@@ -185,6 +185,141 @@ class ART_Amelia_Data_Manager {
     }
 
     /**
+     * Get resource with linked entities (Direct DB)
+     *
+     * Replaces API call to /resources/{id}
+     * Fetches from wp_amelia_resources + wp_amelia_resources_to_entities
+     *
+     * @param int $resource_id Resource ID
+     * @return array|null Resource DTO or null
+     */
+    public function get_resource($resource_id) {
+        $cache_key = 'art_resource_' . $resource_id;
+        $cached = get_transient($cache_key);
+
+        if ($cached !== false) {
+            return $cached;
+        }
+
+        // Query resource with entity links
+        $query = "
+            SELECT 
+                r.id,
+                r.name,
+                r.quantity,
+                r.shared,
+                r.status,
+                rte.id AS entity_link_id,
+                rte.entityId,
+                rte.entityType
+            FROM {$this->wpdb->prefix}amelia_resources r
+            LEFT JOIN {$this->wpdb->prefix}amelia_resources_to_entities rte ON r.id = rte.resourceId
+            WHERE r.id = %d
+        ";
+
+        $rows = $this->wpdb->get_results($this->wpdb->prepare($query, $resource_id), ARRAY_A);
+
+        if (empty($rows)) {
+            return null;
+        }
+
+        // Normalize: group entities under single resource object
+        $dto = $this->normalize_resource_rows($rows);
+
+        // Cache for 1 hour
+        set_transient($cache_key, $dto, HOUR_IN_SECONDS);
+
+        return $dto;
+    }
+
+    /**
+     * Get all resources with linked entities (Direct DB)
+     *
+     * Replaces API call to /resources
+     *
+     * @return array Array of resource DTOs
+     */
+    public function get_all_resources() {
+        $cache_key = 'art_all_resources';
+        $cached = get_transient($cache_key);
+
+        if ($cached !== false) {
+            return $cached;
+        }
+
+        $query = "
+            SELECT 
+                r.id,
+                r.name,
+                r.quantity,
+                r.shared,
+                r.status,
+                rte.id AS entity_link_id,
+                rte.entityId,
+                rte.entityType
+            FROM {$this->wpdb->prefix}amelia_resources r
+            LEFT JOIN {$this->wpdb->prefix}amelia_resources_to_entities rte ON r.id = rte.resourceId
+            ORDER BY r.id, rte.id
+        ";
+
+        $rows = $this->wpdb->get_results($query, ARRAY_A);
+
+        if (empty($rows)) {
+            return [];
+        }
+
+        // Group rows by resource ID
+        $resources_by_id = [];
+        foreach ($rows as $row) {
+            $resource_id = $row['id'];
+            if (!isset($resources_by_id[$resource_id])) {
+                $resources_by_id[$resource_id] = [];
+            }
+            $resources_by_id[$resource_id][] = $row;
+        }
+
+        // Normalize each group
+        $dtos = [];
+        foreach ($resources_by_id as $resource_rows) {
+            $dtos[] = $this->normalize_resource_rows($resource_rows);
+        }
+
+        // Cache for 1 hour
+        set_transient($cache_key, $dtos, HOUR_IN_SECONDS);
+
+        return $dtos;
+    }
+
+    /**
+     * Get resources linked to a specific service (Direct DB)
+     *
+     * @param int $service_id Service ID
+     * @return array Array of resource DTOs
+     */
+    public function get_resources_for_service($service_id) {
+        $query = "
+            SELECT 
+                r.id,
+                r.name,
+                r.quantity,
+                r.shared,
+                r.status
+            FROM {$this->wpdb->prefix}amelia_resources r
+            JOIN {$this->wpdb->prefix}amelia_resources_to_entities rte ON r.id = rte.resourceId
+            WHERE rte.entityType = 'service' AND rte.entityId = %d
+        ";
+
+        $rows = $this->wpdb->get_results($this->wpdb->prepare($query, $service_id), ARRAY_A);
+
+        if (empty($rows)) {
+            return [];
+        }
+
+        // For this query, we don't need to group (1 row = 1 resource)
+        return array_map([$this, 'normalize_resource_simple'], $rows);
+    }
+
+    /**
      * Normalize appointment DB row to standard DTO
      *
      * @param array $row DB row
@@ -199,6 +334,55 @@ class ART_Amelia_Data_Manager {
             'resources' => [], // Resources column not available in DB (tracked via art_resource_assignments)
             'start_utc' => $row['start_utc'],
             'end_utc' => $row['end_utc'],
+            'status' => $row['status']
+        ];
+    }
+
+    /**
+     * Normalize multiple resource rows into single DTO
+     * (Handles JOINed data where 1 resource = multiple rows due to multiple entities)
+     *
+     * @param array $rows Multiple DB rows for same resource
+     * @return array Resource DTO
+     */
+    private function normalize_resource_rows($rows) {
+        // All rows have same resource data, different entity links
+        $first = $rows[0];
+
+        $dto = [
+            'id' => (int) $first['id'],
+            'name' => $first['name'],
+            'quantity' => (int) $first['quantity'],
+            'shared' => (bool) $first['shared'],
+            'status' => $first['status'],
+            'entities' => []
+        ];
+
+        // Collect all entity links
+        foreach ($rows as $row) {
+            if (!empty($row['entity_link_id'])) {
+                $dto['entities'][] = [
+                    'entity_type' => $row['entityType'],
+                    'entity_id' => (int) $row['entityId']
+                ];
+            }
+        }
+
+        return $dto;
+    }
+
+    /**
+     * Normalize simple resource row (no entity grouping needed)
+     *
+     * @param array $row DB row
+     * @return array Resource DTO
+     */
+    private function normalize_resource_simple($row) {
+        return [
+            'id' => (int) $row['id'],
+            'name' => $row['name'],
+            'quantity' => (int) $row['quantity'],
+            'shared' => (bool) $row['shared'],
             'status' => $row['status']
         ];
     }

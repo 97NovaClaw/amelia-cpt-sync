@@ -254,15 +254,9 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             
             amelia_cpt_sync_debug_log('ART Booking DB: Successfully created booking #' . $booking_id . ' (appointment #' . $appointment_id . ')');
             
-            // Trigger Amelia hooks for compatibility
-            $appointmentData = array(
-                'type' => 'appointment',
-                'bookingStart' => $booking_start_formatted,
-                'serviceId' => absint($booking_data['serviceId']),
-                'providerId' => absint($booking_data['providerId']),
-                'bookings' => $booking_data['bookings'],
-            );
-            do_action('amelia_after_booking_added', $appointmentData);
+            // Trigger comprehensive Amelia hooks for full integration support
+            $hook_trigger = new ART_Amelia_Hook_Trigger();
+            $hook_trigger->trigger_appointment_added($appointment_id);
             
             // Return in same format as API response
             return array(
@@ -519,8 +513,9 @@ class Amelia_CPT_Sync_ART_Booking_Service {
         
         amelia_cpt_sync_debug_log('ART Booking DB: Successfully updated appointment #' . $appointment_id);
         
-        // Trigger Amelia hook for compatibility
-        do_action('amelia_after_appointment_updated', $appointment_id, $update_data);
+        // Trigger comprehensive hooks
+        $hook_trigger = new ART_Amelia_Hook_Trigger();
+        $hook_trigger->trigger_appointment_updated($appointment_id);
         
         return array(
             'message' => 'Successfully updated appointment',
@@ -643,8 +638,9 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             
             amelia_cpt_sync_debug_log('ART Booking DB: Successfully deleted appointment #' . $appointment_id);
             
-            // Trigger Amelia hook for compatibility
-            do_action('amelia_after_appointment_deleted', $appointment);
+            // Trigger comprehensive hooks
+            $hook_trigger = new ART_Amelia_Hook_Trigger();
+            $hook_trigger->trigger_appointment_deleted($appointment_id);
             
             return array(
                 'message' => 'Successfully deleted appointment',

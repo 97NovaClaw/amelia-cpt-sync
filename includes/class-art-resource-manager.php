@@ -282,8 +282,9 @@ class ART_Resource_Manager {
         $resource = $this->get_resource($resource_id);
         if (!is_wp_error($resource) && isset($resource['entities'])) {
             foreach ($resource['entities'] as $entity) {
-                if (isset($entity['entityType']) && $entity['entityType'] === 'service') {
-                    $linked_service_id = $entity['entityId'];
+                // New DTO format uses snake_case keys
+                if (isset($entity['entity_type']) && $entity['entity_type'] === 'service') {
+                    $linked_service_id = $entity['entity_id'];
                     $appointment_service_id = $appointment['service_id'] ?? null;
                     
                     if ($linked_service_id && $appointment_service_id && intval($linked_service_id) === intval($appointment_service_id)) {
@@ -527,25 +528,19 @@ class ART_Resource_Manager {
     }
     
     /**
-     * Get a single resource from cache or API
+     * Get a single resource (Direct DB via Data Manager)
      *
      * @param int $resource_id Resource ID
      * @return array|WP_Error Resource data or error
      */
     public function get_resource($resource_id) {
-        $all_resources = $this->resource_api->get_resources();
+        $resource = $this->data_manager->get_resource($resource_id);
         
-        if (is_wp_error($all_resources)) {
-            return $all_resources;
+        if ($resource === null) {
+            return new WP_Error('not_found', 'Resource not found');
         }
         
-        foreach ($all_resources as $resource) {
-            if (intval($resource['id']) === intval($resource_id)) {
-                return $resource;
-            }
-        }
-        
-        return new WP_Error('not_found', 'Resource not found');
+        return $resource;
     }
     
     /**
