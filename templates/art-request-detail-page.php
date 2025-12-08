@@ -5161,7 +5161,19 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    handleOrchestratorResult(response.data);
+                    try {
+                        handleOrchestratorResult(response.data);
+                    } catch (error) {
+                        console.error('ART Frontend Error in handleOrchestratorResult:', error);
+                        console.error('Response data:', response.data);
+                        providerList.html(
+                            '<div class="provider-error">' +
+                                '<span class="dashicons dashicons-warning"></span> ' +
+                                '<?php _e('Error displaying results. Check browser console.', 'amelia-cpt-sync'); ?>' +
+                            '</div>'
+                        );
+                        resourceList.html('<div class="resource-placeholder"><?php _e('JavaScript error occurred', 'amelia-cpt-sync'); ?></div>');
+                    }
                 } else {
                     providerList.html(
                         '<div class="provider-error">' +
@@ -5172,7 +5184,9 @@ jQuery(document).ready(function($) {
                     resourceList.html('<div class="resource-placeholder"><?php _e('Error checking resources', 'amelia-cpt-sync'); ?></div>');
                 }
             },
-            error: function() {
+            error: function(jqXHR, textStatus, errorThrown) {
+                console.error('ART AJAX Error:', textStatus, errorThrown);
+                console.error('Response:', jqXHR.responseText);
                 providerList.html(
                     '<div class="provider-error">' +
                         '<span class="dashicons dashicons-warning"></span> ' +
@@ -5286,6 +5300,13 @@ jQuery(document).ready(function($) {
     function renderAvailabilityEngineResults(providers, hasError, errorMessage) {
         var providerList = $('#provider-list');
         var html = '';
+        
+        // Safety check: ensure providers is an array
+        if (!providers || !Array.isArray(providers)) {
+            console.error('ART: providers is not an array:', providers);
+            providerList.html('<div class="provider-error"><?php _e('Invalid provider data received', 'amelia-cpt-sync'); ?></div>');
+            return;
+        }
         
         // Show warning if there was an error
         if (hasError && errorMessage) {
