@@ -693,8 +693,8 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
      */
     private function format_time_range($start_utc, $end_utc) {
         // UTC FIREWALL: Convert UTC to WordPress timezone for display
-        $start_local = ART_Time_Helper::to_wp_timezone($start_utc, 'g:i A');
-        $end_local = ART_Time_Helper::to_wp_timezone($end_utc, 'g:i A');
+        $start_local = ART_Time_Helper::to_local($start_utc, 'g:i A');
+        $end_local = ART_Time_Helper::to_local($end_utc, 'g:i A');
         
         return $start_local . ' - ' . $end_local;
     }
