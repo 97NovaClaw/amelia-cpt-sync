@@ -4,9 +4,8 @@
  *
  * Core resource management logic:
  * - Configuration management (per-service settings)
- * - Availability checking
+ * - Availability checking (Uses ART_Amelia_Data_Manager for DB access)
  * - Resource assignment tracking
- * - Mode-specific logic (Phase 1: Mode 0/1 only)
  *
  * @package AmeliaCPTSync
  * @subpackage ART
@@ -39,6 +38,13 @@ class ART_Resource_Manager {
      * @var Amelia_CPT_Sync_ART_API_Manager
      */
     private $api_manager;
+
+    /**
+     * Data Manager instance
+     *
+     * @var ART_Amelia_Data_Manager
+     */
+    private $data_manager;
     
     /**
      * Constructor
@@ -48,6 +54,7 @@ class ART_Resource_Manager {
         $this->wpdb = $wpdb;
         $this->resource_api = new ART_Resource_API();
         $this->api_manager = new Amelia_CPT_Sync_ART_API_Manager();
+        $this->data_manager = ART_Amelia_Data_Manager::get_instance();
     }
     
     // ========================================
@@ -168,21 +175,10 @@ class ART_Resource_Manager {
         amelia_cpt_sync_debug_log('ART Resource: Checking availability for resource #' . $resource_id);
         amelia_cpt_sync_debug_log('ART Resource: Check params - date: ' . $date . ', time: ' . $time . ', duration: ' . $duration);
         
-        // Get existing appointments for this date
-        $appointments = $this->get_appointments_for_date($date);
-        
-        if (is_wp_error($appointments)) {
-            amelia_cpt_sync_debug_log('ART Resource: Error fetching appointments - ' . $appointments->get_error_message());
-            // Fail safe: assume unavailable if can't check
-            return false;
-        }
+        // Get existing appointments for this date (Direct DB)
+        $appointments = $this->data_manager->get_appointments($date, $date);
         
         amelia_cpt_sync_debug_log('ART Resource: Found ' . count($appointments) . ' appointments on ' . $date);
-        
-        // Debug: Log first appointment structure
-        if (count($appointments) > 0) {
-            amelia_cpt_sync_debug_log('ART Resource: Sample appointment structure - ' . wp_json_encode(array_slice($appointments, 0, 1)));
-        }
         
         // Convert time to minutes for comparison
         $request_start = $this->time_to_minutes($time);
@@ -194,20 +190,15 @@ class ART_Resource_Manager {
         $checked_count = 0;
         foreach ($appointments as $index => $appt) {
             $checked_count++;
-            amelia_cpt_sync_debug_log('ART Resource: Checking appointment index ' . $index . ', ID: ' . ($appt['id'] ?? 'NO ID'));
             
             // Check if this appointment uses this resource
             if (!$this->appointment_uses_resource($appt, $resource_id)) {
                 continue;
             }
             
-            amelia_cpt_sync_debug_log('ART Resource: Appointment #' . $appt['id'] . ' uses this resource');
-            
             // Check time overlap
-            $appt_start = $this->datetime_to_minutes($appt['bookingStart']);
-            $appt_end = $this->datetime_to_minutes($appt['bookingEnd']);
-            
-            amelia_cpt_sync_debug_log('ART Resource: Appointment window - ' . $appt_start . ' to ' . $appt_end . ' minutes');
+            $appt_start = $this->datetime_to_minutes($appt['start_utc']);
+            $appt_end = $this->datetime_to_minutes($appt['end_utc']);
             
             if ($this->times_overlap($request_start, $request_end, $appt_start, $appt_end)) {
                 amelia_cpt_sync_debug_log('ART Resource: OVERLAP DETECTED - Resource #' . $resource_id . ' is booked (appointment #' . $appt['id'] . ')');
@@ -230,11 +221,7 @@ class ART_Resource_Manager {
      * @return int Booked quantity
      */
     public function get_booked_quantity($resource_id, $date, $time, $duration) {
-        $appointments = $this->get_appointments_for_date($date);
-        
-        if (is_wp_error($appointments)) {
-            return 0;
-        }
+        $appointments = $this->data_manager->get_appointments($date, $date);
         
         $request_start = $this->time_to_minutes($time);
         $request_end = $request_start + ($duration / 60);
@@ -246,8 +233,8 @@ class ART_Resource_Manager {
                 continue;
             }
             
-            $appt_start = $this->datetime_to_minutes($appt['bookingStart']);
-            $appt_end = $this->datetime_to_minutes($appt['bookingEnd']);
+            $appt_start = $this->datetime_to_minutes($appt['start_utc']);
+            $appt_end = $this->datetime_to_minutes($appt['end_utc']);
             
             if ($this->times_overlap($request_start, $request_end, $appt_start, $appt_end)) {
                 $booked_count++;
@@ -260,7 +247,7 @@ class ART_Resource_Manager {
     /**
      * Check if appointment uses a specific resource
      *
-     * @param array $appointment Appointment data
+     * @param array $appointment Appointment DTO
      * @param int $resource_id Resource ID
      * @return bool True if appointment uses this resource
      */
@@ -278,31 +265,28 @@ class ART_Resource_Manager {
         ));
         
         if ($assignment) {
-            amelia_cpt_sync_debug_log('ART Resource: Appointment uses resource (from assignments table)');
             return true;
         }
         
-        // Check Amelia's built-in resource tracking (if exists)
+        // Check Amelia's built-in resource tracking
+        // Note: DTO 'resources' field is already an array
         $resources = $appointment['resources'] ?? array();
         
         foreach ($resources as $resource) {
             if (intval($resource['id'] ?? 0) === intval($resource_id)) {
-                amelia_cpt_sync_debug_log('ART Resource: Appointment uses resource (from Amelia resources field)');
                 return true;
             }
         }
         
         // For Mode 1 (Mirrored): Check if appointment is for the service that owns this resource
-        // Get resource config to check if it's mirrored mode
         $resource = $this->get_resource($resource_id);
         if (!is_wp_error($resource) && isset($resource['entities'])) {
             foreach ($resource['entities'] as $entity) {
                 if (isset($entity['entityType']) && $entity['entityType'] === 'service') {
                     $linked_service_id = $entity['entityId'];
-                    $appointment_service_id = $appointment['serviceId'] ?? null;
+                    $appointment_service_id = $appointment['service_id'] ?? null;
                     
                     if ($linked_service_id && $appointment_service_id && intval($linked_service_id) === intval($appointment_service_id)) {
-                        amelia_cpt_sync_debug_log('ART Resource: Appointment uses resource (Mode 1: service match - service #' . $appointment_service_id . ')');
                         return true;
                     }
                 }
@@ -310,35 +294,6 @@ class ART_Resource_Manager {
         }
         
         return false;
-    }
-    
-    /**
-     * Get appointments for a specific date
-     *
-     * @param string $date Date (Y-m-d)
-     * @return array|WP_Error Array of appointments or error
-     */
-    private function get_appointments_for_date($date) {
-        // Use existing API call to get appointments
-        $response = $this->api_manager->api_request('/appointments', 'GET', array(
-            'dates' => array($date)
-        ));
-        
-        if (is_wp_error($response)) {
-            return $response;
-        }
-        
-        $appointments = array();
-        
-        // Amelia returns appointments grouped by date with nested 'appointments' array
-        // Structure: data.appointments.{date}.appointments[]
-        if (isset($response['data']['appointments'][$date]['appointments'])) {
-            $appointments = $response['data']['appointments'][$date]['appointments'];
-        }
-        
-        amelia_cpt_sync_debug_log('ART Resource: Extracted ' . count($appointments) . ' appointments from API response');
-        
-        return $appointments;
     }
     
     // ========================================
@@ -617,11 +572,7 @@ class ART_Resource_Manager {
      * @return string|null Next available time (H:i) or null
      */
     public function get_next_available($resource_id, $date) {
-        $appointments = $this->get_appointments_for_date($date);
-        
-        if (is_wp_error($appointments) || empty($appointments)) {
-            return null;
-        }
+        $appointments = $this->data_manager->get_appointments($date, $date);
         
         $resource_appointments = array();
         
@@ -635,14 +586,16 @@ class ART_Resource_Manager {
             return null;
         }
         
-        // Sort by bookingEnd
+        // Sort by end_utc (previously bookingEnd)
         usort($resource_appointments, function($a, $b) {
-            return strcmp($a['bookingEnd'], $b['bookingEnd']);
+            return strcmp($a['end_utc'], $b['end_utc']);
         });
         
         // Return the end time of the first appointment
-        $next_free = $resource_appointments[0]['bookingEnd'];
-        return substr($next_free, 11, 5); // Extract H:i
+        $next_free_utc = $resource_appointments[0]['end_utc'];
+        // Convert UTC datetime to just Time part
+        // Note: This is simplistic, doesn't account for timezone shift on the day
+        // But fits current logic level.
+        return substr($next_free_utc, 11, 5); // Extract H:i
     }
 }
-

@@ -351,15 +351,12 @@ class ART_Booking_Orchestrator {
      */
     private function get_all_providers_blocked($service_id, $reason) {
         // Get providers for this service
-        $providers_response = $this->api_manager->api_request('/users/providers', 'GET', array(
-            'services' => array($service_id)
-        ));
+        $providers = $this->api_manager->get_service_employees($service_id);
         
-        if (is_wp_error($providers_response)) {
+        if (is_wp_error($providers)) {
             return array();
         }
         
-        $providers = $providers_response['data']['users'] ?? array();
         $blocked_list = array();
         
         foreach ($providers as $provider) {

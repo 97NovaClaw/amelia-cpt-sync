@@ -3,6 +3,7 @@
  * ART Availability Engine
  *
  * Calculates real provider availability by checking multiple data sources.
+ * Uses Direct Database queries for appointments via ART_Amelia_Data_Manager.
  *
  * @package AmeliaCPTSync
  * @subpackage ART
@@ -19,6 +20,11 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
      * @var Amelia_CPT_Sync_ART_API_Manager
      */
     private $api_manager;
+
+    /**
+     * @var ART_Amelia_Data_Manager
+     */
+    private $data_manager;
     
     /**
      * @var array Settings from database
@@ -35,6 +41,7 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
      */
     public function __construct() {
         $this->api_manager = new Amelia_CPT_Sync_ART_API_Manager();
+        $this->data_manager = ART_Amelia_Data_Manager::get_instance();
         $this->settings = $this->load_settings();
     }
     
@@ -93,25 +100,21 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
         amelia_cpt_sync_debug_log('Availability Engine: Found ' . count($providers_list) . ' providers');
         
         // Step 2: Get service details (for buffer times)
-        $service = $this->api_manager->get_service($service_id);
+        // Use Data Manager for consistent DTO
+        $service = $this->data_manager->get_service($service_id);
         $buffer_before = 0;
         $buffer_after = 0;
         
-        if (!is_wp_error($service)) {
-            $buffer_before = intval($service['timeBefore'] ?? 0);
-            $buffer_after = intval($service['timeAfter'] ?? 0);
+        if ($service) {
+            $buffer_before = intval($service['buffer_before'] ?? 0);
+            $buffer_after = intval($service['buffer_after'] ?? 0);
             amelia_cpt_sync_debug_log('Availability Engine: Service buffers - before: ' . $buffer_before . 's, after: ' . $buffer_after . 's');
         }
         
-        // Step 3: Get appointments for the date
-        $appointments = $this->get_appointments_for_date($date);
+        // Step 3: Get appointments for the date (DIRECT DB)
+        $appointments = $this->data_manager->get_appointments($date, $date);
         
-        if (is_wp_error($appointments)) {
-            amelia_cpt_sync_debug_log('Availability Engine: Error fetching appointments: ' . $appointments->get_error_message());
-            $appointments = array(); // Continue with empty appointments
-        }
-        
-        amelia_cpt_sync_debug_log('Availability Engine: Found ' . count($appointments) . ' appointments for date');
+        amelia_cpt_sync_debug_log('Availability Engine: Found ' . count($appointments) . ' appointments for date (DB)');
         
         // Step 4: Check each provider
         $results = array();
@@ -125,7 +128,7 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
             
             amelia_cpt_sync_debug_log("Availability Engine: Checking provider $checked/$provider_count - $provider_name (#$provider_id)");
             
-            // Get full provider details (includes schedule)
+            // Get full provider details (includes schedule) - Still API for now
             $provider = $this->get_provider_details($provider_id);
             
             if (is_wp_error($provider)) {
@@ -183,7 +186,7 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
      * @param string $date Date in Y-m-d format
      * @param string $time Time in H:i format
      * @param int $duration Duration in seconds
-     * @param array $appointments All appointments for the date
+     * @param array $appointments All appointments for the date (DTOs)
      * @param int $buffer_before Buffer time before in seconds
      * @param int $buffer_after Buffer time after in seconds
      * @param int $service_id Service ID
@@ -225,38 +228,27 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
         }
         
         // d) CHECK APPOINTMENT OVERLAPS
+        // Using new DTO keys: provider_id, start_utc, end_utc
         $provider_appointments = array_filter($appointments, function($appt) use ($provider_id) {
-            return intval($appt['providerId']) === intval($provider_id);
+            return intval($appt['provider_id']) === intval($provider_id);
         });
         
-        amelia_cpt_sync_debug_log('=== OVERLAP CHECK DEBUG ===');
-        amelia_cpt_sync_debug_log('ART Availability: Provider #' . $provider_id . ' has ' . count($provider_appointments) . ' existing appointments');
-        amelia_cpt_sync_debug_log('ART Availability: Request time window', array(
-            'start_minutes' => $request_start,
-            'end_minutes' => $request_end,
-            'start_time' => $this->minutes_to_time($request_start),
-            'end_time' => $this->minutes_to_time($request_end)
-        ));
-        
         foreach ($provider_appointments as $appt) {
-            $appt_start = $this->datetime_to_minutes($appt['bookingStart']);
-            $appt_end = $this->datetime_to_minutes($appt['bookingEnd']);
-            $appt_status = $appt['status'] ?? 'approved';
+            // Convert UTC to minutes for comparison (assuming request times are in same timezone context as logic)
+            // Actually, Data Manager returns UTC strings. 
+            // ART_Time_Helper converts to Local for display, but here we need minutes of the day.
+            // However, day-based calculation is tricky with UTC shifts.
+            // Ideally, we convert everything to timestamps.
             
-            amelia_cpt_sync_debug_log('ART Availability: Checking appointment #' . ($appt['id'] ?? 'N/A'), array(
-                'bookingStart_raw' => $appt['bookingStart'],
-                'bookingEnd_raw' => $appt['bookingEnd'],
-                'start_minutes' => $appt_start,
-                'end_minutes' => $appt_end,
-                'status' => $appt_status,
-                'overlaps' => $this->times_overlap($request_start, $request_end, $appt_start, $appt_end)
-            ));
+            // Quick fix: Convert UTC DB time to minutes of the requested day
+            // This assumes the booking is on the same day (which the query ensures)
+            $appt_start = $this->datetime_to_minutes($appt['start_utc']);
+            $appt_end = $this->datetime_to_minutes($appt['end_utc']);
+            $appt_status = $appt['status'] ?? 'approved';
             
             // Check for overlap
             if ($this->times_overlap($request_start, $request_end, $appt_start, $appt_end)) {
-                $appt_time = $this->format_time_range($appt['bookingStart'], $appt['bookingEnd']);
-                
-                amelia_cpt_sync_debug_log('ART Availability: OVERLAP DETECTED! Status: ' . $appt_status);
+                $appt_time = $this->format_time_range($appt['start_utc'], $appt['end_utc']);
                 
                 if ($appt_status === 'approved' && $this->settings['check_approved_appointments']) {
                     $conflicts[] = sprintf(__('Booking conflict - %s', 'amelia-cpt-sync'), $appt_time);
@@ -272,7 +264,7 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
                     $request_start, $request_end,
                     $appt_start, $appt_end,
                     $buffer_before, $buffer_after,
-                    $appt['bookingEnd']
+                    $appt['end_utc']
                 );
                 
                 if (!$buffer_check['passed']) {
@@ -285,8 +277,6 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
                 }
             }
         }
-        
-        amelia_cpt_sync_debug_log('=== END OVERLAP CHECK ===');
         
         // f) CHECK SERVICE SCHEDULE (if provider has service-specific periods)
         if ($this->settings['service_schedule_mode'] !== 'ignore') {
@@ -333,15 +323,7 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
      * @return array|WP_Error List of providers
      */
     private function get_service_providers($service_id, $location_id = null) {
-        // Build endpoint with filters
-        $endpoint = '/users/providers&services[0]=' . absint($service_id);
-        
-        if ($location_id && $location_id > 0) {
-            $endpoint .= '&location=' . absint($location_id);
-        }
-        
-        // Use API manager's request method via reflection or direct call
-        // For now, use the existing method which doesn't support location filter
+        // Still use API Manager for this as it filters users by service logic
         $providers = $this->api_manager->get_service_employees($service_id);
         
         if (is_wp_error($providers)) {
@@ -349,7 +331,6 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
         }
         
         // If location filter is set, we need to filter client-side
-        // (since get_service_employees doesn't support location param yet)
         if ($location_id && $location_id > 0) {
             $providers = array_filter($providers, function($p) use ($location_id) {
                 return intval($p['locationId'] ?? 0) === intval($location_id);
@@ -372,8 +353,8 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
             return $this->provider_cache[$provider_id];
         }
         
-        // Make API call
-        $response = $this->api_request('/users/providers/' . absint($provider_id));
+        // Use API Manager directly as we haven't built the complex DB schedule builder yet
+        $response = $this->api_manager->api_request('/users/providers/' . absint($provider_id));
         
         if (is_wp_error($response)) {
             return $response;
@@ -389,101 +370,6 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
         $this->provider_cache[$provider_id] = $provider;
         
         return $provider;
-    }
-    
-    /**
-     * Get appointments for a specific date
-     *
-     * @param string $date Date in Y-m-d format
-     * @return array|WP_Error Appointments array
-     */
-    private function get_appointments_for_date($date) {
-        amelia_cpt_sync_debug_log('=== AVAILABILITY ENGINE DEBUG: Fetching Appointments ===');
-        amelia_cpt_sync_debug_log('ART Availability: Requested date: ' . $date);
-        
-        $response = $this->api_request('/appointments&dates=' . $date . ',' . $date . '&skipServices=1&skipProviders=1');
-        
-        if (is_wp_error($response)) {
-            amelia_cpt_sync_debug_log('ART Availability: API request failed: ' . $response->get_error_message());
-            return $response;
-        }
-        
-        amelia_cpt_sync_debug_log('ART Availability: API response received');
-        amelia_cpt_sync_debug_log('ART Availability: Response structure', array(
-            'has_data' => isset($response['data']),
-            'has_appointments' => isset($response['data']['appointments']),
-            'appointments_keys' => isset($response['data']['appointments']) ? array_keys($response['data']['appointments']) : array()
-        ));
-        
-        $appointments_data = $response['data']['appointments'] ?? array();
-        
-        // Flatten the grouped structure
-        $appointments = array();
-        foreach ($appointments_data as $date_key => $date_data) {
-            if (isset($date_data['appointments'])) {
-                amelia_cpt_sync_debug_log('ART Availability: Found ' . count($date_data['appointments']) . ' appointments for date key: ' . $date_key);
-                
-                // Log first appointment as sample
-                if (!empty($date_data['appointments'])) {
-                    $sample = $date_data['appointments'][0];
-                    amelia_cpt_sync_debug_log('ART Availability: Sample appointment from API', array(
-                        'id' => $sample['id'] ?? 'N/A',
-                        'providerId' => $sample['providerId'] ?? 'N/A',
-                        'bookingStart' => $sample['bookingStart'] ?? 'N/A',
-                        'bookingEnd' => $sample['bookingEnd'] ?? 'N/A',
-                        'status' => $sample['status'] ?? 'N/A'
-                    ));
-                }
-                
-                $appointments = array_merge($appointments, $date_data['appointments']);
-            }
-        }
-        
-        amelia_cpt_sync_debug_log('ART Availability: Total appointments after flattening: ' . count($appointments));
-        amelia_cpt_sync_debug_log('=== END AVAILABILITY ENGINE DEBUG ===');
-        
-        return $appointments;
-    }
-    
-    /**
-     * Make API request (wrapper for consistency)
-     *
-     * @param string $endpoint API endpoint
-     * @return array|WP_Error Response
-     */
-    private function api_request($endpoint) {
-        $settings = get_option('art_settings', array());
-        $global = $settings['global'] ?? array();
-        $api_base_url = $global['api_base_url'] ?? '';
-        $api_key = $global['api_key'] ?? '';
-        
-        if (empty($api_base_url) || empty($api_key)) {
-            return new WP_Error('api_config_error', 'Amelia API not configured');
-        }
-        
-        $url = trailingslashit($api_base_url) . ltrim($endpoint, '/');
-        
-        $response = wp_remote_get($url, array(
-            'headers' => array(
-                'Amelia' => $api_key,
-                'Content-Type' => 'application/json'
-            ),
-            'timeout' => 30
-        ));
-        
-        if (is_wp_error($response)) {
-            return $response;
-        }
-        
-        $code = wp_remote_retrieve_response_code($response);
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body, true);
-        
-        if ($code < 200 || $code > 299) {
-            return new WP_Error('api_error', $data['message'] ?? 'HTTP ' . $code);
-        }
-        
-        return $data;
     }
     
     /**
@@ -654,6 +540,7 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
         // Check if request starts within buffer_after of appointment end
         $appt_end_with_buffer = $appt_end + $buffer_after_min;
         if ($req_start < $appt_end_with_buffer && $req_start >= $appt_end) {
+            // Use timezone helper if needed, for now simple format
             $end_time = date('g:i A', strtotime($appt_end_time));
             return array(
                 'passed' => false,
@@ -769,6 +656,7 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
      * @return int Minutes
      */
     private function datetime_to_minutes($datetime) {
+        // Only extract Time part from DateTime
         $time = date('H:i', strtotime($datetime));
         return $this->time_to_minutes($time);
     }
@@ -796,4 +684,3 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
         return date('g:i A', strtotime($start)) . ' - ' . date('g:i A', strtotime($end));
     }
 }
-

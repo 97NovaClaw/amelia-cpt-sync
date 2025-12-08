@@ -135,6 +135,8 @@ require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-sync-handler.php';
 
 // Load ART module classes
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-database-manager.php';
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-time-helper.php'; // New Time Helper
+require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-amelia-data-manager.php'; // New Data Manager
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-admin-settings.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-form-config-manager.php';
 require_once AMELIA_CPT_SYNC_PLUGIN_DIR . 'includes/class-art-form-parser.php';
