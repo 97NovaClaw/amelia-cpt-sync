@@ -175,10 +175,25 @@ class ART_Resource_Manager {
         amelia_cpt_sync_debug_log('ART Resource: Checking availability for resource #' . $resource_id);
         amelia_cpt_sync_debug_log('ART Resource: Check params - date: ' . $date . ', time: ' . $time . ', duration: ' . $duration);
         
-        // Get existing appointments for this date (Direct DB)
-        $appointments = $this->data_manager->get_appointments($date, $date);
+        // UTC FIREWALL: Convert local datetime to UTC to determine correct date range
+        $local_datetime = $date . ' ' . $time . ':00';
+        $start_utc = ART_Time_Helper::to_utc($local_datetime);
         
-        amelia_cpt_sync_debug_log('ART Resource: Found ' . count($appointments) . ' appointments on ' . $date);
+        // Calculate end time in UTC
+        $end_timestamp = strtotime($start_utc) + $duration;
+        $end_utc = gmdate('Y-m-d H:i:s', $end_timestamp);
+        
+        // Extract date range (might span multiple days in UTC)
+        $start_date = substr($start_utc, 0, 10);
+        $end_date = substr($end_utc, 0, 10);
+        
+        amelia_cpt_sync_debug_log('ART Resource: UTC range - ' . $start_utc . ' to ' . $end_utc);
+        amelia_cpt_sync_debug_log('ART Resource: Fetching appointments from ' . $start_date . ' to ' . $end_date);
+        
+        // Get existing appointments for the UTC date range (Direct DB)
+        $appointments = $this->data_manager->get_appointments($start_date, $end_date);
+        
+        amelia_cpt_sync_debug_log('ART Resource: Found ' . count($appointments) . ' appointments in date range');
         
         // Convert time to minutes for comparison
         $request_start = $this->time_to_minutes($time);
@@ -221,7 +236,16 @@ class ART_Resource_Manager {
      * @return int Booked quantity
      */
     public function get_booked_quantity($resource_id, $date, $time, $duration) {
-        $appointments = $this->data_manager->get_appointments($date, $date);
+        // UTC FIREWALL: Calculate UTC date range
+        $local_datetime = $date . ' ' . $time . ':00';
+        $start_utc = ART_Time_Helper::to_utc($local_datetime);
+        $end_timestamp = strtotime($start_utc) + $duration;
+        $end_utc = gmdate('Y-m-d H:i:s', $end_timestamp);
+        
+        $start_date = substr($start_utc, 0, 10);
+        $end_date = substr($end_utc, 0, 10);
+        
+        $appointments = $this->data_manager->get_appointments($start_date, $end_date);
         
         $request_start = $this->time_to_minutes($time);
         $request_end = $request_start + ($duration / 60);
@@ -567,7 +591,9 @@ class ART_Resource_Manager {
      * @return string|null Next available time (H:i) or null
      */
     public function get_next_available($resource_id, $date) {
-        $appointments = $this->data_manager->get_appointments($date, $date);
+        // Fetch appointments for the day (and potentially next day if overnight)
+        $next_date = date('Y-m-d', strtotime($date . ' +1 day'));
+        $appointments = $this->data_manager->get_appointments($date, $next_date);
         
         $resource_appointments = array();
         

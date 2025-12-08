@@ -111,10 +111,21 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
             amelia_cpt_sync_debug_log('Availability Engine: Service buffers - before: ' . $buffer_before . 's, after: ' . $buffer_after . 's');
         }
         
-        // Step 3: Get appointments for the date (DIRECT DB)
-        $appointments = $this->data_manager->get_appointments($date, $date);
+        // Step 3: Get appointments for the date range (DIRECT DB)
+        // UTC FIREWALL: Calculate UTC date range to catch overnight appointments
+        $local_datetime = $date . ' ' . $time . ':00';
+        $start_utc = ART_Time_Helper::to_utc($local_datetime);
+        $end_timestamp = strtotime($start_utc) + $duration_seconds;
+        $end_utc = gmdate('Y-m-d H:i:s', $end_timestamp);
         
-        amelia_cpt_sync_debug_log('Availability Engine: Found ' . count($appointments) . ' appointments for date (DB)');
+        $start_date = substr($start_utc, 0, 10);
+        $end_date = substr($end_utc, 0, 10);
+        
+        amelia_cpt_sync_debug_log('Availability Engine: UTC range - ' . $start_utc . ' to ' . $end_utc);
+        
+        $appointments = $this->data_manager->get_appointments($start_date, $end_date);
+        
+        amelia_cpt_sync_debug_log('Availability Engine: Found ' . count($appointments) . ' appointments for date range (DB)');
         
         // Step 4: Check each provider
         $results = array();
