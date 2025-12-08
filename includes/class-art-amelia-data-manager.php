@@ -74,7 +74,6 @@ class ART_Amelia_Data_Manager {
                 serviceId AS service_id, 
                 providerId AS provider_id, 
                 locationId AS location_id, 
-                resources,
                 bookingStart AS start_utc, 
                 bookingEnd AS end_utc, 
                 status
@@ -197,7 +196,7 @@ class ART_Amelia_Data_Manager {
             'service_id' => (int) $row['service_id'],
             'provider_id' => (int) $row['provider_id'],
             'location_id' => $row['location_id'] ? (int) $row['location_id'] : null,
-            'resources' => !empty($row['resources']) ? json_decode($row['resources'], true) : [],
+            'resources' => [], // Resources column not available in DB (tracked via art_resource_assignments)
             'start_utc' => $row['start_utc'],
             'end_utc' => $row['end_utc'],
             'status' => $row['status']
