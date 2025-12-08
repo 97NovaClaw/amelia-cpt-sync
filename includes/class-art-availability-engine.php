@@ -685,13 +685,17 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
     }
     
     /**
-     * Format time range for display
+     * Format time range for display (UTC to Local conversion)
      *
-     * @param string $start Start datetime
-     * @param string $end End datetime
-     * @return string Formatted range
+     * @param string $start_utc Start datetime (UTC)
+     * @param string $end_utc End datetime (UTC)
+     * @return string Formatted range in WordPress local timezone
      */
-    private function format_time_range($start, $end) {
-        return date('g:i A', strtotime($start)) . ' - ' . date('g:i A', strtotime($end));
+    private function format_time_range($start_utc, $end_utc) {
+        // UTC FIREWALL: Convert UTC to WordPress timezone for display
+        $start_local = ART_Time_Helper::to_wp_timezone($start_utc, 'g:i A');
+        $end_local = ART_Time_Helper::to_wp_timezone($end_utc, 'g:i A');
+        
+        return $start_local . ' - ' . $end_local;
     }
 }
