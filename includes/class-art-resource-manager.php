@@ -195,11 +195,11 @@ class ART_Resource_Manager {
         
         amelia_cpt_sync_debug_log('ART Resource: Found ' . count($appointments) . ' appointments in date range');
         
-        // Convert time to minutes for comparison
-        $request_start = $this->time_to_minutes($time);
-        $request_end = $request_start + ($duration / 60);
+        // Convert UTC strings to timestamps for accurate comparison
+        $request_start_timestamp = strtotime($start_utc);
+        $request_end_timestamp = strtotime($end_utc);
         
-        amelia_cpt_sync_debug_log('ART Resource: Request window - ' . $request_start . ' to ' . $request_end . ' minutes');
+        amelia_cpt_sync_debug_log('ART Resource: Request UTC timestamps - ' . $request_start_timestamp . ' to ' . $request_end_timestamp);
         
         // Check each appointment to see if it uses this resource
         $checked_count = 0;
@@ -211,11 +211,14 @@ class ART_Resource_Manager {
                 continue;
             }
             
-            // Check time overlap
-            $appt_start = $this->datetime_to_minutes($appt['start_utc']);
-            $appt_end = $this->datetime_to_minutes($appt['end_utc']);
+            // Check time overlap using UTC timestamps
+            $appt_start_timestamp = strtotime($appt['start_utc']);
+            $appt_end_timestamp = strtotime($appt['end_utc']);
             
-            if ($this->times_overlap($request_start, $request_end, $appt_start, $appt_end)) {
+            amelia_cpt_sync_debug_log('ART Resource: Appt #' . $appt['id'] . ' UTC timestamps - ' . $appt_start_timestamp . ' to ' . $appt_end_timestamp);
+            
+            // Overlap if: (request_start < appt_end) AND (request_end > appt_start)
+            if ($request_start_timestamp < $appt_end_timestamp && $request_end_timestamp > $appt_start_timestamp) {
                 amelia_cpt_sync_debug_log('ART Resource: OVERLAP DETECTED - Resource #' . $resource_id . ' is booked (appointment #' . $appt['id'] . ')');
                 return false;
             }
@@ -247,8 +250,9 @@ class ART_Resource_Manager {
         
         $appointments = $this->data_manager->get_appointments($start_date, $end_date);
         
-        $request_start = $this->time_to_minutes($time);
-        $request_end = $request_start + ($duration / 60);
+        // Convert UTC strings to timestamps for accurate comparison
+        $request_start_timestamp = strtotime($start_utc);
+        $request_end_timestamp = strtotime($end_utc);
         
         $booked_count = 0;
         
@@ -257,10 +261,11 @@ class ART_Resource_Manager {
                 continue;
             }
             
-            $appt_start = $this->datetime_to_minutes($appt['start_utc']);
-            $appt_end = $this->datetime_to_minutes($appt['end_utc']);
+            $appt_start_timestamp = strtotime($appt['start_utc']);
+            $appt_end_timestamp = strtotime($appt['end_utc']);
             
-            if ($this->times_overlap($request_start, $request_end, $appt_start, $appt_end)) {
+            // Overlap if: (request_start < appt_end) AND (request_end > appt_start)
+            if ($request_start_timestamp < $appt_end_timestamp && $request_end_timestamp > $appt_start_timestamp) {
                 $booked_count++;
             }
         }
