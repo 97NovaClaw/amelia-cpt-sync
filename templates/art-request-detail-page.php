@@ -6538,7 +6538,8 @@ jQuery(document).ready(function($) {
      * Get resource summary for booking display
      */
     function getResourceSummary() {
-        if (resourceState.mode === 'none') {
+        // Safety check: resourceState might not be initialized yet
+        if (typeof resourceState === 'undefined' || !resourceState || resourceState.mode === 'none') {
             return null;
         }
         
