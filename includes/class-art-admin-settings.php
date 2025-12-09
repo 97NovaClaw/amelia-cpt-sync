@@ -1964,7 +1964,8 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
                 'location_id' => absint($_POST['location_id'] ?? 0),
                 'persons' => absint($_POST['persons'] ?? 1),
                 'selected_resources' => $_POST['selected_resources'] ?? array(),
-                'selected_provider_id' => absint($_POST['selected_provider_id'] ?? 0)
+                'selected_provider_id' => absint($_POST['selected_provider_id'] ?? 0),
+                'exclude_appointment_id' => absint($_POST['exclude_appointment_id'] ?? 0)
             );
             
             amelia_cpt_sync_debug_log('ART Orchestrator AJAX: Params received - ' . wp_json_encode($params));

@@ -98,6 +98,12 @@ class ART_Amelia_Data_Manager {
             $params[] = $filters['service_id'];
         }
 
+        // Exclude specific appointment (for self-blocking prevention)
+        if (!empty($filters['exclude_id'])) {
+            $query .= " AND id != %d";
+            $params[] = $filters['exclude_id'];
+        }
+
         $query .= " ORDER BY bookingStart ASC";
 
         $results = $this->wpdb->get_results($this->wpdb->prepare($query, $params), ARRAY_A);

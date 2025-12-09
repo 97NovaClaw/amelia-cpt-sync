@@ -169,9 +169,10 @@ class ART_Resource_Manager {
      * @param string $date Date (Y-m-d)
      * @param string $time Time (H:i)
      * @param int $duration Duration in seconds
+     * @param int $exclude_appointment_id Optional appointment ID to exclude (for self-blocking prevention)
      * @return bool True if available
      */
-    public function is_resource_available($resource_id, $date, $time, $duration) {
+    public function is_resource_available($resource_id, $date, $time, $duration, $exclude_appointment_id = null) {
         amelia_cpt_sync_debug_log('ART Resource: Checking availability for resource #' . $resource_id);
         amelia_cpt_sync_debug_log('ART Resource: Check params - date: ' . $date . ', time: ' . $time . ', duration: ' . $duration);
         
@@ -191,7 +192,13 @@ class ART_Resource_Manager {
         amelia_cpt_sync_debug_log('ART Resource: Fetching appointments from ' . $start_date . ' to ' . $end_date);
         
         // Get existing appointments for the UTC date range (Direct DB)
-        $appointments = $this->data_manager->get_appointments($start_date, $end_date);
+        $filters = [];
+        if ($exclude_appointment_id) {
+            $filters['exclude_id'] = $exclude_appointment_id;
+            amelia_cpt_sync_debug_log('ART Resource: Excluding appointment #' . $exclude_appointment_id . ' from check');
+        }
+        
+        $appointments = $this->data_manager->get_appointments($start_date, $end_date, $filters);
         
         amelia_cpt_sync_debug_log('ART Resource: Found ' . count($appointments) . ' appointments in date range');
         
@@ -329,17 +336,17 @@ class ART_Resource_Manager {
         amelia_cpt_sync_debug_log('ART Resource: Appointment service_id = ' . ($appointment['service_id'] ?? 'NULL'));
         amelia_cpt_sync_debug_log('ART Resource: Resource entities = ' . wp_json_encode($resource['entities']));
         
-        foreach ($resource['entities'] as $entity) {
+            foreach ($resource['entities'] as $entity) {
             // New DTO format uses snake_case keys
             if (isset($entity['entity_type']) && $entity['entity_type'] === 'service') {
                 $linked_service_id = $entity['entity_id'];
                 $appointment_service_id = $appointment['service_id'] ?? null;
                 
                 amelia_cpt_sync_debug_log('ART Resource: Comparing service ' . $linked_service_id . ' === ' . $appointment_service_id);
-                
-                if ($linked_service_id && $appointment_service_id && intval($linked_service_id) === intval($appointment_service_id)) {
+                    
+                    if ($linked_service_id && $appointment_service_id && intval($linked_service_id) === intval($appointment_service_id)) {
                     amelia_cpt_sync_debug_log('ART Resource: MATCH - Appointment uses this resource!');
-                    return true;
+                        return true;
                 }
             }
         }
@@ -591,7 +598,7 @@ class ART_Resource_Manager {
             return new WP_Error('not_found', 'Resource not found');
         }
         
-        return $resource;
+                return $resource;
     }
     
     /**

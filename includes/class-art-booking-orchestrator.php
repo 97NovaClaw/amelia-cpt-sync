@@ -153,13 +153,16 @@ class ART_Booking_Orchestrator {
         // No resource checks, just run provider availability
         $result['resources'] = null;
         
-        // Get provider availability
+        // Get provider availability (exclude current appointment if editing)
+        $exclude_id = !empty($params['exclude_appointment_id']) ? $params['exclude_appointment_id'] : null;
+        
         $provider_result = $this->availability_engine->check_availability(
             $params['date'],
             $params['time'],
             $params['service_id'],
             $params['duration'],
-            $params['location_id'] ?? null
+            $params['location_id'] ?? null,
+            $exclude_id
         );
         
         // Availability Engine returns providers array directly
@@ -192,12 +195,15 @@ class ART_Booking_Orchestrator {
             return $result;
         }
         
-        // Check resource availability
+        // Check resource availability (exclude current appointment if editing)
+        $exclude_id = !empty($params['exclude_appointment_id']) ? $params['exclude_appointment_id'] : null;
+        
         $is_available = $this->resource_manager->is_resource_available(
             $resource_id,
             $params['date'],
             $params['time'],
-            $params['duration']
+            $params['duration'],
+            $exclude_id
         );
         
         // Get resource details
@@ -238,14 +244,17 @@ class ART_Booking_Orchestrator {
         amelia_cpt_sync_debug_log('ART Orchestrator: Mirrored resource AVAILABLE - ' . $resource_name);
         amelia_cpt_sync_debug_log('ART Orchestrator: Proceeding to provider availability check');
         
-        // Resource available, proceed with provider check
+        // Resource available, proceed with provider check (exclude current appointment if editing)
         try {
+            $exclude_id = !empty($params['exclude_appointment_id']) ? $params['exclude_appointment_id'] : null;
+            
             $provider_result = $this->availability_engine->check_availability(
                 $params['date'],
                 $params['time'],
                 $params['service_id'],
                 $params['duration'],
-                $params['location_id'] ?? null
+                $params['location_id'] ?? null,
+                $exclude_id
             );
             
             // Availability Engine returns providers array directly (not wrapped)

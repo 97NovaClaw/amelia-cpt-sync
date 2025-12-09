@@ -74,9 +74,10 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
      * @param int $service_id Amelia service ID
      * @param int $duration_seconds Service duration in seconds
      * @param int|null $location_id Optional location ID to filter by
+     * @param int|null $exclude_appointment_id Optional appointment ID to exclude (for self-blocking prevention)
      * @return array|WP_Error Array of provider availability or error
      */
-    public function check_availability($date, $time, $service_id, $duration_seconds, $location_id = null) {
+    public function check_availability($date, $time, $service_id, $duration_seconds, $location_id = null, $exclude_appointment_id = null) {
         amelia_cpt_sync_debug_log('Availability Engine: Starting check', array(
             'date' => $date,
             'time' => $time,
@@ -123,7 +124,13 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
         
         amelia_cpt_sync_debug_log('Availability Engine: UTC range - ' . $start_utc . ' to ' . $end_utc);
         
-        $appointments = $this->data_manager->get_appointments($start_date, $end_date);
+        $filters = [];
+        if ($exclude_appointment_id) {
+            $filters['exclude_id'] = $exclude_appointment_id;
+            amelia_cpt_sync_debug_log('Availability Engine: Excluding appointment #' . $exclude_appointment_id . ' from check');
+        }
+        
+        $appointments = $this->data_manager->get_appointments($start_date, $end_date, $filters);
         
         amelia_cpt_sync_debug_log('Availability Engine: Found ' . count($appointments) . ' appointments for date range (DB)');
         

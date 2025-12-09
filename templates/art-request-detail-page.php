@@ -5145,6 +5145,11 @@ jQuery(document).ready(function($) {
         );
         
         // Call Booking Orchestrator (unified availability check)
+        // If there's an active booking, exclude it from conflict detection (prevent self-blocking)
+        var excludeAppointmentId = (artDetailData.hasActiveBooking && artDetailData.activeBooking && artDetailData.activeBooking.appointmentId) 
+            ? artDetailData.activeBooking.appointmentId 
+            : 0;
+        
         $.ajax({
             url: ajaxurl,
             type: 'POST',
@@ -5157,12 +5162,13 @@ jQuery(document).ready(function($) {
                 duration: duration,
                 location_id: locationId,
                 persons: persons,
-                selected_resources: getSelectedResources()
+                selected_resources: getSelectedResources(),
+                exclude_appointment_id: excludeAppointmentId
             },
             success: function(response) {
                 if (response.success) {
                     try {
-                        handleOrchestratorResult(response.data);
+                    handleOrchestratorResult(response.data);
                     } catch (error) {
                         console.error('ART Frontend Error in handleOrchestratorResult:', error);
                         console.error('Response data:', response.data);
