@@ -4432,6 +4432,14 @@ jQuery(document).ready(function($) {
      */
     if (artDetailData.hasActiveBooking && artDetailData.existingBookedDateTime) {
         artDetailData.providers[artDetailData.existingBookedProviderId] = artDetailData.existingBookedProviderName;
+        
+        // Auto-trigger availability check to populate Resource + Provider columns
+        // The exclude_appointment_id prevents self-blocking
+        console.log('ART DEBUG: Auto-checking availability for existing booking');
+        setTimeout(function() {
+            checkAvailability();
+        }, 500); // Small delay to ensure DOM is ready
+        
         selectSlot({
             datetime: artDetailData.existingBookedDateTime,
             provider_id: artDetailData.existingBookedProviderId,
