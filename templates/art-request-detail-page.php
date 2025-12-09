@@ -4437,8 +4437,12 @@ jQuery(document).ready(function($) {
         // The exclude_appointment_id prevents self-blocking
         console.log('ART DEBUG: Auto-checking availability for existing booking');
         setTimeout(function() {
-            checkAvailability();
-        }, 500); // Small delay to ensure DOM is ready
+            if (typeof checkAvailability !== 'undefined') {
+                checkAvailability();
+            } else {
+                console.warn('ART: checkAvailability not yet defined, skipping auto-trigger');
+            }
+        }, 1000); // Small delay to ensure all functions are declared
         
         selectSlot({
             datetime: artDetailData.existingBookedDateTime,
@@ -5154,8 +5158,8 @@ jQuery(document).ready(function($) {
         
         // Call Booking Orchestrator (unified availability check)
         // If there's an active booking, exclude it from conflict detection (prevent self-blocking)
-        var excludeAppointmentId = (artDetailData.hasActiveBooking && artDetailData.activeBooking && artDetailData.activeBooking.appointmentId) 
-            ? artDetailData.activeBooking.appointmentId 
+        var excludeAppointmentId = (artDetailData.hasActiveBooking && artDetailData.activeAppointmentId) 
+            ? artDetailData.activeAppointmentId 
             : 0;
         
         $.ajax({
