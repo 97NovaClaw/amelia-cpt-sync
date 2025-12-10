@@ -5349,7 +5349,18 @@ jQuery(document).ready(function($) {
             var isAvailable = resource.status === 'available';
             
             // Group label (adapt based on viewing mode)
-            var isCurrentBooking = (bookingViewState.mode === 'current' && artDetailData.hasActiveBooking && isAvailable);
+            var isCurrentBooking = (typeof bookingViewState !== 'undefined' && 
+                                   bookingViewState.mode === 'current' && 
+                                   artDetailData.hasActiveBooking && 
+                                   isAvailable);
+            
+            console.log('ART Resource Label Debug:', {
+                bookingViewStateExists: typeof bookingViewState !== 'undefined',
+                mode: typeof bookingViewState !== 'undefined' ? bookingViewState.mode : 'undefined',
+                hasActiveBooking: artDetailData.hasActiveBooking,
+                isAvailable: isAvailable,
+                isCurrentBooking: isCurrentBooking
+            });
             
             if (isCurrentBooking) {
                 // Viewing current booking - show "Currently Selected"
