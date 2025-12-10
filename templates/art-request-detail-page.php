@@ -3173,7 +3173,8 @@ jQuery(document).ready(function($) {
         originalTime: artDetailData.existingBookedTime,
         originalService: artDetailData.currentService,
         originalDuration: artDetailData.currentDuration,
-        originalLocation: artDetailData.currentLocation
+        originalLocation: artDetailData.currentLocation,
+        isAutoPopulating: false  // Track if we're in auto-population to prevent mode switch
     };
     
     /**
@@ -4516,6 +4517,9 @@ jQuery(document).ready(function($) {
      * Auto-populate availability engine with existing booking details on page load
      */
     if (artDetailData.hasActiveBooking && artDetailData.existingBookedDateTime) {
+        // Set auto-populating flag to prevent mode switching during initialization
+        bookingViewState.isAutoPopulating = true;
+        
         artDetailData.providers[artDetailData.existingBookedProviderId] = artDetailData.existingBookedProviderName;
         
         // Auto-trigger availability check to populate Resource + Provider columns
@@ -4535,6 +4539,13 @@ jQuery(document).ready(function($) {
             location_id: artDetailData.existingBookedLocationId || 0,
             date: artDetailData.existingBookedDate
         }, artDetailData.existingBookedTime);
+        
+        // Clear auto-populating flag after initialization
+        setTimeout(function() {
+            bookingViewState.isAutoPopulating = false;
+            bookingViewState.mode = 'current'; // Ensure we stay in current mode
+            console.log('ART: Auto-population complete, mode locked to current');
+        }, 1500);
     }
     
     /**
