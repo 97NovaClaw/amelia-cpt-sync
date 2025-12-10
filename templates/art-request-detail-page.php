@@ -749,6 +749,11 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                     <?php _e('Check Availability', 'amelia-cpt-sync'); ?>
                                 </button>
                                 
+                                <button type="button" id="btn-reset-to-current" class="btn-secondary" style="display: none;">
+                                    <span class="dashicons dashicons-image-rotate"></span>
+                                    <?php _e('Reset to Current Booking', 'amelia-cpt-sync'); ?>
+                                </button>
+                                
                                 <button type="button" id="btn-toggle-calendar" class="btn-secondary" style="display: none;">
                                     <span class="dashicons dashicons-visibility"></span>
                                     <?php _e('Show Calendar', 'amelia-cpt-sync'); ?>
@@ -3153,6 +3158,81 @@ jQuery(document).ready(function($) {
         existingBookedLocationId: <?php echo !empty($active_booking->location_id) ? intval($active_booking->location_id) : 'null'; ?>
     };
     
+    // ========================================
+    // BOOKING VIEW STATE MANAGEMENT
+    // ========================================
+    
+    /**
+     * Track whether user is viewing current booking or exploring alternatives
+     * - 'current': Shows "Currently Selected" labels, allows comparison
+     * - 'exploring': Standard availability display (Available/Unavailable)
+     */
+    var bookingViewState = {
+        mode: artDetailData.hasActiveBooking ? 'current' : 'exploring',
+        originalDate: artDetailData.existingBookedDate,
+        originalTime: artDetailData.existingBookedTime,
+        originalService: artDetailData.currentService,
+        originalDuration: artDetailData.currentDuration,
+        originalLocation: artDetailData.currentLocation
+    };
+    
+    /**
+     * Check if current values differ from original booking
+     */
+    function hasBookingChanges() {
+        if (!artDetailData.hasActiveBooking) return false;
+        
+        var currentDate = $('#pillar-start-datetime').val() ? $('#pillar-start-datetime').val().split('T')[0] : null;
+        var currentTime = $('#custom-time-input').val();
+        var currentService = $('#pillar-service').val();
+        
+        return (currentDate !== bookingViewState.originalDate) ||
+               (currentTime !== bookingViewState.originalTime) ||
+               (currentService != bookingViewState.originalService);
+    }
+    
+    /**
+     * Switch to exploring mode
+     */
+    function enterExploringMode() {
+        if (bookingViewState.mode === 'exploring') return;
+        
+        bookingViewState.mode = 'exploring';
+        console.log('ART: Switched to EXPLORING mode');
+        $('#btn-reset-to-current').fadeIn();
+    }
+    
+    /**
+     * Reset to current booking view
+     */
+    function resetToCurrentBooking() {
+        if (!artDetailData.hasActiveBooking) return;
+        
+        console.log('ART: Resetting to CURRENT booking');
+        
+        // Restore original values
+        if (bookingViewState.originalService) {
+            $('#pillar-service').val(bookingViewState.originalService).trigger('change');
+        }
+        
+        if (bookingViewState.originalDate && bookingViewState.originalTime) {
+            var datetime = bookingViewState.originalDate + 'T' + bookingViewState.originalTime;
+            $('#pillar-start-datetime').val(datetime);
+            $('#custom-time-input').val(bookingViewState.originalTime);
+        }
+        
+        // Switch mode
+        bookingViewState.mode = 'current';
+        $('#btn-reset-to-current').fadeOut();
+        
+        // Re-trigger availability check
+        setTimeout(function() {
+            if (typeof checkAvailability !== 'undefined') {
+                checkAvailability();
+            }
+        }, 300);
+    }
+    
     // === HELPER: Show Notice ===
     function showNotice(message, type) {
         var noticeClass = type === 'success' ? 'notice-success' : 'notice-error';
@@ -3240,6 +3320,11 @@ jQuery(document).ready(function($) {
         if (serviceCategoryId) {
             // Auto-update category to match service
             $('#pillar-category').val(serviceCategoryId);
+        }
+        
+        // Check if this change moves us away from current booking
+        if (artDetailData.hasActiveBooking && hasBookingChanges()) {
+            enterExploringMode();
         }
         
         // Phase 5: Fetch and display service duration
@@ -4570,6 +4655,13 @@ jQuery(document).ready(function($) {
     }
     
     /**
+     * Reset to Current Booking Button
+     */
+    $('#btn-reset-to-current').on('click', function() {
+        resetToCurrentBooking();
+    });
+    
+    /**
      * Tentative Booking Button
      */
     $('#btn-tentative-booking').on('click', function() {
@@ -5256,8 +5348,15 @@ jQuery(document).ready(function($) {
             var resource = data.resources.assigned[0];
             var isAvailable = resource.status === 'available';
             
-            // Group label (like providers)
-            if (isAvailable) {
+            // Group label (adapt based on viewing mode)
+            var isCurrentBooking = (bookingViewState.mode === 'current' && artDetailData.hasActiveBooking && isAvailable);
+            
+            if (isCurrentBooking) {
+                // Viewing current booking - show "Currently Selected"
+                html += '<div class="resource-group">';
+                html += '<div class="resource-group-label" style="background: #E0E7FF; color: #4338CA; border-left: 3px solid #4338CA;">';
+                html += '<span class="dashicons dashicons-saved"></span> <?php _e('Currently Selected Resource', 'amelia-cpt-sync'); ?></div>';
+            } else if (isAvailable) {
                 html += '<div class="resource-group">';
                 html += '<div class="resource-group-label available"><?php _e('✓ Available', 'amelia-cpt-sync'); ?></div>';
             } else {
@@ -5593,6 +5692,11 @@ jQuery(document).ready(function($) {
     $('#custom-time-input').on('change input', function() {
         updateProviderList();
         
+        // Check if this moves us away from current booking
+        if (artDetailData.hasActiveBooking && hasBookingChanges()) {
+            enterExploringMode();
+        }
+        
         // UPDATE: Also update hidden datetime input
         var activeDateBtn = $('#picker-dates-list .art-picker-date-btn.active');
         var customTime = $(this).val();
@@ -5607,6 +5711,11 @@ jQuery(document).ready(function($) {
     // Also update when date is selected
     $(document).on('click', '.art-picker-date-btn', function() {
         setTimeout(function() {
+            // Check if this moves us away from current booking
+            if (artDetailData.hasActiveBooking && hasBookingChanges()) {
+                enterExploringMode();
+            }
+            
             updateProviderList();
             
             // UPDATE: Also update hidden datetime input
