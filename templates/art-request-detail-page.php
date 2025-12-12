@@ -3171,9 +3171,7 @@ jQuery(document).ready(function($) {
         mode: artDetailData.hasActiveBooking ? 'current' : 'exploring',
         originalDate: artDetailData.existingBookedDate,
         originalTime: artDetailData.existingBookedTime,
-        originalService: artDetailData.currentService,
-        originalDuration: artDetailData.currentDuration,
-        originalLocation: artDetailData.currentLocation,
+        originalServiceId: artDetailData.activeServiceId,
         isAutoPopulating: false  // Track if we're in auto-population to prevent mode switch
     };
     
@@ -3183,19 +3181,27 @@ jQuery(document).ready(function($) {
     function hasBookingChanges() {
         if (!artDetailData.hasActiveBooking) return false;
         
-        var currentDate = $('#pillar-start-datetime').val() ? $('#pillar-start-datetime').val().split('T')[0] : null;
+        // Get currently active date from the date picker
+        var activeDateBtn = $('#picker-dates-list .art-picker-date-btn.active');
+        var currentDate = activeDateBtn.length ? activeDateBtn.data('date') : null;
         var currentTime = $('#custom-time-input').val();
         var currentService = $('#pillar-service').val();
         
         return (currentDate !== bookingViewState.originalDate) ||
                (currentTime !== bookingViewState.originalTime) ||
-               (currentService != bookingViewState.originalService);
+               (currentService != bookingViewState.originalServiceId);
     }
     
     /**
      * Switch to exploring mode
      */
     function enterExploringMode() {
+        // Don't switch modes during auto-population
+        if (bookingViewState.isAutoPopulating) {
+            return;
+        }
+        
+        // Don't switch if already in exploring mode
         if (bookingViewState.mode === 'exploring') return;
         
         bookingViewState.mode = 'exploring';
@@ -3211,26 +3217,42 @@ jQuery(document).ready(function($) {
         
         console.log('ART: Resetting to CURRENT booking');
         
-        // Restore original values
-        if (bookingViewState.originalService) {
-            $('#pillar-service').val(bookingViewState.originalService).trigger('change');
+        // Set auto-populating flag to prevent mode switching
+        bookingViewState.isAutoPopulating = true;
+        
+        // Restore service
+        if (bookingViewState.originalServiceId) {
+            $('#pillar-service').val(bookingViewState.originalServiceId).trigger('change');
         }
         
-        if (bookingViewState.originalDate && bookingViewState.originalTime) {
-            var datetime = bookingViewState.originalDate + 'T' + bookingViewState.originalTime;
-            $('#pillar-start-datetime').val(datetime);
-            $('#custom-time-input').val(bookingViewState.originalTime);
-        }
-        
-        // Switch mode
-        bookingViewState.mode = 'current';
-        $('#btn-reset-to-current').fadeOut();
-        
-        // Re-trigger availability check
+        // Wait for service change to propagate, then restore date/time
         setTimeout(function() {
-            if (typeof checkAvailability !== 'undefined') {
-                checkAvailability();
+            // Restore time first
+            if (bookingViewState.originalTime) {
+                $('#custom-time-input').val(bookingViewState.originalTime);
             }
+            
+            // Find and click the date button for the original date
+            if (bookingViewState.originalDate) {
+                var targetDateBtn = $('#picker-dates-list .art-picker-date-btn[data-date="' + bookingViewState.originalDate + '"]');
+                if (targetDateBtn.length) {
+                    // Remove active from all, add to target
+                    $('#picker-dates-list .art-picker-date-btn').removeClass('active');
+                    targetDateBtn.addClass('active');
+                }
+            }
+            
+            // Switch mode back to current
+            bookingViewState.mode = 'current';
+            bookingViewState.isAutoPopulating = false;
+            $('#btn-reset-to-current').fadeOut();
+            
+            // Re-trigger availability check
+            setTimeout(function() {
+                if (typeof checkAvailability !== 'undefined') {
+                    checkAvailability();
+                }
+            }, 100);
         }, 300);
     }
     
@@ -4524,13 +4546,30 @@ jQuery(document).ready(function($) {
         
         // Auto-trigger availability check to populate Resource + Provider columns
         // The exclude_appointment_id prevents self-blocking
-        console.log('ART DEBUG: Auto-checking availability for existing booking');
         setTimeout(function() {
             if (typeof checkAvailability !== 'undefined') {
                 checkAvailability();
             } else {
                 console.warn('ART: checkAvailability not yet defined, skipping auto-trigger');
             }
+            
+            // Clear auto-populating flag and lock mode to 'current' after check completes
+            setTimeout(function() {
+                bookingViewState.isAutoPopulating = false;
+                bookingViewState.mode = 'current';
+                
+                // Re-render the UI to ensure "Currently Selected" labels appear
+                if (lastOrchestratorResult) {
+                    renderResourceColumn(lastOrchestratorResult);
+                    renderAvailabilityEngineResults(
+                        lastOrchestratorResult.providers || [],
+                        lastOrchestratorResult.has_availability_error || false,
+                        lastOrchestratorResult.availability_error_message || ''
+                    );
+                }
+                
+                console.log('ART: Auto-population complete, mode = current');
+            }, 500);
         }, 1000); // Small delay to ensure all functions are declared
         
         selectSlot({
@@ -4539,13 +4578,6 @@ jQuery(document).ready(function($) {
             location_id: artDetailData.existingBookedLocationId || 0,
             date: artDetailData.existingBookedDate
         }, artDetailData.existingBookedTime);
-        
-        // Clear auto-populating flag after initialization
-        setTimeout(function() {
-            bookingViewState.isAutoPopulating = false;
-            bookingViewState.mode = 'current'; // Ensure we stay in current mode
-            console.log('ART: Auto-population complete, mode locked to current');
-        }, 1500);
     }
     
     /**
@@ -5360,18 +5392,14 @@ jQuery(document).ready(function($) {
             var isAvailable = resource.status === 'available';
             
             // Group label (adapt based on viewing mode)
+            // Only show "Currently Selected" when:
+            // 1. We're in 'current' mode (not exploring)
+            // 2. There's an active booking
+            // 3. This resource matches the active booking's resource
             var isCurrentBooking = (typeof bookingViewState !== 'undefined' && 
                                    bookingViewState.mode === 'current' && 
                                    artDetailData.hasActiveBooking && 
-                                   isAvailable);
-            
-            console.log('ART Resource Label Debug:', {
-                bookingViewStateExists: typeof bookingViewState !== 'undefined',
-                mode: typeof bookingViewState !== 'undefined' ? bookingViewState.mode : 'undefined',
-                hasActiveBooking: artDetailData.hasActiveBooking,
-                isAvailable: isAvailable,
-                isCurrentBooking: isCurrentBooking
-            });
+                                   resource.id == artDetailData.activeResource.id);
             
             if (isCurrentBooking) {
                 // Viewing current booking - show "Currently Selected"
@@ -5455,9 +5483,12 @@ jQuery(document).ready(function($) {
             '</div>';
         }
         
-        // Check if we're auto-populating with existing booking provider
+        // Check if we should show "Currently Selected Provider"
+        // Only show this in 'current' mode (not when exploring alternatives)
         var existingProvider = null;
-        if (artDetailData.hasActiveBooking && artDetailData.existingBookedProviderId) {
+        var isInCurrentMode = (typeof bookingViewState !== 'undefined' && bookingViewState.mode === 'current');
+        
+        if (isInCurrentMode && artDetailData.hasActiveBooking && artDetailData.existingBookedProviderId) {
             existingProvider = providers.find(function(p) { 
                 return p.id == artDetailData.existingBookedProviderId; 
             });
@@ -5468,7 +5499,7 @@ jQuery(document).ready(function($) {
             });
         }
         
-        // Show currently selected provider first (if exists)
+        // Show currently selected provider first (if exists and in current mode)
         if (existingProvider) {
             html += '<div class="provider-group">';
             html += '<div class="provider-group-label" style="background: #E0E7FF; color: #4338CA; border-left: 3px solid #4338CA;">' +
