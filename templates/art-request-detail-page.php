@@ -5403,6 +5403,7 @@ jQuery(document).ready(function($) {
             var isCurrentBooking = (typeof bookingViewState !== 'undefined' && 
                                    bookingViewState.mode === 'current' && 
                                    artDetailData.hasActiveBooking && 
+                                   artDetailData.activeResource &&
                                    resource.id == artDetailData.activeResource.id);
             
             if (isCurrentBooking) {
