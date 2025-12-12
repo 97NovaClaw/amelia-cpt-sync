@@ -300,6 +300,9 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                 $active_booking->amelia_appointment_id
                             ));
                             
+                            // Debug log the resource query result
+                            amelia_cpt_sync_debug_log('ART Detail Page: Resource query for appointment #' . $active_booking->amelia_appointment_id . ' returned: ' . ($assigned_resource ? json_encode($assigned_resource) : 'NULL'));
+                            
                             // Attach full details to active_booking object
                             $active_booking->service_name = $appointment_full->service_name ?? '';
                             $active_booking->category_name = $category_name;
@@ -307,6 +310,8 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             $active_booking->location_name = $location_name;
                             $active_booking->resource_id = $assigned_resource ? intval($assigned_resource->resource_id) : null;
                             $active_booking->resource_name = $assigned_resource ? $assigned_resource->resource_name : null;
+                            
+                            amelia_cpt_sync_debug_log('ART Detail Page: activeResource will be: ' . json_encode(array('id' => $active_booking->resource_id, 'name' => $active_booking->resource_name)));
                             
                             // Convert UTC booking times to local timezone for display
                             $wp_tz = wp_timezone();
@@ -3170,6 +3175,15 @@ jQuery(document).ready(function($) {
         existingBookedLocationId: <?php echo !empty($active_booking->location_id) ? intval($active_booking->location_id) : 'null'; ?>,
         activeResource: <?php echo (!empty($active_booking->resource_id)) ? wp_json_encode(array('id' => intval($active_booking->resource_id), 'name' => $active_booking->resource_name)) : 'null'; ?>
     };
+    
+    // Version and debug logging
+    console.log('ART Detail Page v<?php echo AMELIA_CPT_SYNC_VERSION; ?> loaded');
+    console.log('ART artDetailData:', {
+        hasActiveBooking: artDetailData.hasActiveBooking,
+        activeAppointmentId: artDetailData.activeAppointmentId,
+        activeResource: artDetailData.activeResource,
+        existingBookedProviderId: artDetailData.existingBookedProviderId
+    });
     
     // ========================================
     // BOOKING VIEW STATE MANAGEMENT
