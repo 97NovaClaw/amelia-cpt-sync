@@ -4077,7 +4077,7 @@ jQuery(document).ready(function($) {
                         providerId: artDetailData.existingBookedProviderId
                     });
                     
-                    isAutoPopulating = true; // Prevent reset during auto-population
+                    bookingViewState.isAutoPopulating = true; // Prevent mode switch during auto-population
                     
                     setTimeout(function() {
                         console.log('ART DEBUG: Step 1 - Looking for date button');
@@ -4103,10 +4103,11 @@ jQuery(document).ready(function($) {
                             }
                         }
                         
-                        // Reset flag after all auto-population completes
+                        // Reset flag and lock mode to 'current' after auto-population completes
                         setTimeout(function() {
-                            console.log('ART DEBUG: Auto-population complete, resetting flag');
-                            isAutoPopulating = false;
+                            console.log('ART DEBUG: Auto-population complete, setting mode to current');
+                            bookingViewState.isAutoPopulating = false;
+                            bookingViewState.mode = 'current';
                         }, 2000); // Longer delay to ensure everything completes
                     }, 300); // Delay to ensure date buttons are rendered
                 }
@@ -5205,12 +5206,12 @@ jQuery(document).ready(function($) {
      */
     var selectedProviderId = null;
     var availabilityEngineEnabled = true; // Set to false to use old slots-based logic
-    var isAutoPopulating = false; // Flag to prevent reset during auto-population
     var hasAutoSelectedProvider = false; // Flag to only auto-select provider once
+    var lastOrchestratorResult = null; // Store last orchestrator result for re-rendering
     
     function updateProviderList() {
         console.log('ART DEBUG: updateProviderList() called', {
-            isAutoPopulating: isAutoPopulating,
+            isAutoPopulating: bookingViewState.isAutoPopulating,
             currentSelectedProviderId: selectedProviderId,
             timestamp: new Date().toISOString()
         });
@@ -5222,7 +5223,7 @@ jQuery(document).ready(function($) {
         var providerCount = artDetailData.providers ? Object.keys(artDetailData.providers).length : 0;
         
         // Reset selection (unless we're auto-populating)
-        if (!isAutoPopulating) {
+        if (!bookingViewState.isAutoPopulating) {
             console.log('ART DEBUG: Resetting provider selection (not auto-populating)');
             selectedProviderId = null;
             confirmSection.hide();
@@ -5356,6 +5357,9 @@ jQuery(document).ready(function($) {
      */
     function handleOrchestratorResult(data) {
         console.log('Orchestrator result:', data);
+        
+        // Store result for later re-rendering
+        lastOrchestratorResult = data;
         
         // Update grid mode class
         $('.art-picker-container')
@@ -5699,7 +5703,7 @@ jQuery(document).ready(function($) {
         console.log('ART DEBUG: Provider item clicked', {
             providerId: providerId,
             currentSelected: selectedProviderId,
-            isAutoPopulating: isAutoPopulating
+            isAutoPopulating: bookingViewState.isAutoPopulating
         });
         
         // Toggle selection
