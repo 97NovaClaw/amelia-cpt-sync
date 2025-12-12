@@ -290,11 +290,23 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                 $category_name = $category ? $category->name : '';
                             }
                             
+                            // Get assigned resource(s) for this appointment
+                            $assigned_resource = $wpdb->get_row($wpdb->prepare(
+                                "SELECT ra.resourceId as resource_id, r.name as resource_name
+                                 FROM {$wpdb->prefix}art_resource_assignments ra
+                                 LEFT JOIN {$wpdb->prefix}amelia_resources r ON ra.resourceId = r.id
+                                 WHERE ra.appointmentId = %d
+                                 LIMIT 1",
+                                $active_booking->amelia_appointment_id
+                            ));
+                            
                             // Attach full details to active_booking object
                             $active_booking->service_name = $appointment_full->service_name ?? '';
                             $active_booking->category_name = $category_name;
                             $active_booking->provider_name = $provider ? trim($provider->firstName . ' ' . $provider->lastName) : '';
                             $active_booking->location_name = $location_name;
+                            $active_booking->resource_id = $assigned_resource ? intval($assigned_resource->resource_id) : null;
+                            $active_booking->resource_name = $assigned_resource ? $assigned_resource->resource_name : null;
                             
                             // Convert UTC booking times to local timezone for display
                             $wp_tz = wp_timezone();
@@ -3155,7 +3167,8 @@ jQuery(document).ready(function($) {
         existingBookedTime: <?php echo !empty($active_booking->formatted_time) ? wp_json_encode($active_booking->formatted_time) : 'null'; ?>,
         existingBookedProviderId: <?php echo !empty($active_booking->provider_id) ? intval($active_booking->provider_id) : 'null'; ?>,
         existingBookedProviderName: <?php echo !empty($active_booking->provider_name) ? wp_json_encode($active_booking->provider_name) : 'null'; ?>,
-        existingBookedLocationId: <?php echo !empty($active_booking->location_id) ? intval($active_booking->location_id) : 'null'; ?>
+        existingBookedLocationId: <?php echo !empty($active_booking->location_id) ? intval($active_booking->location_id) : 'null'; ?>,
+        activeResource: <?php echo (!empty($active_booking->resource_id)) ? wp_json_encode(array('id' => intval($active_booking->resource_id), 'name' => $active_booking->resource_name)) : 'null'; ?>
     };
     
     // ========================================
