@@ -215,9 +215,16 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
         $is_available = true;
         $provider_id = $provider['id'];
         
-        // Convert times to minutes for easier calculation
-        $request_start = $this->time_to_minutes($time);
-        $request_end = $request_start + ($duration / 60);
+        // Strategy: Hybrid approach for different types of checks
+        // 1. Minutes for working hours/schedule checks (local timezone context)
+        $request_start_minutes = $this->time_to_minutes($time);
+        $request_end_minutes = $request_start_minutes + ($duration / 60);
+        
+        // 2. Unix timestamps for appointment overlaps (UTC-based, timezone-safe)
+        // This matches the Resource Manager's approach and handles midnight wraparound
+        $request_datetime_utc = ART_Time_Helper::to_utc($date . ' ' . $time . ':00');
+        $request_start_unix = strtotime($request_datetime_utc);
+        $request_end_unix = $request_start_unix + $duration;
         
         // a) CHECK DAY OFF
         if ($this->is_day_off($provider, $date)) {
@@ -231,7 +238,7 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
         $schedule = $this->get_schedule_for_date($provider, $date);
         
         if ($this->settings['working_hours_mode'] !== 'ignore') {
-            $hours_check = $this->check_working_hours($schedule, $request_start, $request_end, $date);
+            $hours_check = $this->check_working_hours($schedule, $request_start_minutes, $request_end_minutes, $date);
             
             if (!$hours_check['passed']) {
                 if ($this->settings['working_hours_mode'] === 'strict') {
@@ -252,29 +259,23 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
         });
         
         foreach ($provider_appointments as $appt) {
-            // Convert UTC to minutes for comparison (assuming request times are in same timezone context as logic)
-            // Actually, Data Manager returns UTC strings. 
-            // ART_Time_Helper converts to Local for display, but here we need minutes of the day.
-            // However, day-based calculation is tricky with UTC shifts.
-            // Ideally, we convert everything to timestamps.
-            
-            // Quick fix: Convert UTC DB time to minutes of the requested day
-            // This assumes the booking is on the same day (which the query ensures)
-            $appt_start = $this->datetime_to_minutes($appt['start_utc']);
-            $appt_end = $this->datetime_to_minutes($appt['end_utc']);
+            // REFACTOR: Use Unix timestamps (matches Resource Manager pattern)
+            // This handles midnight wraparound, DST transitions, and multi-day appointments correctly
+            $appt_start_unix = strtotime($appt['start_utc']);
+            $appt_end_unix = strtotime($appt['end_utc']);
             $appt_status = $appt['status'] ?? 'approved';
             
             // Debug overlap check
             amelia_cpt_sync_debug_log("Availability Engine: Overlap check for provider #$provider_id", array(
                 'appointment_id' => $appt['id'] ?? 'unknown',
-                'request_range' => "$request_start-$request_end minutes",
-                'appointment_range' => "$appt_start-$appt_end minutes",
-                'request_utc' => $date . ' ' . $time,
+                'request_unix' => "$request_start_unix-$request_end_unix",
+                'appointment_unix' => "$appt_start_unix-$appt_end_unix",
+                'request_utc' => $request_datetime_utc,
                 'appointment_utc' => $appt['start_utc'] . ' to ' . $appt['end_utc']
             ));
             
-            // Check for overlap
-            if ($this->times_overlap($request_start, $request_end, $appt_start, $appt_end)) {
+            // Check for overlap using Unix timestamps (timezone-safe!)
+            if ($request_start_unix < $appt_end_unix && $request_end_unix > $appt_start_unix) {
                 amelia_cpt_sync_debug_log("Availability Engine: OVERLAP DETECTED for provider #$provider_id with appointment #" . ($appt['id'] ?? 'unknown'));
                 $appt_time = $this->format_time_range($appt['start_utc'], $appt['end_utc']);
                 
@@ -288,11 +289,11 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
                 amelia_cpt_sync_debug_log("Availability Engine: NO overlap for provider #$provider_id with appointment #" . ($appt['id'] ?? 'unknown'));
             }
             
-            // e) CHECK BUFFER TIMES
+            // e) CHECK BUFFER TIMES (Now using Unix timestamps)
             if ($this->settings['buffer_time_mode'] !== 'ignore') {
-                $buffer_check = $this->check_buffer_times(
-                    $request_start, $request_end,
-                    $appt_start, $appt_end,
+                $buffer_check = $this->check_buffer_times_unix(
+                    $request_start_unix, $request_end_unix,
+                    $appt_start_unix, $appt_end_unix,
                     $buffer_before, $buffer_after,
                     $appt['end_utc']
                 );
@@ -591,6 +592,45 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
     }
     
     /**
+     * Check buffer time violations using Unix timestamps
+     * (Matches Resource Manager's timestamp-based approach)
+     *
+     * @param int $req_start_unix Request start Unix timestamp
+     * @param int $req_end_unix Request end Unix timestamp
+     * @param int $appt_start_unix Appointment start Unix timestamp
+     * @param int $appt_end_unix Appointment end Unix timestamp
+     * @param int $buffer_before Buffer before in seconds
+     * @param int $buffer_after Buffer after in seconds
+     * @param string $appt_end_utc Appointment end time UTC for display
+     * @return array Check result
+     */
+    private function check_buffer_times_unix($req_start_unix, $req_end_unix, $appt_start_unix, $appt_end_unix, $buffer_before, $buffer_after, $appt_end_utc) {
+        // Buffers are in seconds, timestamps are in seconds - units match!
+        
+        // Check if request starts within buffer_after of appointment end
+        $appt_end_with_buffer = $appt_end_unix + $buffer_after;
+        if ($req_start_unix < $appt_end_with_buffer && $req_start_unix >= $appt_end_unix) {
+            // Convert UTC to local for display
+            $end_time = ART_Time_Helper::to_local($appt_end_utc, 'g:i A');
+            return array(
+                'passed' => false,
+                'conflict' => sprintf(__('Buffer time - appointment ends at %s', 'amelia-cpt-sync'), $end_time)
+            );
+        }
+        
+        // Check if request ends within buffer_before of appointment start
+        $appt_start_with_buffer = $appt_start_unix - $buffer_before;
+        if ($req_end_unix > $appt_start_with_buffer && $req_end_unix <= $appt_start_unix) {
+            return array(
+                'passed' => false,
+                'conflict' => __('Buffer time - too close to next appointment', 'amelia-cpt-sync')
+            );
+        }
+        
+        return array('passed' => true, 'conflict' => null);
+    }
+    
+    /**
      * Check if provider offers service on this day
      *
      * @param array $provider Provider data
@@ -682,11 +722,16 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
     /**
      * Convert datetime string to minutes since midnight
      *
+     * @deprecated No longer used - switched to Unix timestamps for timezone safety
      * @param string $datetime Datetime in Y-m-d H:i:s format
      * @return int Minutes
      */
     private function datetime_to_minutes($datetime) {
-        // Only extract Time part from DateTime
+        // DEPRECATED: This function had a critical bug - it treated UTC hours as local hours
+        // Example: UTC 16:00 would become 960 minutes (4pm) instead of converting to local first
+        // Kept for reference only - appointment overlaps now use Unix timestamps
+        trigger_error('datetime_to_minutes() is deprecated - use Unix timestamps for appointment overlaps', E_USER_DEPRECATED);
+        
         $time = date('H:i', strtotime($datetime));
         return $this->time_to_minutes($time);
     }
