@@ -3525,26 +3525,29 @@ jQuery(document).ready(function($) {
                     default_price: response.data.default_price
                 };
                 
-                // Auto-populate duration when exploring alternatives
-                // This allows user to check availability with the new service's default duration
+                // Smart duration handling: Only auto-populate if duration is empty
+                // This respects user's manual selections while providing helpful defaults
                 var durationSeconds = response.data.duration_seconds;
-                $('#pillar-duration-seconds').val(durationSeconds);
+                var currentDuration = $('#pillar-duration-seconds').val();
                 
-                // Try to select matching duration in dropdown
-                var exactMatch = $('#pillar-duration-selector option[value="' + durationSeconds + '"]');
-                if (exactMatch.length) {
-                    $('#pillar-duration-selector').val(durationSeconds);
+                // Only auto-populate if duration is currently empty or zero
+                if (!currentDuration || currentDuration === '0' || currentDuration === '') {
+                    console.log('ART: Auto-populating duration to service default (' + durationSeconds + 's)');
+                    $('#pillar-duration-seconds').val(durationSeconds);
+                    
+                    // Try to select matching duration in dropdown
+                    var exactMatch = $('#pillar-duration-selector option[value="' + durationSeconds + '"]');
+                    if (exactMatch.length) {
+                        $('#pillar-duration-selector').val(durationSeconds).trigger('change.select2');
+                    } else {
+                        $('#pillar-duration-selector').val('').trigger('change.select2');
+                    }
+                    
+                    // Update the start→end summary display with new duration
+                    updateDatetimeSummary();
                 } else {
-                    $('#pillar-duration-selector').val('');  // Custom duration not in list
+                    console.log('ART: Keeping user\'s manual duration (' + currentDuration + 's), service default is ' + durationSeconds + 's');
                 }
-                
-                // Update duration display (legacy, may be removed)
-                if ($('#duration-display').length) {
-                    $('#duration-display').text(response.data.duration_display);
-                }
-                
-                // Update the start→end summary display with new duration
-                updateDatetimeSummary();
                 
                 // Calculate suggested price
                 calculateSuggestedPrice();
