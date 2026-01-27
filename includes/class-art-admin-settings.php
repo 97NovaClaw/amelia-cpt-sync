@@ -906,7 +906,14 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             $data['start_datetime'] = date('Y-m-d H:i:s', strtotime($_POST['start_datetime']));
         }
         
-        if (isset($_POST['end_datetime']) && !empty($_POST['end_datetime'])) {
+        // Calculate end_datetime from start + duration if not explicitly provided
+        if (empty($_POST['end_datetime']) && !empty($data['start_datetime']) && !empty($_POST['duration_seconds'])) {
+            $start_ts = strtotime($data['start_datetime']);
+            $duration = absint($_POST['duration_seconds']);
+            $data['end_datetime'] = date('Y-m-d H:i:s', $start_ts + $duration);
+        }
+        // If end_datetime is explicitly provided, use it (legacy/backwards compatible)
+        elseif (isset($_POST['end_datetime']) && !empty($_POST['end_datetime'])) {
             // Store in local timezone (for display in ART UI, not sent to Amelia)
             $data['end_datetime'] = date('Y-m-d H:i:s', strtotime($_POST['end_datetime']));
         }

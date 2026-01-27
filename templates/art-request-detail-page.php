@@ -74,17 +74,13 @@ for ($seconds = $duration_interval_minutes * 60; $seconds <= $max_seconds; $seco
 $submitted_date = get_date_from_gmt($request->created_at);
 $submitted_display = date_i18n('M j, Y \a\t g:i A', strtotime($submitted_date));
 
-// Format start/end for datetime-local inputs (if they exist)
-$start_datetime_value = '';
+// Parse start_datetime into separate date and time for new picker UI
+$pillar_date = '';
+$pillar_time = '';
 if (!empty($request->start_datetime)) {
     $start_local = get_date_from_gmt($request->start_datetime);
-    $start_datetime_value = date('Y-m-d\TH:i', strtotime($start_local));
-}
-
-$end_datetime_value = '';
-if (!empty($request->end_datetime)) {
-    $end_local = get_date_from_gmt($request->end_datetime);
-    $end_datetime_value = date('Y-m-d\TH:i', strtotime($end_local));
+    $pillar_date = date('Y-m-d', strtotime($start_local));
+    $pillar_time = date('H:i', strtotime($start_local));
 }
 
 // Format follow-up date
@@ -612,42 +608,41 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                 }
                                 ?>
                             </h3>
-                            <span id="service-duration-display" class="service-duration-badge" style="display: none;">
-                                <button type="button" class="refresh-icon" title="Refresh service duration">↻</button>
-                                <span class="duration-text"></span>
-                            </span>
                         </div>
                         <div class="card-body">
                             <div class="pillar-grid-3">
-                                <!-- Start Time -->
+                                <!-- Date Picker -->
                                 <div class="form-field">
-                                    <label for="pillar-start">
-                                        <?php _e('Start Time', 'amelia-cpt-sync'); ?>
+                                    <label for="pillar-date">
+                                        <?php _e('Date', 'amelia-cpt-sync'); ?>
                                     </label>
-                                    <input type="datetime-local" 
-                                           id="pillar-start" 
-                                           name="start_datetime" 
+                                    <input type="date" 
+                                           id="pillar-date" 
+                                           name="pillar_date" 
                                            class="form-input"
-                                           value="<?php echo esc_attr($start_datetime_value); ?>">
+                                           value="<?php echo esc_attr($pillar_date); ?>">
                                 </div>
                                 
-                                <!-- End Time OR Duration Selector -->
+                                <!-- Time Picker -->
                                 <div class="form-field">
-                                    <label for="pillar-end">
-                                        <?php _e('End Time', 'amelia-cpt-sync'); ?>
+                                    <label for="pillar-time">
+                                        <?php _e('Time', 'amelia-cpt-sync'); ?>
                                     </label>
-                                    <input type="datetime-local" 
-                                           id="pillar-end" 
-                                           name="end_datetime" 
+                                    <input type="time" 
+                                           id="pillar-time" 
+                                           name="pillar_time" 
                                            class="form-input"
-                                           value="<?php echo esc_attr($end_datetime_value); ?>">
-                                    <p class="field-note"><?php _e('Or use duration selector below', 'amelia-cpt-sync'); ?></p>
+                                           value="<?php echo esc_attr($pillar_time); ?>">
                                 </div>
                                 
-                                <!-- Duration Selector (Dynamic from settings) -->
+                                <!-- Duration Selector -->
                                 <div class="form-field">
                                     <label for="pillar-duration-selector">
                                         <?php _e('Duration (HH:MM)', 'amelia-cpt-sync'); ?>
+                                        <span id="service-duration-badge" class="service-duration-badge" style="display: none; margin-left: 8px;">
+                                            <button type="button" class="refresh-icon" title="Refresh service duration">↻</button>
+                                            <span class="duration-text"></span>
+                                        </span>
                                     </label>
                                     <select id="pillar-duration-selector" class="form-select art-duration-select">
                                         <option value=""><?php _e('Select duration...', 'amelia-cpt-sync'); ?></option>
@@ -658,7 +653,6 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <p class="field-note"><?php _e('Selecting duration calculates end time, or enter custom HH:MM', 'amelia-cpt-sync'); ?></p>
                                     <input type="hidden" 
                                            id="pillar-duration-seconds" 
                                            name="duration_seconds" 
@@ -666,13 +660,13 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                 </div>
                             </div>
                             
-                            <!-- Duration Display (calculated) -->
-                            <div class="duration-summary">
-                                <span class="duration-icon">⏱️</span>
-                                <span class="duration-text">
-                                    <?php _e('Calculated Duration:', 'amelia-cpt-sync'); ?> 
-                                    <strong id="duration-display"><?php echo esc_html($duration_display ?: 'Not set'); ?></strong>
-                                </span>
+                            <!-- Calculated Date/Time Summary -->
+                            <div class="pillar-datetime-summary" id="pillar-datetime-summary" style="margin-top: 16px; padding: 12px; background: #F8FAFC; border-radius: 6px; display: none;">
+                                <div style="display: flex; align-items: center; gap: 12px; font-size: 14px; color: #475569;">
+                                    <strong style="color: #0F172A;">Start:</strong> <span id="pillar-start-display">—</span>
+                                    <span style="color: #94A3B8;">→</span>
+                                    <strong style="color: #0F172A;">End:</strong> <span id="pillar-end-display">—</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -3357,9 +3351,10 @@ jQuery(document).ready(function($) {
         
         // Wait for service change to propagate, then restore date/time
         setTimeout(function() {
-            // Restore time first
-            if (bookingViewState.originalTime) {
-                $('#custom-time-input').val(bookingViewState.originalTime);
+            // Restore time in availability engine
+            var time24 = convertTo24Hour(bookingViewState.originalTime);
+            if (time24) {
+                $('#custom-time-input').val(time24);
             }
             
             // Find and click the date button for the original date
@@ -3370,7 +3365,17 @@ jQuery(document).ready(function($) {
                     $('#picker-dates-list .art-picker-date-btn').removeClass('active');
                     targetDateBtn.addClass('active');
                 }
+                
+                // Also restore in pillar inputs
+                $('#pillar-date').val(bookingViewState.originalDate);
             }
+            
+            if (time24) {
+                $('#pillar-time').val(time24);
+            }
+            
+            // Update summary display
+            updateDatetimeSummary();
             
             // Switch mode back to current
             bookingViewState.mode = 'current';
@@ -3492,7 +3497,7 @@ jQuery(document).ready(function($) {
     
     function fetchServiceDuration() {
         var serviceId = $('#pillar-service').val();
-        var durationDisplay = $('#service-duration-display');
+        var durationDisplay = $('#service-duration-badge');
         
         if (!serviceId) {
             durationDisplay.hide();
@@ -3620,7 +3625,7 @@ jQuery(document).ready(function($) {
     });
     
     // Refresh button for service duration
-    $(document).on('click', '#service-duration-display .refresh-icon', function(e) {
+    $(document).on('click', '#service-duration-badge .refresh-icon', function(e) {
         e.preventDefault();
         fetchServiceDuration();
     });
@@ -3648,66 +3653,116 @@ jQuery(document).ready(function($) {
         }
     }
     
-    // Calculate duration from start + end times
-    function calculateDurationFromTimes() {
-        var start = $('#pillar-start').val();
-        var end = $('#pillar-end').val();
+    /**
+     * Update the calculated date/time summary (Start → End)
+     * This replaces the old bidirectional start/end calculation with a simpler one-way flow:
+     * Date + Time + Duration → Calculate End (display only)
+     */
+    function updateDatetimeSummary() {
+        var date = $('#pillar-date').val();      // YYYY-MM-DD
+        var time = $('#pillar-time').val();      // HH:mm
+        var durationSeconds = parseInt($('#pillar-duration-seconds').val()) || 0;
         
-        if (start && end) {
-            var startDate = new Date(start);
-            var endDate = new Date(end);
-            var diffMs = endDate - startDate;
-            
-            if (diffMs > 0) {
-                var diffSeconds = Math.floor(diffMs / 1000);
-                
-                $('#pillar-duration-seconds').val(diffSeconds);
-                $('#duration-display').text(formatDuration(diffSeconds));
-                
-                // Try to select matching duration in dropdown
-                var exactMatch = $('#pillar-duration-selector option[value="' + diffSeconds + '"]');
-                if (exactMatch.length) {
-                    $('#pillar-duration-selector').val(diffSeconds);
-                } else {
-                    $('#pillar-duration-selector').val('');  // Custom duration
-                }
-            } else {
-                $('#duration-display').text('Invalid range');
-                $('#pillar-duration-seconds').val(0);
+        var summaryDiv = $('#pillar-datetime-summary');
+        
+        if (!date || !time) {
+            summaryDiv.hide();
+            return;
+        }
+        
+        // Calculate start datetime
+        var startDT = new Date(date + 'T' + time);
+        var startDisplay = startDT.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        }) + ' at ' + startDT.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+        
+        // Calculate end datetime
+        var endDT = new Date(startDT.getTime() + (durationSeconds * 1000));
+        var endDisplay = endDT.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        }) + ' at ' + endDT.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+        
+        // Update displays
+        $('#pillar-start-display').text(startDisplay);
+        $('#pillar-end-display').text(endDisplay);
+        summaryDiv.show();
+        
+        // Also update hidden duration seconds if duration dropdown was used
+        if ($('#pillar-duration-selector').val()) {
+            $('#pillar-duration-seconds').val($('#pillar-duration-selector').val());
+        }
+    }
+    
+    // Event: Date, Time, or Duration changes → Update summary
+    $('#pillar-date, #pillar-time, #pillar-duration-selector').on('change', updateDatetimeSummary);
+    
+    // Trigger on page load if values exist
+    if ($('#pillar-date').val() && $('#pillar-time').val()) {
+        updateDatetimeSummary();
+    }
+    
+    /**
+     * Sync pillars → availability engine when user changes date/time in pillars
+     */
+    function syncPillarsToAvailabilityEngine() {
+        var pillarDate = $('#pillar-date').val();
+        var pillarTime = $('#pillar-time').val();
+        
+        if (pillarDate) {
+            // Find and click matching date button in availability engine
+            var matchingBtn = $('.art-picker-date-btn[data-date="' + pillarDate + '"]');
+            if (matchingBtn.length && !matchingBtn.hasClass('active')) {
+                $('.art-picker-date-btn').removeClass('active');
+                matchingBtn.addClass('active');
             }
-        } else if (!end && $('#pillar-duration-seconds').val()) {
-            // Start set but no end - show duration from hidden field
-            $('#duration-display').text(formatDuration($('#pillar-duration-seconds').val()));
         }
-    }
-    
-    // Calculate end time from start + duration
-    function calculateEndFromDuration() {
-        var start = $('#pillar-start').val();
-        var durationSeconds = parseInt($('#pillar-duration-selector').val());
         
-        if (start && durationSeconds > 0) {
-            var startDate = new Date(start);
-            var endDate = new Date(startDate.getTime() + (durationSeconds * 1000));
-            
-            // Format for datetime-local input
-            var endFormatted = endDate.getFullYear() + '-' +
-                String(endDate.getMonth() + 1).padStart(2, '0') + '-' +
-                String(endDate.getDate()).padStart(2, '0') + 'T' +
-                String(endDate.getHours()).padStart(2, '0') + ':' +
-                String(endDate.getMinutes()).padStart(2, '0');
-            
-            $('#pillar-end').val(endFormatted);
-            $('#pillar-duration-seconds').val(durationSeconds);
-            $('#duration-display').text(formatDuration(durationSeconds));
+        if (pillarTime) {
+            // Sync to availability engine time input
+            $('#custom-time-input').val(pillarTime);
+        }
+        
+        // Trigger provider list update
+        updateProviderList();
+    }
+    
+    /**
+     * Sync availability engine → pillars when user selects date/time in availability engine
+     */
+    function syncAvailabilityEngineToPillars() {
+        var activeDateBtn = $('#picker-dates-list .art-picker-date-btn.active');
+        var dateStr = activeDateBtn.length ? activeDateBtn.data('date') : null;
+        var timeStr = $('#custom-time-input').val();
+        
+        if (dateStr && $('#pillar-date').val() !== dateStr) {
+            $('#pillar-date').val(dateStr).trigger('change');
+        }
+        
+        if (timeStr && $('#pillar-time').val() !== timeStr) {
+            $('#pillar-time').val(timeStr).trigger('change');
         }
     }
     
-    // Event: Start or End time changes → Calculate duration
-    $('#pillar-start, #pillar-end').on('change', calculateDurationFromTimes);
-    
-    // Event: Duration dropdown changes → Calculate end time
-    $('#pillar-duration-selector').on('change', calculateEndFromDuration);
+    // Auto-sync when pillars change (with debounce to prevent infinite loop)
+    var pillarSyncTimeout;
+    $('#pillar-date, #pillar-time').on('change', function() {
+        clearTimeout(pillarSyncTimeout);
+        pillarSyncTimeout = setTimeout(syncPillarsToAvailabilityEngine, 100);
+    });
     
     // === ENQUEUE SELECT2 FOR CUSTOM DURATION ENTRY ===
     if (!$('link[href*="select2"]').length) {
@@ -3893,6 +3948,14 @@ jQuery(document).ready(function($) {
     function savePillarsAuto(showSuccessNotice) {
         if (isSaving) return; // Prevent concurrent saves
         
+        // Calculate start_datetime from date + time inputs
+        var date = $('#pillar-date').val();
+        var time = $('#pillar-time').val();
+        var startDatetime = (date && time) ? date + ' ' + time + ':00' : null;
+        
+        // Note: end_datetime will be calculated server-side from start + duration
+        // We don't send it from frontend anymore
+        
         var formData = {
             action: 'art_save_pillars',
             nonce: artDetailData.nonce,
@@ -3901,10 +3964,10 @@ jQuery(document).ready(function($) {
             service_id: $('#pillar-service').val(),
             location_id: $('#pillar-location').length ? $('#pillar-location').val() : null,
             persons: $('#pillar-persons').length ? $('#pillar-persons').val() : 1,
-            start_datetime: $('#pillar-start').val(),
-            end_datetime: $('#pillar-end').val(),
+            start_datetime: startDatetime,
             duration_seconds: $('#pillar-duration-seconds').val(),
             final_price: $('#pillar-price').val()
+            // end_datetime removed - calculated server-side
         };
         
         isSaving = true;
@@ -3979,7 +4042,7 @@ jQuery(document).ready(function($) {
     // Attach auto-save to all pillar fields
     $('#pillar-service, #pillar-category, #pillar-location, #pillar-persons').on('change', triggerAutoSave);
     $('#pillar-duration-selector').on('change', triggerAutoSave);
-    $('#pillar-start, #pillar-end, #pillar-price').on('blur change', triggerAutoSave);
+    $('#pillar-date, #pillar-time, #pillar-price').on('blur change', triggerAutoSave);
     
     // Keep form submit handler as manual trigger (if user presses Enter)
     $('#booking-pillars-form').on('submit', function(e) {
@@ -3995,12 +4058,13 @@ jQuery(document).ready(function($) {
         var service = $('#pillar-service').val();
         var category = $('#pillar-category').val();
         var duration = $('#pillar-duration-seconds').val();
-        var startTime = $('#pillar-start').val();
+        var pillarDate = $('#pillar-date').val();
+        var pillarTime = $('#pillar-time').val();
         
         // Check location only if availability engine requires it
         var location = $('#pillar-location').val();
         
-        var isReady = service && category && duration && startTime;
+        var isReady = service && category && duration && pillarDate && pillarTime;
         if (locationRequiredForAvailability) {
             isReady = isReady && location;
         }
@@ -4018,7 +4082,7 @@ jQuery(document).ready(function($) {
     checkAvailabilityReady();
     
     // Check after every relevant field change
-    $('#pillar-service, #pillar-category, #pillar-location, #pillar-duration-selector, #pillar-start').on('change', checkAvailabilityReady);
+    $('#pillar-service, #pillar-category, #pillar-location, #pillar-duration-selector, #pillar-date, #pillar-time').on('change', checkAvailabilityReady);
     
     // === LOAD LOCATIONS FROM API ===
     function loadLocations() {
@@ -4238,6 +4302,11 @@ jQuery(document).ready(function($) {
                             
                             if (time24) {
                                 $('#custom-time-input').val(time24);
+                                
+                                // ALSO sync to pillar inputs
+                                $('#pillar-date').val(artDetailData.existingBookedDate);
+                                $('#pillar-time').val(time24);
+                                updateDatetimeSummary();
                             }
                         }
                         
@@ -5110,10 +5179,13 @@ jQuery(document).ready(function($) {
                 
                 // Update Time & Duration fields with actual booked times from Amelia
                 if (response.data.booked_start_local) {
-                    $('#pillar-start').val(response.data.booked_start_local);
-                }
-                if (response.data.booked_end_local) {
-                    $('#pillar-end').val(response.data.booked_end_local);
+                    // booked_start_local is in format "2025-12-27T03:51"
+                    var parts = response.data.booked_start_local.split('T');
+                    if (parts.length === 2) {
+                        $('#pillar-date').val(parts[0]);
+                        $('#pillar-time').val(parts[1]);
+                        updateDatetimeSummary();
+                    }
                 }
                 if (response.data.booked_duration_seconds) {
                     var bookedDuration = response.data.booked_duration_seconds;
