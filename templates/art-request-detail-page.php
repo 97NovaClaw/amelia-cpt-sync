@@ -4201,46 +4201,32 @@ jQuery(document).ready(function($) {
                 renderFilteredDates('all');
                 
                 // Auto-select existing booking's date and time if available
-                if (artDetailData.hasActiveBooking && artDetailData.existingBookedDate && artDetailData.existingBookedTime) {
-                    console.log('ART DEBUG: Starting auto-population', {
+                // GUARD: Only run this once per page session to prevent overwriting user actions
+                if (artDetailData.hasActiveBooking && artDetailData.existingBookedDate && artDetailData.existingBookedTime && !hasAutoPopulatedOnce) {
+                    console.log('ART DEBUG: Pre-filling date/time inputs', {
                         date: artDetailData.existingBookedDate,
-                        time: artDetailData.existingBookedTime,
-                        providerId: artDetailData.existingBookedProviderId
+                        time: artDetailData.existingBookedTime
                     });
                     
-                    bookingViewState.isAutoPopulating = true; // Prevent mode switch during auto-population
+                    bookingViewState.isAutoPopulating = true; // Prevent mode switch during this operation
                     
                     setTimeout(function() {
-                        console.log('ART DEBUG: Step 1 - Looking for date button');
-                        
                         // Find and click matching date button
                         var matchingDateBtn = $('.art-picker-date-btn[data-date="' + artDetailData.existingBookedDate + '"]');
-                        console.log('ART DEBUG: Found date button?', matchingDateBtn.length > 0);
                         
                         if (matchingDateBtn.length) {
-                            console.log('ART DEBUG: Step 2 - Clicking date button');
                             matchingDateBtn.trigger('click');
                             
                             // Convert 12hr to 24hr and fill time input
                             var time24 = convertTo24Hour(artDetailData.existingBookedTime);
-                            console.log('ART DEBUG: Step 3 - Converted time', {
-                                original: artDetailData.existingBookedTime,
-                                converted: time24
-                            });
                             
                             if (time24) {
-                                console.log('ART DEBUG: Step 4 - Setting time input and triggering change');
-                                $('#custom-time-input').val(time24).trigger('change');
+                                $('#custom-time-input').val(time24);
                             }
                         }
                         
-                        // Reset flag and lock mode to 'current' after auto-population completes
-                        setTimeout(function() {
-                            console.log('ART DEBUG: Auto-population complete, setting mode to current');
-                            bookingViewState.isAutoPopulating = false;
-                            bookingViewState.mode = 'current';
-                            updateModeIndicator();
-                        }, 2000); // Longer delay to ensure everything completes
+                        // Reset auto-populating flag (but don't set mode - that's handled by Block 2)
+                        bookingViewState.isAutoPopulating = false;
                     }, 300); // Delay to ensure date buttons are rendered
                 }
                 
