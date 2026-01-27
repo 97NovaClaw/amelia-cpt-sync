@@ -264,8 +264,18 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
             $appt_end = $this->datetime_to_minutes($appt['end_utc']);
             $appt_status = $appt['status'] ?? 'approved';
             
+            // Debug overlap check
+            amelia_cpt_sync_debug_log("Availability Engine: Overlap check for provider #$provider_id", array(
+                'appointment_id' => $appt['id'] ?? 'unknown',
+                'request_range' => "$request_start-$request_end minutes",
+                'appointment_range' => "$appt_start-$appt_end minutes",
+                'request_utc' => $date . ' ' . $time,
+                'appointment_utc' => $appt['start_utc'] . ' to ' . $appt['end_utc']
+            ));
+            
             // Check for overlap
             if ($this->times_overlap($request_start, $request_end, $appt_start, $appt_end)) {
+                amelia_cpt_sync_debug_log("Availability Engine: OVERLAP DETECTED for provider #$provider_id with appointment #" . ($appt['id'] ?? 'unknown'));
                 $appt_time = $this->format_time_range($appt['start_utc'], $appt['end_utc']);
                 
                 if ($appt_status === 'approved' && $this->settings['check_approved_appointments']) {
@@ -274,6 +284,8 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
                 } elseif ($appt_status === 'pending' && $this->settings['check_pending_appointments']) {
                     $conflicts[] = sprintf(__('Pending booking - %s', 'amelia-cpt-sync'), $appt_time);
                 }
+            } else {
+                amelia_cpt_sync_debug_log("Availability Engine: NO overlap for provider #$provider_id with appointment #" . ($appt['id'] ?? 'unknown'));
             }
             
             // e) CHECK BUFFER TIMES
