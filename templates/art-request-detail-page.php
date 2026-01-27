@@ -3520,6 +3520,22 @@ jQuery(document).ready(function($) {
                     default_price: response.data.default_price
                 };
                 
+                // Auto-populate duration when exploring alternatives
+                // This allows user to check availability with the new service's default duration
+                var durationSeconds = response.data.duration_seconds;
+                $('#pillar-duration-seconds').val(durationSeconds);
+                
+                // Try to select matching duration in dropdown
+                var exactMatch = $('#pillar-duration-selector option[value="' + durationSeconds + '"]');
+                if (exactMatch.length) {
+                    $('#pillar-duration-selector').val(durationSeconds);
+                } else {
+                    $('#pillar-duration-selector').val('');  // Custom duration not in list
+                }
+                
+                // Update duration display
+                $('#duration-display').text(response.data.duration_display);
+                
                 // Calculate suggested price
                 calculateSuggestedPrice();
             } else {
