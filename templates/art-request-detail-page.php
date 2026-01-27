@@ -3538,8 +3538,13 @@ jQuery(document).ready(function($) {
                     $('#pillar-duration-selector').val('');  // Custom duration not in list
                 }
                 
-                // Update duration display
-                $('#duration-display').text(response.data.duration_display);
+                // Update duration display (legacy, may be removed)
+                if ($('#duration-display').length) {
+                    $('#duration-display').text(response.data.duration_display);
+                }
+                
+                // Update the start→end summary display with new duration
+                updateDatetimeSummary();
                 
                 // Calculate suggested price
                 calculateSuggestedPrice();
@@ -3661,11 +3666,24 @@ jQuery(document).ready(function($) {
     function updateDatetimeSummary() {
         var date = $('#pillar-date').val();      // YYYY-MM-DD
         var time = $('#pillar-time').val();      // HH:mm
+        
+        // Always sync dropdown → hidden field first
+        var dropdownDuration = $('#pillar-duration-selector').val();
+        if (dropdownDuration) {
+            $('#pillar-duration-seconds').val(dropdownDuration);
+        }
+        
+        // Now get duration from hidden field (freshly updated)
         var durationSeconds = parseInt($('#pillar-duration-seconds').val()) || 0;
         
         var summaryDiv = $('#pillar-datetime-summary');
         
         if (!date || !time) {
+            summaryDiv.hide();
+            return;
+        }
+        
+        if (!durationSeconds || durationSeconds <= 0) {
             summaryDiv.hide();
             return;
         }
@@ -3700,11 +3718,6 @@ jQuery(document).ready(function($) {
         $('#pillar-start-display').text(startDisplay);
         $('#pillar-end-display').text(endDisplay);
         summaryDiv.show();
-        
-        // Also update hidden duration seconds if duration dropdown was used
-        if ($('#pillar-duration-selector').val()) {
-            $('#pillar-duration-seconds').val($('#pillar-duration-selector').val());
-        }
     }
     
     // Event: Date, Time, or Duration changes → Update summary
@@ -3762,6 +3775,30 @@ jQuery(document).ready(function($) {
     $('#pillar-date, #pillar-time').on('change', function() {
         clearTimeout(pillarSyncTimeout);
         pillarSyncTimeout = setTimeout(syncPillarsToAvailabilityEngine, 100);
+    });
+    
+    /**
+     * Clear stale availability results when pillars change
+     * This prompts user to re-run availability check with new values
+     */
+    $('#pillar-service, #pillar-date, #pillar-time, #pillar-duration-selector').on('change', function() {
+        // Only clear if results are visible (don't clear during auto-population)
+        if (!bookingViewState.isAutoPopulating && $('#resource-status-list').is(':visible')) {
+            $('#resource-status-list').html(
+                '<div class="resource-placeholder" style="padding: 20px; text-align: center; color: #64748B;">' +
+                    '<span class="dashicons dashicons-info"></span> ' +
+                    '<?php _e('Click "Check Availability" to update results', 'amelia-cpt-sync'); ?>' +
+                '</div>'
+            );
+            
+            // Also clear provider list
+            var providerList = $('#provider-list');
+            if (providerList.is(':visible') && !providerList.find('.provider-placeholder').length) {
+                providerList.html(
+                    '<div class="provider-placeholder"><?php _e('Click "Check Availability" to update', 'amelia-cpt-sync'); ?></div>'
+                );
+            }
+        }
     });
     
     // === ENQUEUE SELECT2 FOR CUSTOM DURATION ENTRY ===
@@ -6355,7 +6392,7 @@ jQuery(document).ready(function($) {
                 // If availability data exists, re-render with correct names
                 if (availabilityData && availabilityData.length > 0) {
                     var activeDate = $('#picker-dates-list .art-picker-date-btn.active').data('date');
-                    if (activeDate) {
+                    if (activeDate && typeof renderFilteredDates === 'function') {
                         // Re-render dates and times with new provider names
                         var selectedFilter = $('#filter-provider').val() || 'all';
                         renderFilteredDates(selectedFilter);
