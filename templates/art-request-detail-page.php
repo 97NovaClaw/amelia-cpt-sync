@@ -780,6 +780,45 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             <div id="availability-status" style="margin-top: 12px; display: none;"></div>
                         </div>
                         
+                        <?php if ($active_booking): ?>
+                        <!-- Original Booking Status (Always visible when there's an active booking) -->
+                        <div id="original-booking-status" style="margin-top: 20px; padding: 16px; background: #F0F9FF; border: 2px solid #3B82F6; border-radius: 8px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                <h4 style="margin: 0; color: #1E40AF; display: flex; align-items: center; gap: 8px;">
+                                    <span class="dashicons dashicons-saved" style="font-size: 20px;"></span>
+                                    <?php _e('Current Booking', 'amelia-cpt-sync'); ?>
+                                </h4>
+                                <span id="booking-status-badge" style="padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                                    <?php 
+                                    if ($active_booking->status === 'approved') {
+                                        echo '<span style="background: #DEF7EC; color: #03543F;">✅ ' . __('Confirmed', 'amelia-cpt-sync') . '</span>';
+                                    } else {
+                                        echo '<span style="background: #FEF3C7; color: #92400E;">⏳ ' . __('Tentative', 'amelia-cpt-sync') . '</span>';
+                                    }
+                                    ?>
+                                </span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: 14px; line-height: 1.8;">
+                                <strong style="color: #64748B;"><?php _e('Service:', 'amelia-cpt-sync'); ?></strong>
+                                <span><?php echo esc_html($active_booking->service_name); ?></span>
+                                
+                                <strong style="color: #64748B;"><?php _e('Date & Time:', 'amelia-cpt-sync'); ?></strong>
+                                <span><?php echo esc_html($active_booking->formatted_date . ' at ' . $active_booking->formatted_time); ?></span>
+                                
+                                <strong style="color: #64748B;"><?php _e('Provider:', 'amelia-cpt-sync'); ?></strong>
+                                <span><?php echo esc_html($active_booking->provider_name); ?></span>
+                                
+                                <?php if (!empty($active_booking->resource_name)): ?>
+                                <strong style="color: #64748B;"><?php _e('Resource:', 'amelia-cpt-sync'); ?></strong>
+                                <span><?php echo esc_html($active_booking->resource_name); ?></span>
+                                <?php endif; ?>
+                                
+                                <strong style="color: #64748B;"><?php _e('Location:', 'amelia-cpt-sync'); ?></strong>
+                                <span><?php echo esc_html($active_booking->location_name); ?></span>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        
                         <!-- Step 2: Available Slots Display (hidden until check completes) -->
                         <div id="availability-results" style="display: none; margin-top: 20px;">
                             
@@ -793,10 +832,15 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                 </select>
                             </div>
 
-                            <h4 style="margin-bottom: 12px; color: #2C3E50;">
-                                <?php _e('Select Date & Time', 'amelia-cpt-sync'); ?>
-                                <span id="slot-count-badge" class="badge-info" style="margin-left: 8px;"></span>
-                            </h4>
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 12px;">
+                                <h4 style="margin: 0; color: #2C3E50;">
+                                    <?php _e('Select Date & Time', 'amelia-cpt-sync'); ?>
+                                    <span id="slot-count-badge" class="badge-info" style="margin-left: 8px;"></span>
+                                </h4>
+                                <div id="booking-mode-indicator" style="padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; display: none;">
+                                    <!-- Will be populated by JavaScript based on bookingViewState.mode -->
+                                </div>
+                            </div>
                             
                             <!-- Date & Time Picker Container -->
                             <div class="art-picker-container <?php echo $show_timeslots_grid ? 'with-timegrid' : 'no-timegrid'; ?>">
@@ -3186,6 +3230,17 @@ jQuery(document).ready(function($) {
     });
     
     // ========================================
+    // AUTO-POPULATION GUARD
+    // ========================================
+    
+    /**
+     * Prevent auto-population from running more than once per page session
+     * This prevents the auto-population from overwriting user actions when
+     * they change services or trigger availability checks
+     */
+    var hasAutoPopulatedOnce = false;
+    
+    // ========================================
     // BOOKING VIEW STATE MANAGEMENT
     // ========================================
     
@@ -3222,6 +3277,36 @@ jQuery(document).ready(function($) {
     /**
      * Switch to exploring mode
      */
+    /**
+     * Update the mode indicator badge based on current mode
+     */
+    function updateModeIndicator() {
+        var indicator = $('#booking-mode-indicator');
+        
+        if (!artDetailData.hasActiveBooking) {
+            indicator.hide();
+            return;
+        }
+        
+        if (bookingViewState.mode === 'current') {
+            indicator.html('<span class="dashicons dashicons-visibility" style="font-size: 14px; vertical-align: middle;"></span> <?php _e('Viewing Current Booking', 'amelia-cpt-sync'); ?>')
+                     .css({
+                         'background': '#E0E7FF',
+                         'color': '#4338CA',
+                         'border': '1px solid #4338CA'
+                     })
+                     .show();
+        } else if (bookingViewState.mode === 'exploring') {
+            indicator.html('<span class="dashicons dashicons-search" style="font-size: 14px; vertical-align: middle;"></span> <?php _e('Exploring Alternatives', 'amelia-cpt-sync'); ?>')
+                     .css({
+                         'background': '#FEF3C7',
+                         'color': '#92400E',
+                         'border': '1px solid #D97706'
+                     })
+                     .show();
+        }
+    }
+    
     function enterExploringMode() {
         // Don't switch modes during auto-population
         if (bookingViewState.isAutoPopulating) {
@@ -3233,6 +3318,7 @@ jQuery(document).ready(function($) {
         
         bookingViewState.mode = 'exploring';
         console.log('ART: Switched to EXPLORING mode');
+        updateModeIndicator();
         $('#btn-reset-to-current').fadeIn();
     }
     
@@ -3272,6 +3358,7 @@ jQuery(document).ready(function($) {
             // Switch mode back to current
             bookingViewState.mode = 'current';
             bookingViewState.isAutoPopulating = false;
+            updateModeIndicator();
             $('#btn-reset-to-current').fadeOut();
             
             // Re-trigger availability check
@@ -4135,6 +4222,7 @@ jQuery(document).ready(function($) {
                             console.log('ART DEBUG: Auto-population complete, setting mode to current');
                             bookingViewState.isAutoPopulating = false;
                             bookingViewState.mode = 'current';
+                            updateModeIndicator();
                         }, 2000); // Longer delay to ensure everything completes
                     }, 300); // Delay to ensure date buttons are rendered
                 }
@@ -4565,9 +4653,11 @@ jQuery(document).ready(function($) {
     
     /**
      * Auto-populate availability engine with existing booking details on page load
+     * Only runs once per page session to prevent overwriting user actions
      */
-    if (artDetailData.hasActiveBooking && artDetailData.existingBookedDateTime) {
-        // Set auto-populating flag to prevent mode switching during initialization
+    if (artDetailData.hasActiveBooking && artDetailData.existingBookedDateTime && !hasAutoPopulatedOnce) {
+        // Set flags to prevent mode switching and re-running
+        hasAutoPopulatedOnce = true;
         bookingViewState.isAutoPopulating = true;
         
         artDetailData.providers[artDetailData.existingBookedProviderId] = artDetailData.existingBookedProviderName;
@@ -4585,6 +4675,7 @@ jQuery(document).ready(function($) {
             setTimeout(function() {
                 bookingViewState.isAutoPopulating = false;
                 bookingViewState.mode = 'current';
+                updateModeIndicator();
                 
                 // Re-render the UI to ensure "Currently Selected" labels appear
                 if (lastOrchestratorResult) {
