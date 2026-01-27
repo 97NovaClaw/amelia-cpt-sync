@@ -4399,37 +4399,63 @@ jQuery(document).ready(function($) {
                 // Initial Render
                 renderFilteredDates('all');
                 
-                // Auto-select existing booking's date and time if available
+                // Auto-select date/time if available (from existing booking OR from pillar inputs)
                 // GUARD: Only run this once per page session to prevent overwriting user actions
-                if (artDetailData.hasActiveBooking && artDetailData.existingBookedDate && artDetailData.existingBookedTime && !hasAutoPopulatedOnce) {
-                    console.log('ART DEBUG: Pre-filling date/time inputs', {
-                        date: artDetailData.existingBookedDate,
-                        time: artDetailData.existingBookedTime
+                var hasExistingBookingData = artDetailData.hasActiveBooking && 
+                                              artDetailData.existingBookedDate && 
+                                              artDetailData.existingBookedTime;
+                var hasPillarData = $('#pillar-date').val() && $('#pillar-time').val();
+                
+                if ((hasExistingBookingData || hasPillarData) && !hasAutoPopulatedOnce) {
+                    // Determine data source
+                    var targetDate = hasExistingBookingData ? 
+                        artDetailData.existingBookedDate : 
+                        $('#pillar-date').val();
+                    var targetTime = hasExistingBookingData ? 
+                        artDetailData.existingBookedTime : 
+                        $('#pillar-time').val();
+                    
+                    console.log('ART DEBUG: Pre-filling date/time inputs from ' + 
+                        (hasExistingBookingData ? 'booking' : 'pillars'), {
+                        date: targetDate,
+                        time: targetTime
                     });
                     
-                    bookingViewState.isAutoPopulating = true; // Prevent mode switch during this operation
+                    hasAutoPopulatedOnce = true; // Mark as done
+                    bookingViewState.isAutoPopulating = true;
                     
                     setTimeout(function() {
                         // Find and click matching date button
-                        var matchingDateBtn = $('.art-picker-date-btn[data-date="' + artDetailData.existingBookedDate + '"]');
+                        var matchingDateBtn = $('.art-picker-date-btn[data-date="' + targetDate + '"]');
                         
                         if (matchingDateBtn.length) {
                             matchingDateBtn.trigger('click');
                             
-                            // Convert 12hr to 24hr and fill time input
-                            var time24 = convertTo24Hour(artDetailData.existingBookedTime);
+                            // Convert time format if needed (12hr to 24hr)
+                            var time24 = targetTime;
+                            if (targetTime && (targetTime.includes('AM') || targetTime.includes('PM'))) {
+                                time24 = convertTo24Hour(targetTime);
+                            }
                             
                             if (time24) {
-                                $('#custom-time-input').val(time24);
+                                $('#custom-time-input').val(time24).trigger('change');
                                 
-                                // ALSO sync to pillar inputs
-                                $('#pillar-date').val(artDetailData.existingBookedDate);
-                                $('#pillar-time').val(time24);
+                                // Sync to pillar inputs if not already there
+                                if ($('#pillar-date').val() !== targetDate) {
+                                    $('#pillar-date').val(targetDate);
+                                }
+                                if ($('#pillar-time').val() !== time24) {
+                                    $('#pillar-time').val(time24);
+                                }
                                 updateDatetimeSummary();
                             }
+                            
+                            console.log('ART: Date/time auto-selected successfully');
+                        } else {
+                            console.warn('ART: Date button not found for', targetDate);
                         }
                         
-                        // Reset auto-populating flag (but don't set mode - that's handled by Block 2)
+                        // Reset auto-populating flag
                         bookingViewState.isAutoPopulating = false;
                     }, 300); // Delay to ensure date buttons are rendered
                 }
