@@ -292,10 +292,10 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             
                             // Get assigned resource(s) for this appointment
                             $assigned_resource = $wpdb->get_row($wpdb->prepare(
-                                "SELECT ra.resourceId as resource_id, r.name as resource_name
+                                "SELECT ra.amelia_resource_id as resource_id, r.name as resource_name
                                  FROM {$wpdb->prefix}art_resource_assignments ra
-                                 LEFT JOIN {$wpdb->prefix}amelia_resources r ON ra.resourceId = r.id
-                                 WHERE ra.appointmentId = %d
+                                 LEFT JOIN {$wpdb->prefix}amelia_resources r ON ra.amelia_resource_id = r.id
+                                 WHERE ra.amelia_appointment_id = %d
                                  LIMIT 1",
                                 $active_booking->amelia_appointment_id
                             ));
