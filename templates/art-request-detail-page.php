@@ -310,6 +310,8 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             $active_booking->location_name = $location_name;
                             $active_booking->resource_id = $assigned_resource ? intval($assigned_resource->resource_id) : null;
                             $active_booking->resource_name = $assigned_resource ? $assigned_resource->resource_name : null;
+                            $active_booking->service_id = $appointment_full->serviceId;
+                            $active_booking->category_id = $appointment_full->category_id;
                             
                             amelia_cpt_sync_debug_log('ART Detail Page: activeResource will be: ' . json_encode(array('id' => $active_booking->resource_id, 'name' => $active_booking->resource_name)));
                             
@@ -444,6 +446,20 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             </h3>
                         </div>
                         <div class="card-body">
+                            <?php
+                            // Determine effective pillar values (booking takes priority over request)
+                            $effective_category_id = (!empty($active_booking->category_id)) 
+                                ? $active_booking->category_id 
+                                : $request->category_id;
+                                
+                            $effective_service_id = (!empty($active_booking->service_id)) 
+                                ? $active_booking->service_id 
+                                : $request->service_id;
+
+                            $effective_location_id = (!empty($active_booking->location_id)) 
+                                ? $active_booking->location_id 
+                                : $request->location_id;
+                            ?>
                             <div class="pillar-grid-3">
                                 <!-- Category -->
                                 <div class="form-field">
@@ -454,7 +470,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                         <option value=""><?php _e('Select Category', 'amelia-cpt-sync'); ?></option>
                                         <?php foreach ($category_options as $category): ?>
                                             <option value="<?php echo esc_attr($category['id']); ?>"
-                                                    <?php selected($request->category_id, $category['id']); ?>>
+                                                    <?php selected($effective_category_id, $category['id']); ?>>
                                                 <?php echo esc_html($category['name']); ?>
                                             </option>
                                         <?php endforeach; ?>
@@ -471,7 +487,7 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                         <?php foreach ($service_options as $service): ?>
                                             <option value="<?php echo esc_attr($service['id']); ?>"
                                                     data-category-id="<?php echo esc_attr($service['category_id']); ?>"
-                                                    <?php selected($request->service_id, $service['id']); ?>>
+                                                    <?php selected($effective_service_id, $service['id']); ?>>
                                                 <?php echo esc_html($service['name']); ?>
                                             </option>
                                         <?php endforeach; ?>
@@ -3200,9 +3216,9 @@ jQuery(document).ready(function($) {
         currentUserId: <?php echo get_current_user_id(); ?>,
         customerEmail: <?php echo wp_json_encode($request->customer_email); ?>,
         nonce: <?php echo wp_json_encode(wp_create_nonce('art_nonce')); ?>,
-        currentCategory: <?php echo wp_json_encode($request->category_id); ?>,
-        currentService: <?php echo wp_json_encode($request->service_id); ?>,
-        currentLocation: <?php echo wp_json_encode($request->location_id); ?>,
+        currentCategory: <?php echo wp_json_encode($effective_category_id); ?>,
+        currentService: <?php echo wp_json_encode($effective_service_id); ?>,
+        currentLocation: <?php echo wp_json_encode($effective_location_id); ?>,
         currentDuration: <?php echo wp_json_encode($request->duration_seconds); ?>,
         currentPersons: <?php echo wp_json_encode($request->persons); ?>,
         providers: {}, // Will be populated by fetchServiceEmployees()
@@ -3210,6 +3226,7 @@ jQuery(document).ready(function($) {
         hasActiveBooking: <?php echo (!empty($active_booking) && !empty($active_booking->amelia_appointment_id)) ? 'true' : 'false'; ?>,
         activeAppointmentId: <?php echo (!empty($active_booking) && !empty($active_booking->amelia_appointment_id)) ? intval($active_booking->amelia_appointment_id) : 'null'; ?>,
         activeBookingId: <?php echo (!empty($active_booking) && !empty($active_booking->amelia_booking_id)) ? intval($active_booking->amelia_booking_id) : 'null'; ?>,
+        activeServiceId: <?php echo (!empty($active_booking->service_id)) ? intval($active_booking->service_id) : 'null'; ?>,
         bookingType: <?php echo (!empty($active_booking) && !empty($active_booking->booking_type)) ? wp_json_encode($active_booking->booking_type) : wp_json_encode('confirmed'); ?>,
         existingBookedDateTime: <?php echo !empty($active_booking->formatted_date_time) ? wp_json_encode($active_booking->formatted_date_time) : 'null'; ?>,
         existingBookedDate: <?php echo !empty($active_booking->date_only) ? wp_json_encode($active_booking->date_only) : 'null'; ?>,
