@@ -75,12 +75,35 @@ $submitted_date = get_date_from_gmt($request->created_at);
 $submitted_display = date_i18n('M j, Y \a\t g:i A', strtotime($submitted_date));
 
 // Parse start_datetime into separate date and time for new picker UI
+// PRIORITY: Use active booking data (Amelia) over exploration data (wp_art_requests)
+// This ensures pillars always match the actual booking on page load
 $pillar_date = '';
 $pillar_time = '';
-if (!empty($request->start_datetime)) {
+
+if (!empty($active_booking) && !empty($active_booking->bookingStart)) {
+    // Use ACTUAL BOOKING from Amelia as source of truth
+    $booking_local = get_date_from_gmt($active_booking->bookingStart);
+    $pillar_date = date('Y-m-d', strtotime($booking_local));
+    $pillar_time = date('H:i', strtotime($booking_local));
+    
+    error_log(sprintf(
+        '[ART] Request #%d: Populating pillars from active booking (Date: %s, Time: %s)',
+        $request_id,
+        $pillar_date,
+        $pillar_time
+    ));
+} elseif (!empty($request->start_datetime)) {
+    // Only use request data if no active booking exists (new requests or exploration)
     $start_local = get_date_from_gmt($request->start_datetime);
     $pillar_date = date('Y-m-d', strtotime($start_local));
     $pillar_time = date('H:i', strtotime($start_local));
+    
+    error_log(sprintf(
+        '[ART] Request #%d: Populating pillars from request data (Date: %s, Time: %s)',
+        $request_id,
+        $pillar_date,
+        $pillar_time
+    ));
 }
 
 // Format follow-up date
@@ -3336,60 +3359,87 @@ jQuery(document).ready(function($) {
     /**
      * Reset to current booking view
      */
+    /**
+     * CHANGE #3: Reset to Current Booking (Event-Driven)
+     * Waits for slots to actually load before restoring date/time
+     */
     function resetToCurrentBooking() {
         if (!artDetailData.hasActiveBooking) return;
         
-        console.log('ART: Resetting to CURRENT booking');
+        console.log('ART: Resetting to current booking');
         
-        // Set auto-populating flag to prevent mode switching
+        // Disable button to prevent double-clicks
+        var resetBtn = $('#btn-reset-to-current');
+        resetBtn.prop('disabled', true);
+        
         bookingViewState.isAutoPopulating = true;
         
-        // Restore service
+        // Restore service (triggers slot reload)
         if (bookingViewState.originalServiceId) {
             $('#pillar-service').val(bookingViewState.originalServiceId).trigger('change');
         }
         
-        // Wait for service change to propagate, then restore date/time
-        setTimeout(function() {
-            // Restore time in availability engine
+        // Trigger fresh slot load
+        $('#btn-check-availability').trigger('click');
+        
+        // Wait for slots to actually load (event-driven!)
+        waitForEvent('art-slots-loaded', function(success) {
+            if (!success) {
+                console.error('ART: Timeout waiting for slots during reset');
+                showNotice('Reset timed out. Please try again.', 'error');
+                resetBtn.prop('disabled', false);
+                bookingViewState.isAutoPopulating = false;
+                return;
+            }
+            
+            console.log('ART: Slots loaded after reset, restoring date/time');
+            
+            // Restore time
             var time24 = convertTo24Hour(bookingViewState.originalTime);
             if (time24) {
                 $('#custom-time-input').val(time24);
-            }
-            
-            // Find and click the date button for the original date
-            if (bookingViewState.originalDate) {
-                var targetDateBtn = $('#picker-dates-list .art-picker-date-btn[data-date="' + bookingViewState.originalDate + '"]');
-                if (targetDateBtn.length) {
-                    // Remove active from all, add to target
-                    $('#picker-dates-list .art-picker-date-btn').removeClass('active');
-                    targetDateBtn.addClass('active');
-                }
-                
-                // Also restore in pillar inputs
-                $('#pillar-date').val(bookingViewState.originalDate);
-            }
-            
-            if (time24) {
                 $('#pillar-time').val(time24);
             }
             
-            // Update summary display
+            // Restore date by clicking button
+            if (bookingViewState.originalDate) {
+                var targetDateBtn = $('.art-picker-date-btn[data-date="' + 
+                    bookingViewState.originalDate + '"]');
+                
+                if (targetDateBtn.length) {
+                    // Click triggers orchestrator
+                    targetDateBtn.trigger('click');
+                    $('#pillar-date').val(bookingViewState.originalDate);
+                } else {
+                    console.warn('ART: Original date not available:', 
+                        bookingViewState.originalDate);
+                    showNotice('Original date no longer available. Please select a new date.', 'warning');
+                }
+            }
+            
+            // Update summary
             updateDatetimeSummary();
             
-            // Switch mode back to current
-            bookingViewState.mode = 'current';
-            bookingViewState.isAutoPopulating = false;
-            updateModeIndicator();
-            $('#btn-reset-to-current').fadeOut();
-            
-            // Re-trigger availability check
+            // Restore mode after orchestrator completes
             setTimeout(function() {
-                if (typeof checkAvailability !== 'undefined') {
-                    checkAvailability();
+                bookingViewState.mode = 'current';
+                bookingViewState.isAutoPopulating = false;
+                updateModeIndicator();
+                resetBtn.fadeOut().prop('disabled', false);
+                
+                // Re-render with "Currently Selected" labels
+                if (lastOrchestratorResult) {
+                    renderResourceColumn(lastOrchestratorResult);
+                    renderAvailabilityEngineResults(
+                        lastOrchestratorResult.providers || [],
+                        lastOrchestratorResult.has_availability_error || false,
+                        lastOrchestratorResult.availability_error_message || ''
+                    );
                 }
-            }, 100);
-        }, 300);
+                
+                console.log('ART: Reset complete, mode set to current');
+            }, 300);
+        }, 10000);  // 10 second timeout
     }
     
     // === HELPER: Show Notice ===
@@ -3405,6 +3455,35 @@ jQuery(document).ready(function($) {
                 $(this).remove();
             });
         }, 3000);
+    }
+    
+    /**
+     * CHANGE #5: Wait for event with timeout fallback
+     * Prevents infinite waiting if event never fires due to network issues
+     * 
+     * @param {string} eventName - Event to wait for
+     * @param {function} callback - Success callback (receives true/false)
+     * @param {number} timeout - Max wait time in ms (default 10000)
+     */
+    function waitForEvent(eventName, callback, timeout) {
+        timeout = timeout || 10000; // 10 second default
+        var fired = false;
+        
+        var timeoutHandle = setTimeout(function() {
+            if (!fired) {
+                console.warn('ART: Timeout waiting for', eventName);
+                fired = true;
+                callback(false); // Call with failure flag
+            }
+        }, timeout);
+        
+        $(document).one(eventName, function() {
+            if (!fired) {
+                clearTimeout(timeoutHandle);
+                fired = true;
+                callback(true); // Call with success flag
+            }
+        });
     }
     
     // === STATUS DROPDOWN: Auto-save on change ===
@@ -4398,12 +4477,29 @@ jQuery(document).ready(function($) {
                     '<p style="color: #DC3545;">Error: ' + response.data.message + '</p>'
                 );
             }
-        }).fail(function() {
+            
+            // CHANGE #1: Fire event to signal slots are loaded and rendered
+            // This allows event-driven async handling for auto-population and reset
+            $(document).trigger('art-slots-loaded');
+            console.log('ART: Slots loaded and rendered, event fired');
+            
+        }).fail(function(xhr, status, error) {
             btn.prop('disabled', false);
             icon.removeClass('spin');
+            
+            console.error('ART: Slot loading failed', {
+                status: status,
+                error: error
+            });
+            
             $('#availability-status').html(
                 '<p style="color: #DC3545;">Network error. Please try again.</p>'
             );
+            
+            // CHANGE #4: Fire event even on error to prevent infinite waiting
+            // Listeners need to know the operation completed (even if it failed)
+            $(document).trigger('art-slots-loaded');
+            console.log('ART: Slots loading failed, but event fired to prevent hangs');
         });
     });
     
@@ -4780,45 +4876,84 @@ jQuery(document).ready(function($) {
     }
     
     /**
-     * Auto-populate availability engine with existing booking details on page load
+     * CHANGE #2: Auto-populate availability engine with existing booking details on page load
+     * EVENT-DRIVEN: Waits for slots to actually load before auto-selecting date/time
      * Only runs once per page session to prevent overwriting user actions
      */
     if (artDetailData.hasActiveBooking && artDetailData.existingBookedDateTime && !hasAutoPopulatedOnce) {
-        // Set flags to prevent mode switching and re-running
         hasAutoPopulatedOnce = true;
         bookingViewState.isAutoPopulating = true;
         
-        artDetailData.providers[artDetailData.existingBookedProviderId] = artDetailData.existingBookedProviderName;
+        console.log('ART: Starting auto-population for existing booking', {
+            date: artDetailData.existingBookedDate,
+            time: artDetailData.existingBookedTime,
+            providerId: artDetailData.existingBookedProviderId
+        });
         
-        // Auto-trigger availability check to populate Resource + Provider columns
-        // The exclude_appointment_id prevents self-blocking
+        // Add provider to map for UI display
+        artDetailData.providers[artDetailData.existingBookedProviderId] = 
+            artDetailData.existingBookedProviderName;
+        
         setTimeout(function() {
-            if (typeof checkAvailability !== 'undefined') {
-                checkAvailability();
-            } else {
-                console.warn('ART: checkAvailability not yet defined, skipping auto-trigger');
-            }
+            // STEP 1: Trigger slot loading by clicking the "Check Availability" button
+            console.log('ART: Triggering availability check to load slots');
+            $('#btn-check-availability').trigger('click');
             
-            // Clear auto-populating flag and lock mode to 'current' after check completes
-            setTimeout(function() {
-                bookingViewState.isAutoPopulating = false;
-                bookingViewState.mode = 'current';
-                updateModeIndicator();
-                
-                // Re-render the UI to ensure "Currently Selected" labels appear
-                if (lastOrchestratorResult) {
-                    renderResourceColumn(lastOrchestratorResult);
-                    renderAvailabilityEngineResults(
-                        lastOrchestratorResult.providers || [],
-                        lastOrchestratorResult.has_availability_error || false,
-                        lastOrchestratorResult.availability_error_message || ''
-                    );
+            // STEP 2: Wait for slots to actually load (event-driven!)
+            waitForEvent('art-slots-loaded', function(success) {
+                if (!success) {
+                    console.error('ART: Timeout waiting for slots to load');
+                    showNotice('Auto-population timed out. Please click "Check Availability" manually.', 'error');
+                    bookingViewState.isAutoPopulating = false;
+                    return;
                 }
                 
-                console.log('ART: Auto-population complete, mode = current');
-            }, 500);
-        }, 1000); // Small delay to ensure all functions are declared
+                console.log('ART: Slots loaded successfully, auto-selecting date/time');
+                
+                // STEP 3: Find and click the date button
+                var targetDateBtn = $('.art-picker-date-btn[data-date="' + 
+                    artDetailData.existingBookedDate + '"]');
+                
+                if (targetDateBtn.length) {
+                    // Click triggers updateProviderList() → orchestrator
+                    targetDateBtn.trigger('click');
+                    
+                    // Set time input
+                    var time24 = convertTo24Hour(artDetailData.existingBookedTime);
+                    if (time24) {
+                        $('#custom-time-input').val(time24).trigger('change');
+                    }
+                    
+                    console.log('ART: Date/time auto-selected successfully');
+                } else {
+                    console.warn('ART: Date button not found for', 
+                        artDetailData.existingBookedDate,
+                        '- Original booking date may not be available in current slots');
+                    showNotice('Original booking date not currently available. Showing current availability.', 'warning');
+                }
+                
+                // STEP 4: Set mode to 'current' after orchestrator runs
+                setTimeout(function() {
+                    bookingViewState.mode = 'current';
+                    bookingViewState.isAutoPopulating = false;
+                    updateModeIndicator();
+                    
+                    // Re-render to show "Currently Selected" labels
+                    if (lastOrchestratorResult) {
+                        renderResourceColumn(lastOrchestratorResult);
+                        renderAvailabilityEngineResults(
+                            lastOrchestratorResult.providers || [],
+                            lastOrchestratorResult.has_availability_error || false,
+                            lastOrchestratorResult.availability_error_message || ''
+                        );
+                    }
+                    
+                    console.log('ART: Auto-population complete, mode set to current');
+                }, 500);  // Wait for orchestrator to complete
+            }, 10000);  // 10 second timeout
+        }, 1000);  // Delay to ensure all functions are defined
         
+        // Pre-select slot for visual consistency
         selectSlot({
             datetime: artDetailData.existingBookedDateTime,
             provider_id: artDetailData.existingBookedProviderId,
