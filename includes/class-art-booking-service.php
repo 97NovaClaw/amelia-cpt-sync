@@ -147,12 +147,24 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             $location_id = !empty($booking_data['locationId']) ? absint($booking_data['locationId']) : 'NULL';
             $location_sql = $location_id === 'NULL' ? 'NULL' : '%d';
             
+            // Use provided status (pending for tentative, approved for confirmed)
+            $appointment_status = $booking_data['status'] ?? 'approved';
+            
+            // Validate status (security)
+            $valid_statuses = array('approved', 'pending', 'canceled', 'rejected', 'no-show');
+            if (!in_array($appointment_status, $valid_statuses, true)) {
+                amelia_cpt_sync_debug_log('ART Booking DB: Invalid status "' . $appointment_status . '", defaulting to approved');
+                $appointment_status = 'approved';
+            }
+            
+            amelia_cpt_sync_debug_log('ART Booking DB: Creating appointment with status: ' . $appointment_status);
+            
             if ($location_id === 'NULL') {
                 $wpdb->query($wpdb->prepare(
                     "INSERT INTO $appointments_table 
                     (status, bookingStart, bookingEnd, notifyParticipants, createPaymentLinks, serviceId, packageId, providerId, locationId, internalNotes, googleCalendarEventId, googleMeetUrl, outlookCalendarEventId, microsoftTeamsUrl, appleCalendarEventId, zoomMeeting, lessonSpace, parentId, error) 
                     VALUES (%s, %s, %s, 1, 1, %d, NULL, %d, NULL, %s, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
-                    'approved',
+                    $appointment_status,
                     $booking_start_formatted,
                     $booking_end,
                     $service_id,
@@ -164,7 +176,7 @@ class Amelia_CPT_Sync_ART_Booking_Service {
                     "INSERT INTO $appointments_table 
                     (status, bookingStart, bookingEnd, notifyParticipants, createPaymentLinks, serviceId, packageId, providerId, locationId, internalNotes, googleCalendarEventId, googleMeetUrl, outlookCalendarEventId, microsoftTeamsUrl, appleCalendarEventId, zoomMeeting, lessonSpace, parentId, error) 
                     VALUES (%s, %s, %s, 1, 1, %d, NULL, %d, %d, %s, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
-                    'approved',
+                    $appointment_status,
                     $booking_start_formatted,
                     $booking_end,
                     $service_id,
@@ -197,13 +209,16 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             $price = floatval($booking_info['price'] ?? 0);
             $persons = absint($booking_info['persons'] ?? 1);
             
+            // Customer booking status should match appointment status
+            $booking_status = $booking_info['status'] ?? $appointment_status;
+            
             $booking_insert_result = $wpdb->query($wpdb->prepare(
                 "INSERT INTO $bookings_table 
                 (appointmentId, customerId, status, price, tax, persons, couponId, token, customFields, info, utcOffset, aggregatedPrice, packageCustomerServiceId, duration, created, actionsCompleted) 
                 VALUES (%d, %d, %s, %f, NULL, %d, NULL, %s, %s, %s, NULL, 1, NULL, %d, %s, 1)",
                 $appointment_id,
                 $customer_id,
-                'approved',
+                $booking_status,
                 $price,
                 $persons,
                 $token,
@@ -361,6 +376,7 @@ class Amelia_CPT_Sync_ART_Booking_Service {
             'notifyParticipants' => 1,
             'providerId' => absint($booking_data['providerId']),
             'serviceId' => absint($booking_data['serviceId']),
+            'status' => $booking_data['status'] ?? 'approved',  // Appointment status (pending/approved)
             'isBackendOrCabinet' => true,
             'packageBookingFromBackend' => true
         );

@@ -451,7 +451,8 @@ class Amelia_CPT_Sync_ART_Booking_Manager {
             'bookingStart' => $params['slot_datetime'],
             'notifyParticipants' => 1,
             'providerId' => absint($params['provider_id']),
-            'serviceId' => absint($params['service_id'])
+            'serviceId' => absint($params['service_id']),
+            'status' => $amelia_status  // Pass appointment status (pending for tentative, approved for confirmed)
         );
         
         if (!empty($params['location_id'])) {
