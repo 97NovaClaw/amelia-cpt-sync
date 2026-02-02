@@ -80,11 +80,14 @@ $submitted_display = date_i18n('M j, Y \a\t g:i A', strtotime($submitted_date));
 $pillar_date = '';
 $pillar_time = '';
 
-if (!empty($active_booking) && !empty($active_booking->bookingStart)) {
+if (!empty($active_booking) && !empty($active_booking->formatted_date_time)) {
     // Use ACTUAL BOOKING from Amelia as source of truth
-    $booking_local = get_date_from_gmt($active_booking->bookingStart);
-    $pillar_date = date('Y-m-d', strtotime($booking_local));
-    $pillar_time = date('H:i', strtotime($booking_local));
+    // formatted_date_time is already timezone-converted to local (format: "2025-12-28T16:05")
+    $parts = explode('T', $active_booking->formatted_date_time);
+    if (count($parts) === 2) {
+        $pillar_date = $parts[0];  // "2025-12-28"
+        $pillar_time = $parts[1];  // "16:05" (24-hour format)
+    }
     
     error_log(sprintf(
         '[ART] Request #%d: Populating pillars from active booking (Date: %s, Time: %s)',
