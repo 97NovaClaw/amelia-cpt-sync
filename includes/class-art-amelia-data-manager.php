@@ -111,6 +111,15 @@ class ART_Amelia_Data_Manager {
 
         $results = $this->wpdb->get_results($this->wpdb->prepare($query, $params), ARRAY_A);
 
+        // DEBUG: Log first result to check if request_id is in raw data
+        if (!empty($results) && count($results) > 0) {
+            amelia_cpt_sync_debug_log('ART Data Manager: First raw appointment from DB', array(
+                'id' => $results[0]['id'] ?? 'missing',
+                'request_id' => $results[0]['request_id'] ?? 'NULL',
+                'all_columns' => array_keys($results[0])
+            ));
+        }
+
         return array_map([$this, 'normalize_appointment'], $results);
     }
 
@@ -343,7 +352,8 @@ class ART_Amelia_Data_Manager {
             'resources' => [], // Resources column not available in DB (tracked via art_resource_assignments)
             'start_utc' => $row['start_utc'],
             'end_utc' => $row['end_utc'],
-            'status' => $row['status']
+            'status' => $row['status'],
+            'request_id' => isset($row['request_id']) ? (int) $row['request_id'] : null  // For conflict message references
         ];
     }
 
