@@ -902,8 +902,8 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         }
         
         if (isset($_POST['start_datetime']) && !empty($_POST['start_datetime'])) {
-            // Store in local timezone (for display in ART UI, not sent to Amelia)
-            $data['start_datetime'] = date('Y-m-d H:i:s', strtotime($_POST['start_datetime']));
+            // Convert to UTC for consistent storage (matches initial form submission behavior)
+            $data['start_datetime'] = get_gmt_from_date($_POST['start_datetime']);
         }
         
         // Calculate end_datetime from start + duration if not explicitly provided
@@ -1154,7 +1154,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             'serviceId' => $request->service_id,
             'serviceDuration' => $request->duration_seconds,
             'persons' => $request->persons ?? 1,
-            'startDateTime' => !empty($request->start_datetime) ? date('Y-m-d', strtotime($request->start_datetime)) : date('Y-m-d')
+            'startDateTime' => !empty($request->start_datetime) ? date('Y-m-d', strtotime(get_date_from_gmt($request->start_datetime))) : date('Y-m-d')
         );
         
         // Only add locationId if it's set and > 0 (omit if null/0)
