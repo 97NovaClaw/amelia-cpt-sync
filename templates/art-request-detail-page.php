@@ -5820,6 +5820,8 @@ jQuery(document).ready(function($) {
         if (data.resource_mode === 'mirrored' && data.resources.assigned) {
             var resource = data.resources.assigned[0];
             var isAvailable = resource.status === 'available';
+            var isSoftBlock = resource.status === 'soft_block';
+            var isHardBlock = resource.status === 'unavailable';
             
             // Group label (adapt based on viewing mode)
             // Only show "Currently Selected" when:
@@ -5840,6 +5842,10 @@ jQuery(document).ready(function($) {
             } else if (isAvailable) {
                 html += '<div class="resource-group">';
                 html += '<div class="resource-group-label available"><?php _e('✓ Available', 'amelia-cpt-sync'); ?></div>';
+            } else if (isSoftBlock) {
+                html += '<div class="resource-group">';
+                html += '<div class="resource-group-label" style="background: #FEF3C7; color: #92400E; border-left: 3px solid #F59E0B;">';
+                html += '⚠️ <?php _e('Tentative Conflict', 'amelia-cpt-sync'); ?></div>';
             } else {
                 html += '<div class="resource-group">';
                 html += '<div class="resource-group-label blocked"><?php _e('✗ Blocked', 'amelia-cpt-sync'); ?></div>';
@@ -5848,13 +5854,24 @@ jQuery(document).ready(function($) {
             // Resource item (matches provider-item structure)
             html += '<div class="resource-item">';
             html += '<div class="resource-icon">';
-            html += isAvailable ? '✓' : '✗';
+            html += isAvailable ? '✓' : (isSoftBlock ? '⚠️' : '✗');
             html += '</div>';
             html += '<div class="resource-info">';
             html += '<div class="resource-name">' + resource.name + '</div>';
-            html += '<div class="resource-status">' + (isAvailable ? '<?php _e('Available', 'amelia-cpt-sync'); ?>' : '<?php _e('Booked', 'amelia-cpt-sync'); ?>') + '</div>';
             
-            if (!isAvailable && data.resources.next_available) {
+            // Status display with message
+            var statusText = isAvailable ? '<?php _e('Available', 'amelia-cpt-sync'); ?>' : 
+                            (isSoftBlock ? '<?php _e('Tentative Conflict', 'amelia-cpt-sync'); ?>' : 
+                             '<?php _e('Booked', 'amelia-cpt-sync'); ?>');
+            html += '<div class="resource-status">' + statusText + '</div>';
+            
+            // Show conflict message if exists
+            if ((isSoftBlock || isHardBlock) && resource.message) {
+                html += '<div class="resource-meta" style="color: ' + (isSoftBlock ? '#D97706' : '#DC2626') + ';">' + 
+                        resource.message + '</div>';
+            }
+            
+            if (isHardBlock && data.resources.next_available) {
                 html += '<div class="resource-meta">Next free: ' + data.resources.next_available + '</div>';
             }
             

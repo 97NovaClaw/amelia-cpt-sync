@@ -70,41 +70,44 @@ class ART_Amelia_Data_Manager {
 
         $query = "
             SELECT 
-                id, 
-                serviceId AS service_id, 
-                providerId AS provider_id, 
-                locationId AS location_id, 
-                bookingStart AS start_utc, 
-                bookingEnd AS end_utc, 
-                status
-            FROM {$this->wpdb->prefix}amelia_appointments
+                a.id, 
+                a.serviceId AS service_id, 
+                a.providerId AS provider_id, 
+                a.locationId AS location_id, 
+                a.bookingStart AS start_utc, 
+                a.bookingEnd AS end_utc, 
+                a.status,
+                bl.request_id
+            FROM {$this->wpdb->prefix}amelia_appointments a
+            LEFT JOIN {$this->wpdb->prefix}art_booking_links bl 
+                ON a.id = bl.amelia_appointment_id
             WHERE 
-                status IN ('approved', 'pending')
+                a.status IN ('approved', 'pending')
                 AND (
-                    DATE(bookingStart) BETWEEN %s AND %s
-                    OR DATE(bookingEnd) BETWEEN %s AND %s
+                    DATE(a.bookingStart) BETWEEN %s AND %s
+                    OR DATE(a.bookingEnd) BETWEEN %s AND %s
                 )
         ";
 
         $params = [$start_date, $end_date, $start_date, $end_date];
 
         if (!empty($filters['provider_id'])) {
-            $query .= " AND providerId = %d";
+            $query .= " AND a.providerId = %d";
             $params[] = $filters['provider_id'];
         }
 
         if (!empty($filters['service_id'])) {
-            $query .= " AND serviceId = %d";
+            $query .= " AND a.serviceId = %d";
             $params[] = $filters['service_id'];
         }
 
         // Exclude specific appointment (for self-blocking prevention)
         if (!empty($filters['exclude_id'])) {
-            $query .= " AND id != %d";
+            $query .= " AND a.id != %d";
             $params[] = $filters['exclude_id'];
         }
 
-        $query .= " ORDER BY bookingStart ASC";
+        $query .= " ORDER BY a.bookingStart ASC";
 
         $results = $this->wpdb->get_results($this->wpdb->prepare($query, $params), ARRAY_A);
 

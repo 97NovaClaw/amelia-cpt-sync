@@ -170,7 +170,12 @@ class ART_Resource_Manager {
      * @param string $time Time (H:i)
      * @param int $duration Duration in seconds
      * @param int $exclude_appointment_id Optional appointment ID to exclude (for self-blocking prevention)
-     * @return bool True if available
+     * @return array {
+     *     @type bool   $available   True if available
+     *     @type string $block_type  'none', 'soft' (tentative), 'hard' (confirmed)
+     *     @type string|null $message Human-readable status message with request reference
+     *     @type int|null $conflicting_request_id ART request ID if conflict exists
+     * }
      */
     public function is_resource_available($resource_id, $date, $time, $duration, $exclude_appointment_id = null) {
         amelia_cpt_sync_debug_log('ART Resource: Checking availability for resource #' . $resource_id);
@@ -226,14 +231,42 @@ class ART_Resource_Manager {
             
             // Overlap if: (request_start < appt_end) AND (request_end > appt_start)
             if ($request_start_timestamp < $appt_end_timestamp && $request_end_timestamp > $appt_start_timestamp) {
-                amelia_cpt_sync_debug_log('ART Resource: OVERLAP DETECTED - Resource #' . $resource_id . ' is booked (appointment #' . $appt['id'] . ')');
-                return false;
+                $appt_status = $appt['status'] ?? 'approved';
+                $request_ref = !empty($appt['request_id']) ? " (Req #{$appt['request_id']})" : '';
+                
+                // Format time range in local timezone for user display
+                $start_local = get_date_from_gmt($appt['start_utc']);
+                $end_local = get_date_from_gmt($appt['end_utc']);
+                $time_range = date('g:i A', strtotime($start_local)) . ' - ' . date('g:i A', strtotime($end_local));
+                
+                if ($appt_status === 'approved') {
+                    amelia_cpt_sync_debug_log('ART Resource: HARD BLOCK - Confirmed booking overlap (Appt #' . $appt['id'] . ')');
+                    return array(
+                        'available' => false,
+                        'block_type' => 'hard',
+                        'message' => "Confirmed booking - {$time_range}{$request_ref}",
+                        'conflicting_request_id' => $appt['request_id'] ?? null
+                    );
+                } else {
+                    amelia_cpt_sync_debug_log('ART Resource: SOFT BLOCK - Tentative booking overlap (Appt #' . $appt['id'] . ')');
+                    return array(
+                        'available' => false,
+                        'block_type' => 'soft',
+                        'message' => "Tentative booking - {$time_range}{$request_ref}",
+                        'conflicting_request_id' => $appt['request_id'] ?? null
+                    );
+                }
             }
         }
         
         amelia_cpt_sync_debug_log('ART Resource: Checked ' . $checked_count . ' appointments, no conflicts found');
         amelia_cpt_sync_debug_log('ART Resource: Resource #' . $resource_id . ' is AVAILABLE');
-        return true;
+        return array(
+            'available' => true,
+            'block_type' => 'none',
+            'message' => null,
+            'conflicting_request_id' => null
+        );
     }
     
     /**

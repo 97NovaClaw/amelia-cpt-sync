@@ -213,6 +213,7 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
     private function check_provider_availability($provider, $date, $time, $duration, $appointments, $buffer_before, $buffer_after, $service_id) {
         $conflicts = array();
         $is_available = true;
+        $has_pending_conflict = false;  // Track soft blocks for tentative bookings
         $provider_id = $provider['id'];
         
         // Strategy: Hybrid approach for different types of checks
@@ -278,12 +279,14 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
             if ($request_start_unix < $appt_end_unix && $request_end_unix > $appt_start_unix) {
                 amelia_cpt_sync_debug_log("Availability Engine: OVERLAP DETECTED for provider #$provider_id with appointment #" . ($appt['id'] ?? 'unknown'));
                 $appt_time = $this->format_time_range($appt['start_utc'], $appt['end_utc']);
+                $request_ref = !empty($appt['request_id']) ? " (Req #{$appt['request_id']})" : '';
                 
                 if ($appt_status === 'approved' && $this->settings['check_approved_appointments']) {
-                    $conflicts[] = sprintf(__('Booking conflict - %s', 'amelia-cpt-sync'), $appt_time);
+                    $conflicts[] = sprintf(__('Confirmed booking - %s%s', 'amelia-cpt-sync'), $appt_time, $request_ref);
                     $is_available = false;
                 } elseif ($appt_status === 'pending' && $this->settings['check_pending_appointments']) {
-                    $conflicts[] = sprintf(__('Pending booking - %s', 'amelia-cpt-sync'), $appt_time);
+                    $conflicts[] = sprintf(__('Tentative booking - %s%s', 'amelia-cpt-sync'), $appt_time, $request_ref);
+                    $has_pending_conflict = true;  // Soft block - mark as might_conflict
                 }
             } else {
                 amelia_cpt_sync_debug_log("Availability Engine: NO overlap for provider #$provider_id with appointment #" . ($appt['id'] ?? 'unknown'));
@@ -329,6 +332,14 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
         if (!$is_available) {
             return array(
                 'status' => 'not_available',
+                'conflicts' => $conflicts
+            );
+        }
+        
+        // NEW: Check for soft blocks (tentative booking conflicts)
+        if ($has_pending_conflict) {
+            return array(
+                'status' => 'might_conflict',
                 'conflicts' => $conflicts
             );
         }
