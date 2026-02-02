@@ -232,6 +232,15 @@ class ART_Resource_Manager {
             // Overlap if: (request_start < appt_end) AND (request_end > appt_start)
             if ($request_start_timestamp < $appt_end_timestamp && $request_end_timestamp > $appt_start_timestamp) {
                 $appt_status = $appt['status'] ?? 'approved';
+                
+                // DEBUG: Log appointment data to check if request_id is present
+                amelia_cpt_sync_debug_log('ART Resource: Appointment data for overlap', array(
+                    'id' => $appt['id'],
+                    'status' => $appt_status,
+                    'request_id' => $appt['request_id'] ?? 'NULL',
+                    'all_keys' => array_keys($appt)
+                ));
+                
                 $request_ref = !empty($appt['request_id']) ? " (Req #{$appt['request_id']})" : '';
                 
                 // Format time range in local timezone for user display

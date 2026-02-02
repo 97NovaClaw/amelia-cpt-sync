@@ -278,6 +278,15 @@ class Amelia_CPT_Sync_ART_Availability_Engine {
             // Check for overlap using Unix timestamps (timezone-safe!)
             if ($request_start_unix < $appt_end_unix && $request_end_unix > $appt_start_unix) {
                 amelia_cpt_sync_debug_log("Availability Engine: OVERLAP DETECTED for provider #$provider_id with appointment #" . ($appt['id'] ?? 'unknown'));
+                
+                // DEBUG: Log appointment data to check if request_id is present
+                amelia_cpt_sync_debug_log("Availability Engine: Appointment data for overlap", array(
+                    'id' => $appt['id'],
+                    'status' => $appt_status,
+                    'request_id' => $appt['request_id'] ?? 'NULL',
+                    'all_keys' => array_keys($appt)
+                ));
+                
                 $appt_time = $this->format_time_range($appt['start_utc'], $appt['end_utc']);
                 $request_ref = !empty($appt['request_id']) ? " (Req #{$appt['request_id']})" : '';
                 
