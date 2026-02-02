@@ -5865,10 +5865,10 @@ jQuery(document).ready(function($) {
                              '<?php _e('Booked', 'amelia-cpt-sync'); ?>');
             html += '<div class="resource-status">' + statusText + '</div>';
             
-            // Show conflict message if exists
+            // Show conflict message if exists (with linkified request references)
             if ((isSoftBlock || isHardBlock) && resource.message) {
                 html += '<div class="resource-meta" style="color: ' + (isSoftBlock ? '#D97706' : '#DC2626') + ';">' + 
-                        resource.message + '</div>';
+                        linkifyRequestReferences(resource.message) + '</div>';
             }
             
             if (isHardBlock && data.resources.next_available) {
@@ -6010,12 +6010,28 @@ jQuery(document).ready(function($) {
     }
     
     /**
+     * Convert request references to clickable links
+     * Parses "(Req #XX)" pattern and converts to link
+     */
+    function linkifyRequestReferences(text) {
+        if (!text) return text;
+        
+        // Match pattern: (Req #123) or (Req #45)
+        return text.replace(/\(Req #(\d+)\)/g, function(match, requestId) {
+            var url = '<?php echo admin_url("admin.php?page=art-request-detail&request_id="); ?>' + requestId;
+            return '<a href="' + url + '" target="_blank" style="color: inherit; text-decoration: underline;" title="Open Request #' + requestId + ' in new tab">(Req #' + requestId + ')</a>';
+        });
+    }
+    
+    /**
      * Build provider item with conflict details
      */
     function buildProviderItemWithConflicts(id, name, initials, status, conflicts) {
         var conflictHtml = '';
         if (conflicts && conflicts.length > 0) {
-            conflictHtml = '<div class="provider-conflicts">' + conflicts.join('<br>') + '</div>';
+            // Linkify request references in each conflict message
+            var linkedConflicts = conflicts.map(function(c) { return linkifyRequestReferences(c); });
+            conflictHtml = '<div class="provider-conflicts">' + linkedConflicts.join('<br>') + '</div>';
         }
         
         return '<div class="provider-item" data-provider-id="' + id + '">' +
