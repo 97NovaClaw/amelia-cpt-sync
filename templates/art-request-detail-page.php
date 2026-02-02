@@ -3572,6 +3572,19 @@ jQuery(document).ready(function($) {
         fetchServiceDuration();
     });
     
+    // Check if date/time pillar changes move us away from current booking
+    $('#pillar-date, #pillar-time').on('change', function() {
+        // Don't trigger during auto-population
+        if (bookingViewState.isAutoPopulating) {
+            return;
+        }
+        
+        // Check if this change moves us away from current booking
+        if (artDetailData.hasActiveBooking && hasBookingChanges()) {
+            enterExploringMode();
+        }
+    });
+    
     /**
      * Fetch and display service default duration and price from Amelia API (Phase 5)
      */
