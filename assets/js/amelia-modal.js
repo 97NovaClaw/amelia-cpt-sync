@@ -299,16 +299,29 @@
                 }
             });
             
-            // Gather resource config (new simplified fields)
-            var resourceSelect = $('#resource_select');
-            if (resourceSelect.length) {
-                resourceConfig.resource_id = resourceSelect.val();
-                resourceConfig.resource_name = $('#resource_name').val();
-                resourceConfig.resource_quantity = $('#resource_quantity').val();
+            // Gather resource config using state machine (Appendix K.9, K.10)
+            if (window.resourceModalState) {
+                // Get data from state machine (includes orphan cleanup flags)
+                var stateData = window.resourceModalState.getData();
+                resourceConfig = {
+                    action: stateData.action,
+                    resource_id: stateData.resource_id,
+                    resource_name: stateData.resource_name,
+                    resource_quantity: stateData.resource_quantity,
+                    original_resource_id: stateData.original_resource_id,
+                    cleanup_orphan: stateData.cleanup_orphan,
+                    quantity_required: 1  // Legacy field, defaults to 1
+                };
+            } else {
+                // Fallback for shared_pool or other modes without state machine
+                var resourceSelect = $('#resource_select');
+                if (resourceSelect.length) {
+                    resourceConfig.resource_id = resourceSelect.val();
+                    resourceConfig.resource_name = $('#resource_name').val();
+                    resourceConfig.resource_quantity = $('#resource_quantity').val();
+                }
+                resourceConfig.quantity_required = 1;
             }
-            
-            // Default quantity_required to 1 (hidden field, functional but usually 1)
-            resourceConfig.quantity_required = 1;
             
             console.log('[Amelia CPT Sync] Saving custom field values:', customFields);
             console.log('[Amelia CPT Sync] Saving resource config:', resourceConfig);

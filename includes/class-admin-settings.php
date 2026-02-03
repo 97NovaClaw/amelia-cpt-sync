@@ -762,92 +762,475 @@ class Amelia_CPT_Sync_Admin_Settings {
             <p class="description">Fill in the custom details for this service. These will be synced to your CPT.</p>
             
             <!-- RESOURCE CONFIGURATION SECTION (Mode-Specific) -->
+            <!-- Design per Appendix K.4 -->
             <?php if ($global_mode === 'mirrored'): ?>
-            <h4 style="margin: 20px 0 10px 0;"><?php _e('Resource Configuration', 'amelia-cpt-sync'); ?></h4>
+            <h4 style="margin: 20px 0 10px 0;">🔗 <?php _e('Resource Configuration', 'amelia-cpt-sync'); ?></h4>
             
-            <table class="form-table">
-                <!-- Resource Selection -->
-                <tr>
-                    <th scope="row">
-                        <label for="resource_select"><?php _e('Resource', 'amelia-cpt-sync'); ?></label>
-                    </th>
-                    <td>
+            <div id="resource-modal-container" 
+                 data-service-id="<?php echo esc_attr($service_id); ?>"
+                 data-service-name="<?php echo esc_attr($service_name); ?>"
+                 data-linked-resource-id="<?php echo esc_attr($mirrored_resource_id ?? ''); ?>"
+                 data-is-auto-created="<?php echo esc_attr($mode_settings['auto_created'] ?? 'false'); ?>">
+                
+                <!-- DEFAULT STATE: Shows current linked resource -->
+                <div id="resource-default-state">
+                    <?php if ($linked_resource): ?>
+                    <!-- Current Resource Hero Card (Appendix K.4.1) -->
+                    <div class="resource-current-card">
+                        <div class="resource-icon">🚗</div>
+                        <div class="resource-info">
+                            <div class="resource-name"><?php echo esc_html($linked_resource['name']); ?></div>
+                            <div class="resource-meta">
+                                <?php echo esc_html($linked_resource['quantity']); ?> <?php echo $linked_resource['quantity'] > 1 ? __('units', 'amelia-cpt-sync') : __('unit', 'amelia-cpt-sync'); ?> <?php _e('available', 'amelia-cpt-sync'); ?>
+                                • <?php _e('Linked to: This service only', 'amelia-cpt-sync'); ?>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Edit Resource Form -->
+                    <div class="resource-edit-section">
+                        <h4><?php _e('Edit Resource', 'amelia-cpt-sync'); ?></h4>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label for="resource_name" style="display: block; margin-bottom: 4px; font-weight: 500;"><?php _e('Name', 'amelia-cpt-sync'); ?></label>
+                            <input type="text" 
+                                   id="resource_name" 
+                                   name="resource_config[resource_name]"
+                                   class="regular-text"
+                                   value="<?php echo esc_attr($linked_resource['name']); ?>"
+                                   style="width: 100%;">
+                            <p class="description" style="margin: 4px 0 0 0;"><?php _e('Changes apply to this resource in Amelia', 'amelia-cpt-sync'); ?></p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="resource_quantity" style="display: block; margin-bottom: 4px; font-weight: 500;"><?php _e('Quantity Available', 'amelia-cpt-sync'); ?></label>
+                            <input type="number" 
+                                   id="resource_quantity" 
+                                   name="resource_config[resource_quantity]"
+                                   class="small-text"
+                                   min="1"
+                                   value="<?php echo esc_attr($linked_resource['quantity']); ?>">
+                            <span style="margin-left: 8px; color: #64748B;"><?php _e('units', 'amelia-cpt-sync'); ?></span>
+                            <p class="description" style="margin: 4px 0 0 0;"><?php _e('Total units available for booking', 'amelia-cpt-sync'); ?></p>
+                        </div>
+                    </div>
+                    
+                    <?php else: ?>
+                    <!-- No Resource State (Appendix K.4.3) -->
+                    <div class="resource-empty-card">
+                        <div class="empty-icon">📦</div>
+                        <div class="resource-name"><?php _e('No resource linked yet', 'amelia-cpt-sync'); ?></div>
+                        <div class="resource-meta"><?php _e('A resource will be created when you save', 'amelia-cpt-sync'); ?></div>
+                    </div>
+                    
+                    <!-- New Resource Form -->
+                    <div class="resource-edit-section">
+                        <h4><?php _e('New Resource', 'amelia-cpt-sync'); ?></h4>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label for="resource_name" style="display: block; margin-bottom: 4px; font-weight: 500;"><?php _e('Name', 'amelia-cpt-sync'); ?></label>
+                            <input type="text" 
+                                   id="resource_name" 
+                                   name="resource_config[resource_name]"
+                                   class="regular-text"
+                                   value="<?php echo esc_attr($service_name . ' (Resource)'); ?>"
+                                   style="width: 100%;">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="resource_quantity" style="display: block; margin-bottom: 4px; font-weight: 500;"><?php _e('Quantity', 'amelia-cpt-sync'); ?></label>
+                            <input type="number" 
+                                   id="resource_quantity" 
+                                   name="resource_config[resource_quantity]"
+                                   class="small-text"
+                                   min="1"
+                                   value="1">
+                            <span style="margin-left: 8px; color: #64748B;"><?php _e('units', 'amelia-cpt-sync'); ?></span>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <!-- Switch Resource Button -->
+                    <button type="button" 
+                            id="resource-switch-trigger" 
+                            class="resource-switch-trigger">
+                        <span class="dashicons dashicons-update"></span>
+                        <?php _e('Switch to different resource', 'amelia-cpt-sync'); ?>
+                    </button>
+                </div>
+                
+                <!-- SELECT STATE: Shows resource picker (Appendix K.4.2) -->
+                <div id="resource-select-state" style="display: none;">
+                    <!-- Warning Banner -->
+                    <div class="resource-switch-warning">
+                        ⚠️ <?php _e('SWITCHING RESOURCE', 'amelia-cpt-sync'); ?>
+                        <br>
+                        <strong><?php _e('Current:', 'amelia-cpt-sync'); ?></strong>
+                        <span id="current-resource-name"><?php echo esc_html($linked_resource['name'] ?? __('None', 'amelia-cpt-sync')); ?></span>
+                        → <?php _e('will be UNLINKED from this service', 'amelia-cpt-sync'); ?>
+                    </div>
+                    
+                    <!-- Resource Selection Dropdown -->
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500;"><?php _e('Select new resource:', 'amelia-cpt-sync'); ?></label>
                         <select id="resource_select" 
                                 name="resource_config[resource_id]" 
                                 class="regular-text"
-                                style="width: 100%; max-width: 400px;">
-                            <option value="new"><?php _e('— Create New Resource —', 'amelia-cpt-sync'); ?></option>
-                            <?php foreach ($all_resources as $res): ?>
-                                <option value="<?php echo esc_attr($res['id']); ?>" 
-                                        data-name="<?php echo esc_attr($res['name']); ?>"
-                                        data-quantity="<?php echo esc_attr($res['quantity']); ?>"
-                                        <?php selected($mirrored_resource_id, $res['id']); ?>>
-                                    <?php echo esc_html($res['name']); ?> (<?php echo esc_html($res['quantity']); ?> units)
-                                </option>
-                            <?php endforeach; ?>
+                                style="width: 100%;">
+                            <option value=""><?php _e('— Choose Resource —', 'amelia-cpt-sync'); ?></option>
+                            <optgroup label="<?php _e('EXISTING RESOURCES', 'amelia-cpt-sync'); ?>">
+                                <?php foreach ($all_resources as $res): ?>
+                                    <?php if ($res['id'] != $mirrored_resource_id): // Don't show current ?>
+                                        <option value="<?php echo esc_attr($res['id']); ?>" 
+                                                data-name="<?php echo esc_attr($res['name']); ?>"
+                                                data-quantity="<?php echo esc_attr($res['quantity']); ?>"
+                                                data-linked-to="<?php echo esc_attr(implode(', ', array_column($res['entities'] ?? [], 'entity_id'))); ?>">
+                                            <?php echo esc_html($res['name']); ?> (<?php echo esc_html($res['quantity']); ?> <?php echo $res['quantity'] > 1 ? __('units', 'amelia-cpt-sync') : __('unit', 'amelia-cpt-sync'); ?>)
+                                        </option>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            </optgroup>
+                            <optgroup label="<?php _e('CREATE NEW', 'amelia-cpt-sync'); ?>">
+                                <option value="new">✨ <?php _e('Create new resource for this service', 'amelia-cpt-sync'); ?></option>
+                            </optgroup>
                         </select>
-                        <p class="description"><?php _e('Select existing resource or choose "Create New"', 'amelia-cpt-sync'); ?></p>
-                    </td>
-                </tr>
+                    </div>
+                    
+                    <!-- Cancel Button -->
+                    <button type="button" 
+                            id="resource-switch-cancel" 
+                            class="resource-switch-cancel">
+                        <?php _e('Cancel - Keep Current', 'amelia-cpt-sync'); ?>
+                    </button>
+                </div>
                 
-                <!-- Resource Name (for renaming or new creation) -->
-                <tr id="row_resource_name">
-                    <th scope="row">
-                        <label for="resource_name"><?php _e('Resource Name', 'amelia-cpt-sync'); ?></label>
-                    </th>
-                    <td>
-                        <input type="text" 
-                               id="resource_name" 
-                               name="resource_config[resource_name]"
-                               class="regular-text"
-                               value="<?php echo esc_attr($linked_resource ? $linked_resource['name'] : $service_name . ' (Resource)'); ?>"
-                               style="width: 100%; max-width: 400px;">
-                        <p class="description"><?php _e('Name will be updated when you save', 'amelia-cpt-sync'); ?></p>
-                    </td>
-                </tr>
-                
-                <!-- Resource Quantity -->
-                <tr>
-                    <th scope="row">
-                        <label for="resource_quantity"><?php _e('Quantity Available', 'amelia-cpt-sync'); ?></label>
-                    </th>
-                    <td>
-                        <input type="number" 
-                               id="resource_quantity" 
-                               name="resource_config[resource_quantity]"
-                               class="small-text"
-                               min="1"
-                               value="<?php echo esc_attr($linked_resource ? $linked_resource['quantity'] : 1); ?>">
-                        <p class="description"><?php _e('Total units available for booking', 'amelia-cpt-sync'); ?></p>
-                    </td>
-                </tr>
-            </table>
+                <!-- Hidden fields for state tracking -->
+                <input type="hidden" id="resource_action" name="resource_config[action]" value="update">
+                <input type="hidden" id="original_resource_id" name="resource_config[original_resource_id]" value="<?php echo esc_attr($mirrored_resource_id ?? ''); ?>">
+                <input type="hidden" id="selected_resource_id" name="resource_config[resource_id]" value="<?php echo esc_attr($mirrored_resource_id ?? ''); ?>">
+            </div>
             
+            
+            <!-- Resource Modal CSS (Appendix K.7) -->
+            <style>
+            /* Resource Modal Styles - Matching Plugin Design System */
+            
+            /* Resource Hero Card (current linked resource) */
+            .resource-current-card {
+                background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+                border: 2px solid #1A84EE;
+                border-radius: 8px;
+                padding: 16px;
+                margin-bottom: 16px;
+                display: flex;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            
+            .resource-current-card .resource-icon {
+                font-size: 24px;
+                line-height: 1;
+            }
+            
+            .resource-current-card .resource-info {
+                flex: 1;
+            }
+            
+            .resource-current-card .resource-name {
+                font-size: 16px;
+                font-weight: 600;
+                color: #1E293B;
+                margin-bottom: 4px;
+            }
+            
+            .resource-current-card .resource-meta {
+                font-size: 13px;
+                color: #64748B;
+            }
+            
+            /* Empty state card */
+            .resource-empty-card {
+                background: #F8FAFC;
+                border: 2px dashed #CBD5E1;
+                border-radius: 8px;
+                padding: 20px;
+                text-align: center;
+                margin-bottom: 16px;
+            }
+            
+            .resource-empty-card .empty-icon {
+                font-size: 32px;
+                line-height: 1;
+                margin-bottom: 8px;
+            }
+            
+            .resource-empty-card .resource-name {
+                font-size: 16px;
+                font-weight: 600;
+                color: #1E293B;
+                margin-bottom: 4px;
+            }
+            
+            .resource-empty-card .resource-meta {
+                font-size: 13px;
+                color: #64748B;
+            }
+            
+            /* Edit form section */
+            .resource-edit-section {
+                background: #F8FAFC;
+                border: 1px solid #E0E5F1;
+                border-radius: 6px;
+                padding: 16px;
+                margin-bottom: 16px;
+            }
+            
+            .resource-edit-section h4 {
+                margin: 0 0 12px 0;
+                font-size: 14px;
+                color: #64748B;
+                font-weight: 500;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            
+            /* Switch trigger button */
+            .resource-switch-trigger {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                width: 100%;
+                padding: 12px;
+                background: #fff;
+                border: 1px solid #E0E5F1;
+                border-radius: 6px;
+                color: #64748B;
+                font-size: 14px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            
+            .resource-switch-trigger:hover {
+                border-color: #1A84EE;
+                color: #1A84EE;
+                background: #F8FAFC;
+            }
+            
+            .resource-switch-trigger .dashicons {
+                width: 18px;
+                height: 18px;
+                font-size: 18px;
+            }
+            
+            /* Switch mode warning banner */
+            .resource-switch-warning {
+                background: #FEF3C7;
+                border: 1px solid #F59E0B;
+                border-radius: 6px;
+                padding: 12px;
+                margin-bottom: 16px;
+                font-size: 13px;
+                color: #92400E;
+                line-height: 1.6;
+            }
+            
+            .resource-switch-warning strong {
+                color: #92400E;
+            }
+            
+            /* Cancel button in switch mode */
+            .resource-switch-cancel {
+                display: block;
+                width: 100%;
+                padding: 10px;
+                background: none;
+                border: 1px solid #E0E5F1;
+                border-radius: 6px;
+                color: #64748B;
+                cursor: pointer;
+                transition: all 0.2s;
+                font-size: 14px;
+            }
+            
+            .resource-switch-cancel:hover {
+                background: #F8FAFC;
+                border-color: #94A3B8;
+            }
+            
+            /* Select2 custom styling */
+            #resource_select {
+                width: 100% !important;
+            }
+            
+            .select2-container--default .select2-results__group {
+                font-weight: 600;
+                color: #64748B;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                padding: 8px 12px 4px;
+                background: #F8FAFC;
+                border-bottom: 1px solid #E0E5F1;
+            }
+            </style>
+            
+            <!-- Resource Modal JavaScript State Machine (Appendix K.9) -->
             <script>
             jQuery(document).ready(function($) {
-                // Initialize Select2 if available
-                if ($.fn.select2) {
-                    $('#resource_select').select2({
-                        width: '100%',
-                        dropdownParent: $('#amelia-cpt-sync-custom-fields-modal')
-                    });
-                }
-                
-                // When resource changes, update name and quantity fields
-                $('#resource_select').on('change', function() {
-                    var selected = $(this).find(':selected');
-                    var isNew = $(this).val() === 'new';
+                // Resource Modal State Machine
+                var resourceModalState = {
+                    currentState: 'default',  // 'default' or 'selecting'
+                    linkedResource: {
+                        id: <?php echo $linked_resource ? intval($linked_resource['id']) : 'null'; ?>,
+                        name: '<?php echo esc_js($linked_resource['name'] ?? ''); ?>',
+                        quantity: <?php echo $linked_resource ? intval($linked_resource['quantity']) : 1; ?>,
+                        isAutoCreated: <?php echo ($mode_settings['auto_created'] ?? false) ? 'true' : 'false'; ?>
+                    },
+                    originalResource: null,
+                    pendingAction: 'update',  // 'update', 'switch', 'create'
                     
-                    if (isNew) {
-                        $('#resource_name').val('<?php echo esc_js($service_name); ?> (Resource)');
+                    init: function() {
+                        this.originalResource = {...this.linkedResource};
+                        this.bindEvents();
+                        this.initSelect2();
+                    },
+                    
+                    bindEvents: function() {
+                        var self = this;
+                        
+                        // Switch to select mode
+                        $('#resource-switch-trigger').on('click', function() {
+                            self.enterSelectMode();
+                        });
+                        
+                        // Cancel select mode
+                        $('#resource-switch-cancel').on('click', function() {
+                            self.cancelSelect();
+                        });
+                        
+                        // Resource selected
+                        $('#resource_select').on('change', function() {
+                            var selectedId = $(this).val();
+                            var selected = $(this).find(':selected');
+                            
+                            if (selectedId === 'new') {
+                                self.createNew();
+                            } else if (selectedId) {
+                                self.selectResource(selectedId, selected);
+                            }
+                        });
+                        
+                        // Track name/quantity changes
+                        $('#resource_name, #resource_quantity').on('change', function() {
+                            if (self.pendingAction === 'update') {
+                                // Still updating, just track the change
+                            }
+                        });
+                    },
+                    
+                    initSelect2: function() {
+                        if ($.fn.select2) {
+                            $('#resource_select').select2({
+                                width: '100%',
+                                dropdownParent: $('#amelia-cpt-sync-custom-fields-modal'),
+                                placeholder: '<?php _e('Choose a resource...', 'amelia-cpt-sync'); ?>'
+                            });
+                        }
+                    },
+                    
+                    enterSelectMode: function() {
+                        console.log('[Resource Modal] Entering select mode');
+                        this.currentState = 'selecting';
+                        this.render();
+                    },
+                    
+                    cancelSelect: function() {
+                        console.log('[Resource Modal] Cancelling select - returning to default');
+                        this.currentState = 'default';
+                        this.pendingAction = 'update';
+                        $('#resource_select').val('').trigger('change');
+                        this.render();
+                    },
+                    
+                    selectResource: function(resourceId, optionEl) {
+                        console.log('[Resource Modal] Resource selected:', resourceId);
+                        
+                        this.pendingAction = 'switch';
+                        this.linkedResource = {
+                            id: parseInt(resourceId),
+                            name: optionEl.data('name') || optionEl.text().split(' (')[0],
+                            quantity: parseInt(optionEl.data('quantity')) || 1,
+                            isAutoCreated: false
+                        };
+                        
+                        // Update form fields
+                        $('#resource_name').val(this.linkedResource.name);
+                        $('#resource_quantity').val(this.linkedResource.quantity);
+                        $('#selected_resource_id').val(resourceId);
+                        $('#resource_action').val('switch');
+                        
+                        // Return to default state
+                        this.currentState = 'default';
+                        this.render();
+                    },
+                    
+                    createNew: function() {
+                        console.log('[Resource Modal] Creating new resource');
+                        
+                        this.pendingAction = 'create';
+                        var newName = '<?php echo esc_js($service_name); ?> (Resource)';
+                        
+                        this.linkedResource = {
+                            id: null,
+                            name: newName,
+                            quantity: 1,
+                            isAutoCreated: false
+                        };
+                        
+                        // Update form fields
+                        $('#resource_name').val(newName);
                         $('#resource_quantity').val(1);
-                    } else {
-                        $('#resource_name').val(selected.data('name') || selected.text().split(' (')[0]);
-                        $('#resource_quantity').val(selected.data('quantity') || 1);
+                        $('#selected_resource_id').val('new');
+                        $('#resource_action').val('create');
+                        
+                        // Return to default state
+                        this.currentState = 'default';
+                        this.render();
+                    },
+                    
+                    render: function() {
+                        if (this.currentState === 'selecting') {
+                            $('#resource-default-state').hide();
+                            $('#resource-select-state').show();
+                            $('#current-resource-name').text(this.originalResource.name || '<?php _e('None', 'amelia-cpt-sync'); ?>');
+                        } else {
+                            $('#resource-default-state').show();
+                            $('#resource-select-state').hide();
+                        }
+                    },
+                    
+                    getData: function() {
+                        // Returns data for AJAX save
+                        return {
+                            action: this.pendingAction,
+                            resource_id: $('#selected_resource_id').val(),
+                            resource_name: $('#resource_name').val(),
+                            resource_quantity: parseInt($('#resource_quantity').val()) || 1,
+                            original_resource_id: this.originalResource.id,
+                            cleanup_orphan: this.originalResource.isAutoCreated && this.pendingAction === 'switch'
+                        };
                     }
-                });
+                };
+                
+                // Initialize state machine
+                resourceModalState.init();
+                
+                // Expose to global scope for save handler
+                window.resourceModalState = resourceModalState;
             });
             </script>
+            
             <?php endif; ?>
             
             <?php if ($global_mode === 'shared_pool'): ?>
@@ -932,6 +1315,7 @@ class Amelia_CPT_Sync_Admin_Settings {
                 $mode_settings['sync_name'] = $global_settings['mirrored']['sync_name'] ?? true;
                 
                 $resource_api = new ART_Resource_API();
+                $action = $resource_config['action'] ?? 'update';
                 $resource_id = $resource_config['resource_id'] ?? null;
                 $resource_name = sanitize_text_field($resource_config['resource_name'] ?? '');
                 $resource_quantity = absint($resource_config['resource_quantity'] ?? 1);
@@ -940,9 +1324,11 @@ class Amelia_CPT_Sync_Admin_Settings {
                 $service_data = $this->get_amelia_service_by_id($service_id);
                 $service_name = $service_data['name'] ?? 'Service';
                 
-                // Create new or update existing resource
-                if ($resource_id === 'new' || empty($resource_id)) {
-                    // Create new resource
+                amelia_cpt_sync_debug_log("Resource action: {$action} for service #{$service_id}");
+                
+                // Handle based on action (from state machine)
+                if ($action === 'create' || $resource_id === 'new' || empty($resource_id)) {
+                    // CREATE NEW RESOURCE
                     amelia_cpt_sync_debug_log("Creating new resource for service #{$service_id}");
                     
                     $new_resource = $resource_api->create_resource(array(
@@ -956,12 +1342,24 @@ class Amelia_CPT_Sync_Admin_Settings {
                     
                     if (!is_wp_error($new_resource)) {
                         $mode_settings['mirrored_resource_id'] = $new_resource['id'];
+                        $mode_settings['auto_created'] = true;  // Track for orphan cleanup
                         amelia_cpt_sync_debug_log("Created resource #{$new_resource['id']} for service #{$service_id}");
                     } else {
                         amelia_cpt_sync_debug_log("ERROR creating resource: " . $new_resource->get_error_message());
                     }
+                    
+                } elseif ($action === 'switch') {
+                    // SWITCH TO DIFFERENT EXISTING RESOURCE
+                    amelia_cpt_sync_debug_log("Switching service #{$service_id} to existing resource #{$resource_id}");
+                    
+                    // Link to the new resource (no API update needed, just config)
+                    $mode_settings['mirrored_resource_id'] = intval($resource_id);
+                    $mode_settings['auto_created'] = false;  // Switched to existing
+                    
+                    amelia_cpt_sync_debug_log("Switched to resource #{$resource_id}");
+                    
                 } else {
-                    // Update existing resource name and/or quantity
+                    // UPDATE EXISTING RESOURCE (default action)
                     amelia_cpt_sync_debug_log("Updating resource #{$resource_id} for service #{$service_id}");
                     
                     $update_data = array();
@@ -985,9 +1383,53 @@ class Amelia_CPT_Sync_Admin_Settings {
                     $mode_settings['mirrored_resource_id'] = intval($resource_id);
                 }
                 
+                // ORPHAN CLEANUP LOGIC (Appendix K.2)
+                // If switching resources and old resource was auto-created with 0 bookings, delete it
+                $action = $resource_config['action'] ?? 'update';
+                $original_resource_id = $resource_config['original_resource_id'] ?? null;
+                $cleanup_orphan = $resource_config['cleanup_orphan'] ?? false;
+                
+                if ($action === 'switch' && $original_resource_id && $cleanup_orphan) {
+                    amelia_cpt_sync_debug_log("Checking for orphan cleanup: Resource #{$original_resource_id}");
+                    
+                    // Check if original resource has any active assignments
+                    global $wpdb;
+                    $assignments_table = $wpdb->prefix . 'art_resource_assignments';
+                    $assignment_count = $wpdb->get_var($wpdb->prepare(
+                        "SELECT COUNT(*) FROM {$assignments_table} 
+                        WHERE amelia_resource_id = %d 
+                        AND status = 'active'",
+                        $original_resource_id
+                    ));
+                    
+                    if ($assignment_count == 0) {
+                        // No bookings - safe to delete
+                        amelia_cpt_sync_debug_log("Orphan detected: Resource #{$original_resource_id} has 0 bookings, deleting...");
+                        
+                        $delete_result = $resource_api->delete_resource($original_resource_id);
+                        if (!is_wp_error($delete_result)) {
+                            amelia_cpt_sync_debug_log("Successfully deleted orphan resource #{$original_resource_id}");
+                        } else {
+                            amelia_cpt_sync_debug_log("ERROR deleting orphan: " . $delete_result->get_error_message());
+                        }
+                    } else {
+                        amelia_cpt_sync_debug_log("Orphan cleanup skipped: Resource #{$original_resource_id} has {$assignment_count} active bookings");
+                    }
+                }
+                
+                // Track if this is a newly created resource for future orphan detection
+                if ($action === 'create' && isset($mode_settings['mirrored_resource_id'])) {
+                    $mode_settings['auto_created'] = true;
+                } elseif ($action === 'switch') {
+                    $mode_settings['auto_created'] = false;  // Switched to existing, not auto-created
+                }
+                
                 // Clear resource caches
                 delete_transient('art_all_resources');
                 delete_transient('art_resource_' . ($mode_settings['mirrored_resource_id'] ?? 0));
+                if ($original_resource_id) {
+                    delete_transient('art_resource_' . $original_resource_id);
+                }
             }
             
             $resource_manager->save_service_config($service_id, array(
