@@ -1350,13 +1350,120 @@ class Amelia_CPT_Sync_Admin_Settings {
                     
                 } elseif ($action === 'switch') {
                     // SWITCH TO DIFFERENT EXISTING RESOURCE
-                    amelia_cpt_sync_debug_log("Switching service #{$service_id} to existing resource #{$resource_id}");
+                    // Must update Amelia entities to maintain data integrity
+                    amelia_cpt_sync_debug_log("Switching service #{$service_id} from resource #{$original_resource_id} to #{$resource_id}");
                     
-                    // Link to the new resource (no API update needed, just config)
-                    $mode_settings['mirrored_resource_id'] = intval($resource_id);
-                    $mode_settings['auto_created'] = false;  // Switched to existing
+                    $switch_success = true;
                     
-                    amelia_cpt_sync_debug_log("Switched to resource #{$resource_id}");
+                    // STEP 1: Add this service to the NEW resource's entities
+                    try {
+                        $new_resource = $resource_api->get_resource(intval($resource_id));
+                        
+                        if (is_wp_error($new_resource)) {
+                            throw new Exception("Failed to fetch new resource: " . $new_resource->get_error_message());
+                        }
+                        
+                        $entities = $new_resource['entities'] ?? [];
+                        
+                        // Check if already linked (shouldn't be, but safety check)
+                        $already_linked = false;
+                        foreach ($entities as $entity) {
+                            $entity_id = $entity['entity_id'] ?? $entity['entityId'] ?? null;
+                            $entity_type = $entity['entity_type'] ?? $entity['entityType'] ?? null;
+                            if ($entity_id == $service_id && $entity_type === 'service') {
+                                $already_linked = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!$already_linked) {
+                            // Format entities for API (Amelia expects specific format)
+                            $formatted_entities = [];
+                            foreach ($entities as $entity) {
+                                $formatted_entities[] = [
+                                    'entityId' => $entity['entity_id'] ?? $entity['entityId'],
+                                    'entityType' => $entity['entity_type'] ?? $entity['entityType']
+                                ];
+                            }
+                            
+                            // Add this service
+                            $formatted_entities[] = [
+                                'entityId' => $service_id,
+                                'entityType' => 'service'
+                            ];
+                            
+                            // Update new resource with added entity
+                            $update_result = $resource_api->update_resource(intval($resource_id), [
+                                'entities' => $formatted_entities
+                            ]);
+                            
+                            if (is_wp_error($update_result)) {
+                                throw new Exception("Failed to add service to resource entities: " . $update_result->get_error_message());
+                            }
+                            
+                            amelia_cpt_sync_debug_log("✓ Added Service #{$service_id} to Resource #{$resource_id} entities");
+                        } else {
+                            amelia_cpt_sync_debug_log("Service #{$service_id} already linked to Resource #{$resource_id}");
+                        }
+                        
+                    } catch (Exception $e) {
+                        amelia_cpt_sync_debug_log("ERROR adding entity link: " . $e->getMessage());
+                        $switch_success = false;
+                    }
+                    
+                    // STEP 2: Remove this service from the OLD resource's entities
+                    if ($switch_success && $original_resource_id && $original_resource_id != $resource_id) {
+                        try {
+                            $old_resource = $resource_api->get_resource(intval($original_resource_id));
+                            
+                            if (!is_wp_error($old_resource)) {
+                                $old_entities = $old_resource['entities'] ?? [];
+                                
+                                // Remove this service from entities
+                                $formatted_entities = [];
+                                foreach ($old_entities as $entity) {
+                                    $entity_id = $entity['entity_id'] ?? $entity['entityId'] ?? null;
+                                    $entity_type = $entity['entity_type'] ?? $entity['entityType'] ?? null;
+                                    
+                                    if ($entity_id != $service_id || $entity_type !== 'service') {
+                                        $formatted_entities[] = [
+                                            'entityId' => $entity_id,
+                                            'entityType' => $entity_type
+                                        ];
+                                    }
+                                }
+                                
+                                // Update old resource with removed entity
+                                $update_result = $resource_api->update_resource(intval($original_resource_id), [
+                                    'entities' => $formatted_entities
+                                ]);
+                                
+                                if (is_wp_error($update_result)) {
+                                    amelia_cpt_sync_debug_log("WARNING: Failed to remove service from old resource entities: " . $update_result->get_error_message());
+                                    // Continue anyway - new link is more important
+                                } else {
+                                    amelia_cpt_sync_debug_log("✓ Removed Service #{$service_id} from Resource #{$original_resource_id} entities");
+                                }
+                            }
+                        } catch (Exception $e) {
+                            amelia_cpt_sync_debug_log("WARNING removing old entity link: " . $e->getMessage());
+                            // Continue - not critical if this fails
+                        }
+                    }
+                    
+                    // STEP 3: Update ART config (only if switch was successful)
+                    if ($switch_success) {
+                        $mode_settings['mirrored_resource_id'] = intval($resource_id);
+                        $mode_settings['auto_created'] = false;  // Switched to existing
+                        amelia_cpt_sync_debug_log("✓ Switched to resource #{$resource_id}");
+                    } else {
+                        // Rollback - keep original resource
+                        amelia_cpt_sync_debug_log("✗ Switch failed, keeping original resource #{$original_resource_id}");
+                        wp_send_json_error([
+                            'message' => 'Failed to switch resources. Please try again or contact support.'
+                        ]);
+                        return;
+                    }
                     
                 } else {
                     // UPDATE EXISTING RESOURCE (default action)
@@ -1383,16 +1490,16 @@ class Amelia_CPT_Sync_Admin_Settings {
                     $mode_settings['mirrored_resource_id'] = intval($resource_id);
                 }
                 
-                // ORPHAN CLEANUP LOGIC (Appendix K.2)
-                // If switching resources and old resource was auto-created with 0 bookings, delete it
+                // ENHANCED ORPHAN CLEANUP LOGIC (Appendix K.2 + Entity Check)
+                // Delete original resource only if: auto-created + 0 bookings + 0 entity links
                 $action = $resource_config['action'] ?? 'update';
                 $original_resource_id = $resource_config['original_resource_id'] ?? null;
                 $cleanup_orphan = $resource_config['cleanup_orphan'] ?? false;
                 
                 if ($action === 'switch' && $original_resource_id && $cleanup_orphan) {
-                    amelia_cpt_sync_debug_log("Checking for orphan cleanup: Resource #{$original_resource_id}");
+                    amelia_cpt_sync_debug_log("⚙️ Checking for orphan cleanup: Resource #{$original_resource_id}");
                     
-                    // Check if original resource has any active assignments
+                    // Check 1: Any active bookings/assignments?
                     global $wpdb;
                     $assignments_table = $wpdb->prefix . 'art_resource_assignments';
                     $assignment_count = $wpdb->get_var($wpdb->prepare(
@@ -1402,18 +1509,35 @@ class Amelia_CPT_Sync_Admin_Settings {
                         $original_resource_id
                     ));
                     
-                    if ($assignment_count == 0) {
-                        // No bookings - safe to delete
-                        amelia_cpt_sync_debug_log("Orphan detected: Resource #{$original_resource_id} has 0 bookings, deleting...");
+                    amelia_cpt_sync_debug_log("  → Assignments check: {$assignment_count} active bookings");
+                    
+                    // Check 2: Any entity links remaining in Amelia?
+                    $old_resource = $resource_api->get_resource(intval($original_resource_id));
+                    $entity_count = 0;
+                    
+                    if (!is_wp_error($old_resource)) {
+                        $entities = $old_resource['entities'] ?? [];
+                        $entity_count = count($entities);
+                        amelia_cpt_sync_debug_log("  → Entity links check: {$entity_count} services/locations/employees linked");
+                    }
+                    
+                    // Delete only if BOTH checks pass (0 bookings AND 0 entities)
+                    if ($assignment_count == 0 && $entity_count == 0) {
+                        amelia_cpt_sync_debug_log("✓ Orphan confirmed: Resource #{$original_resource_id} has 0 bookings and 0 entity links");
+                        amelia_cpt_sync_debug_log("  → Deleting orphan resource...");
                         
                         $delete_result = $resource_api->delete_resource($original_resource_id);
                         if (!is_wp_error($delete_result)) {
-                            amelia_cpt_sync_debug_log("Successfully deleted orphan resource #{$original_resource_id}");
+                            amelia_cpt_sync_debug_log("✓ Successfully deleted orphan resource #{$original_resource_id}");
                         } else {
-                            amelia_cpt_sync_debug_log("ERROR deleting orphan: " . $delete_result->get_error_message());
+                            amelia_cpt_sync_debug_log("✗ ERROR deleting orphan: " . $delete_result->get_error_message());
                         }
                     } else {
-                        amelia_cpt_sync_debug_log("Orphan cleanup skipped: Resource #{$original_resource_id} has {$assignment_count} active bookings");
+                        $reasons = [];
+                        if ($assignment_count > 0) $reasons[] = "{$assignment_count} active bookings";
+                        if ($entity_count > 0) $reasons[] = "{$entity_count} entity links";
+                        
+                        amelia_cpt_sync_debug_log("✗ Orphan cleanup skipped: Resource #{$original_resource_id} has " . implode(' and ', $reasons));
                     }
                 }
                 
