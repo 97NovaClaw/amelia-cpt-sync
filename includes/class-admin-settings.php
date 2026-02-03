@@ -742,7 +742,30 @@ class Amelia_CPT_Sync_Admin_Settings {
         $all_resources = array();
         if ($global_mode === 'mirrored') {
             $data_manager = ART_Amelia_Data_Manager::get_instance();
-            $all_resources = $data_manager->get_all_resources();
+            $all_resources_raw = $data_manager->get_all_resources();
+            
+            // MIRRORED MODE: Filter to only show unlinked resources (enforce 1:1)
+            // Exclude resources that are already linked to OTHER services
+            foreach ($all_resources_raw as $resource) {
+                $resource_entities = $resource['entities'] ?? [];
+                $has_other_service = false;
+                
+                // Check if this resource is linked to a DIFFERENT service
+                foreach ($resource_entities as $entity) {
+                    $entity_type = $entity['entity_type'] ?? $entity['entityType'] ?? null;
+                    $entity_id = $entity['entity_id'] ?? $entity['entityId'] ?? null;
+                    
+                    if ($entity_type === 'service' && $entity_id != $service_id) {
+                        $has_other_service = true;
+                        break;
+                    }
+                }
+                
+                // Only include if: no service links OR only linked to THIS service
+                if (!$has_other_service) {
+                    $all_resources[] = $resource;
+                }
+            }
         }
         
         // Show modal if custom fields exist OR resource mode needs config
