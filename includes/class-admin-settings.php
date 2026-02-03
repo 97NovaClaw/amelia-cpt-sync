@@ -1321,6 +1321,7 @@ class Amelia_CPT_Sync_Admin_Settings {
                 $resource_id = $resource_config['resource_id'] ?? null;
                 $resource_name = sanitize_text_field($resource_config['resource_name'] ?? '');
                 $resource_quantity = absint($resource_config['resource_quantity'] ?? 1);
+                $original_resource_id = $resource_config['original_resource_id'] ?? null;
                 
                 // Get service name for default resource name
                 $service_data = $this->get_amelia_service_by_id($service_id);
@@ -1497,8 +1498,7 @@ class Amelia_CPT_Sync_Admin_Settings {
                 // ENHANCED ORPHAN CLEANUP LOGIC (Appendix K.2 + Entity Check)
                 // Delete original resource ONLY if this is a NEW service (first-time setup)
                 // Not for existing services being reconfigured!
-                $action = $resource_config['action'] ?? 'update';
-                $original_resource_id = $resource_config['original_resource_id'] ?? null;
+                // Note: $action and $original_resource_id already extracted above
                 $cleanup_orphan = $resource_config['cleanup_orphan'] ?? false;
                 $is_new_service = isset($resource_config['is_new_service']) && $resource_config['is_new_service'] === '1';
                 
