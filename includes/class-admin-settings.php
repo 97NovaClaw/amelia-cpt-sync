@@ -1370,6 +1370,33 @@ class Amelia_CPT_Sync_Admin_Settings {
                         $mode_settings['mirrored_resource_id'] = $new_resource['id'];
                         $mode_settings['auto_created'] = true;  // Track for orphan cleanup
                         amelia_cpt_sync_debug_log("Created resource #{$new_resource['id']} for service #{$service_id}");
+                        
+                        // CRITICAL: Remove service from OLD resource's entities (enables orphan cleanup)
+                        if ($original_resource_id && $original_resource_id != $new_resource['id']) {
+                            global $wpdb;
+                            $entities_table = $wpdb->prefix . 'amelia_resources_to_entities';
+                            
+                            amelia_cpt_sync_debug_log("Removing Service #{$service_id} from old Resource #{$original_resource_id} entities");
+                            
+                            $delete_result = $wpdb->delete(
+                                $entities_table,
+                                [
+                                    'resourceId' => intval($original_resource_id),
+                                    'entityId' => intval($service_id),
+                                    'entityType' => 'service'
+                                ],
+                                ['%d', '%d', '%s']
+                            );
+                            
+                            if ($delete_result !== false) {
+                                amelia_cpt_sync_debug_log("✓ Removed Service #{$service_id} from old Resource #{$original_resource_id} (rows affected: {$delete_result})");
+                                // Clear cache immediately
+                                delete_transient('art_resource_' . $original_resource_id);
+                                delete_transient('art_all_resources');
+                            } else {
+                                amelia_cpt_sync_debug_log("✗ Failed to remove entity link: " . $wpdb->last_error);
+                            }
+                        }
                     } else {
                         amelia_cpt_sync_debug_log("ERROR creating resource: " . $new_resource->get_error_message());
                     }
