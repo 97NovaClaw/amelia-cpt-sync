@@ -2177,6 +2177,41 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     background: #FFFBEB;
 }
 
+/* Shared Pool: Selected resource highlight */
+.resource-item.pool-selected {
+    border-left: 3px solid #10B981;
+    background: #F0FDF4;
+}
+
+.resource-item.pool-selected .resource-header {
+    background: linear-gradient(90deg, transparent 0%, #D1FAE5 100%);
+    padding: 4px 8px;
+    margin: -4px -8px 4px -8px;
+    border-radius: 4px;
+}
+
+/* Pool strategy badge */
+.pool-strategy-badge .dashicons {
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+/* Manual selection dropdown container */
+.resource-manual-selection {
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .resource-header {
     display: flex;
     justify-content: space-between;
@@ -5919,6 +5954,148 @@ jQuery(document).ready(function($) {
      * Render resource availability column (matches provider styling)
      */
     /**
+     * Render SHARED POOL resources (Phase 4)
+     */
+    function renderSharedPoolResources(data) {
+        var $container = $('#resource-status-list');
+        var pool = data.resources.pool || [];
+        var selected = data.resources.selected;
+        var config = data.resources.config || {};
+        var availableCount = data.resources.available_count || 0;
+        
+        if (pool.length === 0) {
+            $container.html('<div class="resource-placeholder"><?php _e('No resources in pool', 'amelia-cpt-sync'); ?></div>');
+            return;
+        }
+        
+        var html = '';
+        
+        // Pool header with summary
+        var headerClass = availableCount > 0 ? 'available' : 'blocked';
+        var headerIcon = availableCount > 0 ? '✓' : '✗';
+        var headerText = availableCount > 0 ? 
+            availableCount + ' of ' + pool.length + ' <?php _e('POOL RESOURCES AVAILABLE', 'amelia-cpt-sync'); ?>' :
+            '<?php _e('NO POOL RESOURCES AVAILABLE', 'amelia-cpt-sync'); ?>';
+        
+        html += '<div class="resource-group-label ' + headerClass + '">';
+        html += '<span class="dashicons dashicons-networking"></span> ';
+        html += headerIcon + ' ' + headerText;
+        html += '</div>';
+        
+        // Strategy badge
+        var strategyLabel = {
+            'first_available': '⚡ First Available',
+            'least_used': '⚖️ Load Balanced',
+            'manual': '👤 Manual Selection'
+        }[config.selection_strategy] || config.selection_strategy;
+        
+        html += '<div class="pool-strategy-badge" style="margin: 8px 12px; padding: 6px 10px; background: #EFF6FF; color: #1E40AF; font-size: 11px; border-radius: 4px; font-weight: 600;">';
+        html += strategyLabel;
+        html += '</div>';
+        
+        // Pool resources list
+        pool.forEach(function(resource) {
+            var isAvailable = resource.status === 'available';
+            var isSoftBlock = resource.status === 'soft_block';
+            var isPartial = resource.status === 'partial';
+            var isHardBlock = resource.status === 'unavailable';
+            var isSelected = selected && selected.id === resource.id;
+            
+            // Resource card (REUSE: Same structure as mirrored mode)
+            var cardClass = 'resource-item';
+            if (isAvailable) cardClass += ' available';
+            if (isSoftBlock) cardClass += ' soft-block';
+            if (isPartial) cardClass += ' partial';
+            if (isHardBlock) cardClass += ' hard-block';
+            if (isSelected) cardClass += ' pool-selected';
+            
+            html += '<div class="' + cardClass + '">';
+            
+            // Resource header
+            html += '<div class="resource-header">';
+            html += '<span class="resource-name">' + resource.name + '</span>';
+            
+            // Selected badge (if auto-selected by strategy)
+            if (isSelected) {
+                html += '<span class="selected-badge" style="background: #10B981; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-left: 6px;">✓ Selected</span>';
+            }
+            
+            // Status badge (REUSE: Same badges as mirrored mode)
+            var statusBadge = '';
+            if (isAvailable) {
+                statusBadge = '<span class="status-badge available">✓ Available</span>';
+            } else if (isSoftBlock) {
+                statusBadge = '<span class="status-badge soft-block">⚠️ Might Conflict</span>';
+            } else if (isPartial) {
+                statusBadge = '<span class="status-badge partial">⚠️ Partial</span>';
+            } else {
+                statusBadge = '<span class="status-badge unavailable">✗ Unavailable</span>';
+            }
+            html += statusBadge;
+            html += '</div>';
+            
+            // Quantity display (REUSE: 100% same as mirrored mode)
+            if (resource.total_quantity && resource.total_quantity > 1) {
+                var qtyUsed = resource.booked_quantity || 0;
+                var qtyTotal = resource.total_quantity;
+                var qtyAvail = resource.available_quantity || 0;
+                
+                html += '<div class="resource-quantity">';
+                html += '<div class="qty-bar">';
+                
+                var usedPercent = Math.round((qtyUsed / qtyTotal) * 100);
+                html += '<div class="qty-bar-used" style="width: ' + usedPercent + '%"></div>';
+                html += '</div>';
+                
+                html += '<span class="qty-text">' + qtyAvail + ' of ' + qtyTotal + ' available</span>';
+                html += '</div>';
+            }
+            
+            // Message (conflict details)
+            if (resource.message) {
+                var messageHtml = resource.message;
+                messageHtml = linkifyRequestReferences(messageHtml);
+                html += '<div class="resource-message">' + messageHtml + '</div>';
+            }
+            
+            html += '</div>';  // End resource-item
+        });
+        
+        // Manual selection dropdown (if required)
+        if (data.requires_resource_selection) {
+            html += '<div class="resource-manual-selection" style="margin: 12px; padding: 12px; background: #FFF9E6; border: 1px solid #F59E0B; border-radius: 6px;">';
+            html += '<label style="font-weight: 600; color: #92400E; margin-bottom: 6px; display: block;">';
+            html += '👤 <?php _e('Choose Resource for This Booking:', 'amelia-cpt-sync'); ?>';
+            html += '</label>';
+            html += '<select id="manual-pool-resource-select" class="regular-text" style="width: 100%;">';
+            
+            pool.forEach(function(res) {
+                if (res.status === 'available') {
+                    html += '<option value="' + res.id + '">';
+                    html += res.name + ' (' + res.available_quantity + ' of ' + res.total_quantity + ' available)';
+                    html += '</option>';
+                }
+            });
+            
+            html += '</select>';
+            html += '<p class="description" style="margin-top: 6px; font-size: 11px;">';
+            html += '<?php _e('Manual strategy requires you to select which resource to use.', 'amelia-cpt-sync'); ?>';
+            html += '</p>';
+            html += '</div>';
+        }
+        
+        // Block alert (if all pool resources unavailable)
+        if (data.resource_block) {
+            html += '<div class="resource-block-alert" style="margin: 12px; padding: 12px; background: #FEF3C7; border: 2px solid #F59E0B; border-radius: 6px;">';
+            html += '<div style="color: #92400E; font-weight: 600; font-size: 12px; margin-bottom: 6px;">⚠️ <?php _e('All Pool Resources Blocked', 'amelia-cpt-sync'); ?></div>';
+            html += '<div style="color: #78350F; font-size: 11px;">' + (data.resource_message || '<?php _e('All resources in pool are booked', 'amelia-cpt-sync'); ?>') + '</div>';
+            html += '</div>';
+        }
+        
+        $container.html(html);
+    }
+    
+    /**
      * Render resource availability column (with quantity support)
      */
     function renderResourceColumn(data) {
@@ -5931,7 +6108,13 @@ jQuery(document).ready(function($) {
         
         var html = '';
         
-        // Handle multiple resources
+        // SHARED POOL MODE: Different rendering
+        if (data.resource_mode === 'shared_pool') {
+            renderSharedPoolResources(data);
+            return;
+        }
+        
+        // MIRRORED MODE: Handle assigned resources
         var resources = data.resources.assigned || [];
         
         if (resources.length === 0) {
@@ -7313,6 +7496,17 @@ jQuery(document).ready(function($) {
         if (resourceState.mode === 'mirrored') {
             var settings = resourceState.config?.mode_settings || {};
             return settings.mirrored_resource_id ? [settings.mirrored_resource_id] : [];
+        }
+        
+        if (resourceState.mode === 'shared_pool') {
+            // Check if manual selection is required
+            var manualSelect = $('#manual-pool-resource-select');
+            if (manualSelect.length && manualSelect.val()) {
+                return [parseInt(manualSelect.val())];
+            }
+            
+            // Otherwise, orchestrator will auto-select based on strategy
+            return [];
         }
         
         return resourceState.selectedResources;

@@ -1259,9 +1259,192 @@ class Amelia_CPT_Sync_Admin_Settings {
             <?php endif; ?>
             
             <?php if ($global_mode === 'shared_pool'): ?>
-            <p class="description" style="color: #92400E; background: #FFF9E6; padding: 10px; border-radius: 4px; margin: 20px 0;">
-                <?php _e('⚠️ Shared Pool mode is planned for Phase 2. Resource configuration coming soon.', 'amelia-cpt-sync'); ?>
-            </p>
+            <h4 style="margin: 20px 0 10px 0;">🏊 <?php _e('Resource Pool Configuration', 'amelia-cpt-sync'); ?></h4>
+            
+            <?php
+            // Get current pool configuration
+            $pool_resource_ids = $mode_settings['pool_resource_ids'] ?? array();
+            $selection_strategy = $mode_settings['selection_strategy'] ?? 'first_available';
+            $quantity_per_booking = $mode_settings['quantity_per_booking'] ?? 1;
+            
+            // Fetch ALL resources (don't filter - sharing is allowed!)
+            $data_manager = ART_Amelia_Data_Manager::get_instance();
+            $all_resources = $data_manager->get_all_resources();
+            ?>
+            
+            <div class="resource-pool-config">
+                <p class="description">
+                    <?php _e('Select resources that this service can use. The system will automatically assign an available resource based on your strategy.', 'amelia-cpt-sync'); ?>
+                </p>
+                
+                <!-- Pool Resource Selection -->
+                <div class="resource-pool-selection">
+                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">
+                        <?php _e('Pool Resources:', 'amelia-cpt-sync'); ?>
+                    </label>
+                    
+                    <div class="resource-pool-list">
+                        <?php if (!empty($all_resources)): ?>
+                            <?php foreach ($all_resources as $res): ?>
+                                <?php 
+                                $is_in_pool = in_array($res['id'], $pool_resource_ids);
+                                
+                                // Get services linked to this resource for display
+                                $linked_services = array();
+                                if (!empty($res['entities'])) {
+                                    foreach ($res['entities'] as $entity) {
+                                        $entity_type = $entity['entity_type'] ?? $entity['entityType'];
+                                        $entity_id = $entity['entity_id'] ?? $entity['entityId'];
+                                        
+                                        if ($entity_type === 'service' && $entity_id !== $service_id) {
+                                            // Get service name
+                                            $linked_service_data = $this->get_amelia_service_by_id($entity_id);
+                                            if ($linked_service_data) {
+                                                $linked_services[] = $linked_service_data['name'];
+                                            }
+                                        }
+                                    }
+                                }
+                                ?>
+                                <div class="resource-pool-item">
+                                    <label>
+                                        <input type="checkbox" 
+                                               name="resource_config[pool_resources][]" 
+                                               value="<?php echo esc_attr($res['id']); ?>"
+                                               <?php checked($is_in_pool); ?>>
+                                        <span class="pool-item-name"><?php echo esc_html($res['name']); ?></span>
+                                        <span class="units-badge"><?php echo esc_html($res['quantity']); ?> units</span>
+                                        <?php if (!empty($linked_services)): ?>
+                                            <span class="linked-badge" title="Also used by: <?php echo esc_attr(implode(', ', $linked_services)); ?>">
+                                                🔗 <?php echo count($linked_services); ?> service<?php echo count($linked_services) > 1 ? 's' : ''; ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </label>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <p class="description"><?php _e('No resources available. Create resources in Amelia first.', 'amelia-cpt-sync'); ?></p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
+                <!-- Selection Strategy -->
+                <div class="form-row" style="margin-top: 20px;">
+                    <label for="selection_strategy" style="font-weight: 600;">
+                        <?php _e('Selection Strategy:', 'amelia-cpt-sync'); ?>
+                    </label>
+                    <select id="selection_strategy" name="resource_config[selection_strategy]" class="regular-text" style="margin-top: 4px;">
+                        <option value="first_available" <?php selected($selection_strategy, 'first_available'); ?>>
+                            <?php _e('First Available - Use first resource with capacity', 'amelia-cpt-sync'); ?>
+                        </option>
+                        <option value="least_used" <?php selected($selection_strategy, 'least_used'); ?>>
+                            <?php _e('Least Used - Balance load across resources', 'amelia-cpt-sync'); ?>
+                        </option>
+                        <option value="manual" <?php selected($selection_strategy, 'manual'); ?>>
+                            <?php _e('Manual - Admin chooses at booking time', 'amelia-cpt-sync'); ?>
+                        </option>
+                    </select>
+                    <p class="description">
+                        <?php _e('How the system selects which resource to use when multiple are available.', 'amelia-cpt-sync'); ?>
+                    </p>
+                </div>
+                
+                <!-- Units Per Booking -->
+                <div class="form-row" style="margin-top: 16px;">
+                    <label for="quantity_per_booking" style="font-weight: 600;">
+                        <?php _e('Units Per Booking:', 'amelia-cpt-sync'); ?>
+                    </label>
+                    <input type="number" 
+                           id="quantity_per_booking"
+                           name="resource_config[quantity_per_booking]" 
+                           value="<?php echo esc_attr($quantity_per_booking); ?>" 
+                           min="1" 
+                           class="small-text" 
+                           style="margin-top: 4px;">
+                    <p class="description">
+                        <?php _e('How many units does one booking consume? (Usually 1)', 'amelia-cpt-sync'); ?>
+                    </p>
+                </div>
+                
+                <!-- Pool Summary -->
+                <?php if (!empty($pool_resource_ids)): ?>
+                <div class="resource-pool-summary" style="margin-top: 16px; background: #EFF6FF; border: 1px solid #1A84EE; border-radius: 6px; padding: 10px 12px; font-size: 13px; color: #1E40AF;">
+                    <strong><?php _e('Pool Summary:', 'amelia-cpt-sync'); ?></strong> 
+                    <?php echo count($pool_resource_ids); ?> resource<?php echo count($pool_resource_ids) > 1 ? 's' : ''; ?> selected
+                    <?php
+                    $total_units = 0;
+                    foreach ($all_resources as $res) {
+                        if (in_array($res['id'], $pool_resource_ids)) {
+                            $total_units += $res['quantity'];
+                        }
+                    }
+                    ?>
+                    • <?php echo $total_units; ?> total units available
+                </div>
+                <?php endif; ?>
+            </div>
+            
+            <style>
+            /* Pool-specific styles */
+            .resource-pool-list {
+                max-height: 300px;
+                overflow-y: auto;
+                border: 1px solid #E0E5F1;
+                border-radius: 6px;
+                background: #fff;
+            }
+            
+            .resource-pool-item {
+                display: flex;
+                align-items: center;
+                padding: 10px 12px;
+                border-bottom: 1px solid #F1F5F9;
+                transition: background 0.2s;
+            }
+            
+            .resource-pool-item:hover {
+                background: #F8FAFC;
+            }
+            
+            .resource-pool-item:last-child {
+                border-bottom: none;
+            }
+            
+            .resource-pool-item label {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                cursor: pointer;
+                width: 100%;
+            }
+            
+            .resource-pool-item input[type="checkbox"] {
+                margin: 0;
+            }
+            
+            .pool-item-name {
+                flex: 1;
+                font-weight: 500;
+                color: #1E293B;
+            }
+            
+            .units-badge {
+                font-size: 12px;
+                color: #64748B;
+                background: #F1F5F9;
+                padding: 2px 8px;
+                border-radius: 10px;
+            }
+            
+            .linked-badge {
+                font-size: 11px;
+                color: #1E40AF;
+                background: #DBEAFE;
+                padding: 2px 8px;
+                border-radius: 10px;
+                cursor: help;
+            }
+            </style>
             <?php endif; ?>
             
             <?php if (!empty($definitions)): ?>
@@ -1605,6 +1788,174 @@ class Amelia_CPT_Sync_Admin_Settings {
                 if ($original_resource_id) {
                     delete_transient('art_resource_' . $original_resource_id);
                 }
+                
+            } elseif ($global_mode === 'shared_pool') {
+                // SHARED POOL MODE HANDLER
+                // Following lessons from Appendix L.1-L.7
+                
+                $pool_resource_ids = isset($resource_config['pool_resources']) && is_array($resource_config['pool_resources']) 
+                    ? array_map('intval', $resource_config['pool_resources']) 
+                    : array();
+                $selection_strategy = sanitize_text_field($resource_config['selection_strategy'] ?? 'first_available');
+                $quantity_per_booking = absint($resource_config['quantity_per_booking'] ?? 1);
+                
+                amelia_cpt_sync_debug_log("Shared Pool config for service #{$service_id}: " . count($pool_resource_ids) . " resources, strategy: {$selection_strategy}");
+                
+                // Get existing pool configuration for comparison
+                $existing_config = $resource_manager->get_service_config($service_id);
+                $original_pool_ids = ($existing_config && isset($existing_config->mode_settings['pool_resource_ids'])) 
+                    ? $existing_config->mode_settings['pool_resource_ids'] 
+                    : array();
+                
+                amelia_cpt_sync_debug_log("  → Original pool: [" . implode(', ', $original_pool_ids) . "]");
+                amelia_cpt_sync_debug_log("  → New pool: [" . implode(', ', $pool_resource_ids) . "]");
+                
+                // REUSE: Direct DB entity management pattern (Lesson #2)
+                global $wpdb;
+                $entities_table = $wpdb->prefix . 'amelia_resources_to_entities';
+                $assignments_table = $wpdb->prefix . 'art_resource_assignments';
+                
+                // REUSE: Transaction pattern (Lesson #2, #6)
+                $wpdb->query('START TRANSACTION');
+                
+                try {
+                    // Resources to ADD (in new pool but not in original)
+                    $to_add = array_diff($pool_resource_ids, $original_pool_ids);
+                    
+                    if (!empty($to_add)) {
+                        amelia_cpt_sync_debug_log("  → Adding " . count($to_add) . " resources to pool: [" . implode(', ', $to_add) . "]");
+                    }
+                    
+                    foreach ($to_add as $rid) {
+                        // Check if already linked (safety check)
+                        $existing = $wpdb->get_var($wpdb->prepare(
+                            "SELECT id FROM {$entities_table} 
+                            WHERE resourceId = %d AND entityId = %d AND entityType = 'service'",
+                            $rid,
+                            $service_id
+                        ));
+                        
+                        if (!$existing) {
+                            $insert_result = $wpdb->insert(
+                                $entities_table,
+                                [
+                                    'resourceId' => intval($rid),
+                                    'entityId' => intval($service_id),
+                                    'entityType' => 'service'
+                                ],
+                                ['%d', '%d', '%s']
+                            );
+                            
+                            if ($insert_result === false) {
+                                throw new Exception("Failed to add Resource #{$rid} to pool: " . $wpdb->last_error);
+                            }
+                            
+                            amelia_cpt_sync_debug_log("    ✓ Added Resource #{$rid} to pool for Service #{$service_id}");
+                        } else {
+                            amelia_cpt_sync_debug_log("    • Resource #{$rid} already linked to Service #{$service_id}");
+                        }
+                    }
+                    
+                    // Resources to REMOVE (in original but not in new pool)
+                    $to_remove = array_diff($original_pool_ids, $pool_resource_ids);
+                    
+                    if (!empty($to_remove)) {
+                        amelia_cpt_sync_debug_log("  → Removing " . count($to_remove) . " resources from pool: [" . implode(', ', $to_remove) . "]");
+                    }
+                    
+                    $resource_api = new ART_Resource_API();
+                    
+                    foreach ($to_remove as $rid) {
+                        $delete_result = $wpdb->delete(
+                            $entities_table,
+                            [
+                                'resourceId' => intval($rid),
+                                'entityId' => intval($service_id),
+                                'entityType' => 'service'
+                            ],
+                            ['%d', '%d', '%s']
+                        );
+                        
+                        if ($delete_result === false) {
+                            throw new Exception("Failed to remove Resource #{$rid} from pool: " . $wpdb->last_error);
+                        }
+                        
+                        amelia_cpt_sync_debug_log("    ✓ Removed Resource #{$rid} from pool (rows affected: {$delete_result})");
+                        
+                        // REUSE: Orphan cleanup pattern (Lesson #5, #4)
+                        // Only cleanup for NEW services, not existing ones being reconfigured
+                        $is_new_service = isset($resource_config['is_new_service']) && $resource_config['is_new_service'] === '1';
+                        
+                        if ($is_new_service) {
+                            amelia_cpt_sync_debug_log("    🔍 Orphan check for Resource #{$rid} (new service):");
+                            
+                            // Check 1: Any active bookings/assignments?
+                            $assignment_count = $wpdb->get_var($wpdb->prepare(
+                                "SELECT COUNT(*) FROM {$assignments_table} 
+                                WHERE amelia_resource_id = %d AND status = 'active'",
+                                $rid
+                            ));
+                            
+                            amelia_cpt_sync_debug_log("      → Assignments: {$assignment_count}");
+                            
+                            // Check 2: Any entity links remaining?
+                            $entity_count = $wpdb->get_var($wpdb->prepare(
+                                "SELECT COUNT(*) FROM {$entities_table} WHERE resourceId = %d",
+                                $rid
+                            ));
+                            
+                            amelia_cpt_sync_debug_log("      → Entity links: {$entity_count}");
+                            
+                            // Delete only if BOTH are zero (Lesson #5)
+                            if ($assignment_count == 0 && $entity_count == 0) {
+                                amelia_cpt_sync_debug_log("      ✓ Orphan confirmed - deleting Resource #{$rid}");
+                                
+                                $delete_resource_result = $resource_api->delete_resource($rid);
+                                if (!is_wp_error($delete_resource_result)) {
+                                    amelia_cpt_sync_debug_log("      ✓ Successfully deleted orphan Resource #{$rid}");
+                                } else {
+                                    amelia_cpt_sync_debug_log("      ✗ ERROR deleting orphan: " . $delete_resource_result->get_error_message());
+                                }
+                            } else {
+                                $reasons = [];
+                                if ($assignment_count > 0) $reasons[] = "{$assignment_count} bookings";
+                                if ($entity_count > 0) $reasons[] = "{$entity_count} entity links";
+                                amelia_cpt_sync_debug_log("      ⏭️ Skipped - has " . implode(' and ', $reasons));
+                            }
+                        } else {
+                            amelia_cpt_sync_debug_log("    ⏭️ Orphan check skipped: Existing service reconfiguration (Lesson #4)");
+                        }
+                    }
+                    
+                    // Commit transaction (Lesson #2)
+                    $wpdb->query('COMMIT');
+                    amelia_cpt_sync_debug_log("  ✓ Pool entity management transaction committed");
+                    
+                    // REUSE: Cache clearing (Lesson #6) - Clear ALL affected resources
+                    foreach (array_merge($pool_resource_ids, $to_remove) as $rid) {
+                        delete_transient('art_resource_' . $rid);
+                    }
+                    delete_transient('art_all_resources');
+                    
+                } catch (Exception $e) {
+                    // REUSE: Rollback pattern (Lesson #2)
+                    $wpdb->query('ROLLBACK');
+                    amelia_cpt_sync_debug_log("  ✗ Pool update transaction rolled back: " . $e->getMessage());
+                    
+                    wp_send_json_error([
+                        'message' => 'Failed to update resource pool. Please try again.'
+                    ]);
+                    return;
+                }
+                
+                // Save pool configuration
+                $mode_settings = [
+                    'pool_resource_ids' => $pool_resource_ids,
+                    'selection_strategy' => $selection_strategy,
+                    'quantity_per_booking' => $quantity_per_booking
+                ];
+                
+                amelia_cpt_sync_debug_log("  ✓ Pool configuration saved: " . count($pool_resource_ids) . " resources");
             }
             
             $resource_manager->save_service_config($service_id, array(

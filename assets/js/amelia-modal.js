@@ -323,14 +323,29 @@
                     is_new_service: window.resourceModalState.isNewService ? '1' : '0'
                 };
             } else {
-                // Fallback for shared_pool or other modes without state machine
-                var resourceSelect = $('#resource_select');
-                if (resourceSelect.length) {
-                    resourceConfig.resource_id = resourceSelect.val();
-                    resourceConfig.resource_name = $('#resource_name').val();
-                    resourceConfig.resource_quantity = $('#resource_quantity').val();
+                // Shared Pool mode: Collect pool resources
+                var poolCheckboxes = $('input[name="resource_config[pool_resources][]"]:checked');
+                if (poolCheckboxes.length) {
+                    resourceConfig.pool_resources = [];
+                    poolCheckboxes.each(function() {
+                        resourceConfig.pool_resources.push($(this).val());
+                    });
+                    
+                    resourceConfig.selection_strategy = $('#selection_strategy').val() || 'first_available';
+                    resourceConfig.quantity_per_booking = $('#quantity_per_booking').val() || 1;
+                    resourceConfig.is_new_service = window.isNewServiceFlag ? '1' : '0';
+                    
+                    console.log('[Amelia CPT Sync] Pool config: ' + resourceConfig.pool_resources.length + ' resources, strategy: ' + resourceConfig.selection_strategy);
+                } else {
+                    // Fallback for other modes
+                    var resourceSelect = $('#resource_select');
+                    if (resourceSelect.length) {
+                        resourceConfig.resource_id = resourceSelect.val();
+                        resourceConfig.resource_name = $('#resource_name').val();
+                        resourceConfig.resource_quantity = $('#resource_quantity').val();
+                    }
+                    resourceConfig.quantity_required = 1;
                 }
-                resourceConfig.quantity_required = 1;
             }
             
             console.log('[Amelia CPT Sync] Saving custom field values:', customFields);

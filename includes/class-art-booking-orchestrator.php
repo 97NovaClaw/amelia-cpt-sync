@@ -345,13 +345,177 @@ class ART_Booking_Orchestrator {
     }
     
     /**
-     * Mode 2: Shared Pool - Placeholder for Phase 2
+     * Mode 2: Shared Pool - Multiple services share resource pool
+     *
+     * Selection strategies:
+     * - first_available: Use first resource with availability
+     * - least_used: Balance load across resources (picks resource with most availability)
+     * - manual: Admin chooses at booking time
+     *
+     * @param array $params Booking parameters
+     * @param object $config Resource configuration
+     * @param array $result Result array
+     * @return array Updated result
      */
     private function check_mode_shared_pool($params, $config, $result) {
-        amelia_cpt_sync_debug_log('ART Orchestrator: Mode SHARED_POOL - Not implemented yet (Phase 2)');
+        amelia_cpt_sync_debug_log('ART Orchestrator: Mode SHARED_POOL - Checking pool resources');
         
-        $result['resource_message'] = 'Shared Pool mode coming in Phase 2';
-        $result['providers'] = array();
+        // Get pool configuration from mode_settings
+        $pool_resource_ids = $config->mode_settings['pool_resource_ids'] ?? array();
+        $selection_strategy = $config->mode_settings['selection_strategy'] ?? 'first_available';
+        $quantity_needed = $config->mode_settings['quantity_per_booking'] ?? 1;
+        
+        if (empty($pool_resource_ids)) {
+            amelia_cpt_sync_debug_log('ART Orchestrator: No resources configured in pool');
+            
+            $result['resource_block'] = true;
+            $result['resource_message'] = 'No resources configured in pool';
+            $result['early_return'] = true;
+            
+            return $result;
+        }
+        
+        $pool_count = count($pool_resource_ids);
+        amelia_cpt_sync_debug_log("🔍 POOL CHECK: Checking {$pool_count} pool resources");
+        amelia_cpt_sync_debug_log("  → Pool IDs: " . implode(', ', $pool_resource_ids));
+        amelia_cpt_sync_debug_log("  → Strategy: {$selection_strategy}, Qty needed: {$quantity_needed}");
+        
+        $exclude_id = !empty($params['exclude_appointment_id']) ? $params['exclude_appointment_id'] : null;
+        
+        // Check all resources in pool (REUSE: Resource loop pattern from mirrored)
+        $all_resource_results = array();
+        $available_resources = array();
+        
+        foreach ($pool_resource_ids as $resource_id) {
+            // REUSE: is_resource_available() - 100% identical call
+            $resource_check = $this->resource_manager->is_resource_available(
+                $resource_id,
+                $params['date'],
+                $params['time'],
+                $params['duration'],
+                $exclude_id,
+                $quantity_needed
+            );
+            
+            // REUSE: Resource details fetching
+            $resource = $this->resource_manager->get_resource($resource_id);
+            $resource_name = is_wp_error($resource) ? 'Unknown Resource' : ($resource['name'] ?? 'Unknown Resource');
+            
+            // REUSE: Status determination pattern (90% same)
+            $resource_status = 'unavailable';
+            if ($resource_check['available']) {
+                $resource_status = 'available';
+                $available_resources[] = array(
+                    'id' => $resource_id,
+                    'name' => $resource_name,
+                    'available_quantity' => $resource_check['available_quantity'],
+                    'total_quantity' => $resource_check['total_quantity'],
+                    'booked_quantity' => $resource_check['booked_quantity']
+                );
+            } elseif ($resource_check['block_type'] === 'soft') {
+                $resource_status = 'soft_block';
+            } elseif ($resource_check['block_type'] !== 'none') {
+                $resource_status = 'partial';
+            }
+            
+            $all_resource_results[] = array(
+                'id' => $resource_id,
+                'name' => $resource_name,
+                'status' => $resource_status,
+                'message' => $resource_check['message'],
+                'total_quantity' => $resource_check['total_quantity'],
+                'booked_quantity' => $resource_check['booked_quantity'],
+                'available_quantity' => $resource_check['available_quantity'],
+                'conflicts' => $resource_check['conflicts']
+            );
+            
+            amelia_cpt_sync_debug_log("  → Resource #{$resource_id} ({$resource_name}): {$resource_status} ({$resource_check['available_quantity']}/{$resource_check['total_quantity']} available)");
+        }
+        
+        // NEW: Selection strategy logic
+        $selected_resource = null;
+        if (!empty($available_resources)) {
+            switch ($selection_strategy) {
+                case 'least_used':
+                    // Sort by available_quantity DESC (most available first)
+                    usort($available_resources, function($a, $b) {
+                        return $b['available_quantity'] - $a['available_quantity'];
+                    });
+                    $selected_resource = $available_resources[0];
+                    amelia_cpt_sync_debug_log("✓ Selected Resource #{$selected_resource['id']} ({$selected_resource['name']}) via 'least_used' strategy ({$selected_resource['available_quantity']} units available)");
+                    break;
+                
+                case 'manual':
+                    // Don't auto-select, let user choose at booking time
+                    $selected_resource = null;
+                    amelia_cpt_sync_debug_log("⚠️ Manual selection required - user must choose from " . count($available_resources) . " available resources");
+                    break;
+                
+                case 'first_available':
+                default:
+                    $selected_resource = $available_resources[0];
+                    amelia_cpt_sync_debug_log("✓ Selected Resource #{$selected_resource['id']} ({$selected_resource['name']}) via 'first_available' strategy");
+                    break;
+            }
+        }
+        
+        // Build resources result (adapted from mirrored)
+        $result['resources'] = array(
+            'config' => array(
+                'mode' => 'shared_pool',
+                'selection_strategy' => $selection_strategy,
+                'pool_size' => $pool_count
+            ),
+            'pool' => $all_resource_results,
+            'selected' => $selected_resource,
+            'available_count' => count($available_resources),
+            'requires_selection' => ($selection_strategy === 'manual' && count($available_resources) > 1)
+        );
+        
+        // CHANGE: From "ALL must be available" (mirrored) to "ANY must be available" (shared pool)
+        if (empty($available_resources)) {
+            amelia_cpt_sync_debug_log('ART Orchestrator: SHARED POOL - No resources available in pool (0/' . $pool_count . ' available)');
+            
+            // REUSE: Early return pattern
+            $result['resource_block'] = true;
+            $result['resource_message'] = 'All pool resources are booked';
+            $result['providers'] = $this->get_all_providers_blocked($params['service_id'], 'No resources available in pool');
+            $result['can_book'] = false;
+            $result['early_return'] = true;
+            
+            return $result;
+        }
+        
+        // If manual strategy and multiple options, require user selection
+        if ($selection_strategy === 'manual' && count($available_resources) > 1) {
+            $result['requires_resource_selection'] = true;
+            $result['resource_message'] = 'Select a resource from ' . count($available_resources) . ' available options';
+        }
+        
+        amelia_cpt_sync_debug_log('ART Orchestrator: SHARED POOL - ' . count($available_resources) . ' of ' . $pool_count . ' pool resources available');
+        amelia_cpt_sync_debug_log('ART Orchestrator: Proceeding to provider availability check');
+        
+        // REUSE: Provider check integration (100% identical)
+        try {
+            $provider_result = $this->availability_engine->check_availability(
+                $params['date'],
+                $params['time'],
+                $params['service_id'],
+                $params['duration'],
+                $params['location_id'] ?? null,
+                $exclude_id
+            );
+            
+            amelia_cpt_sync_debug_log('ART Orchestrator: Provider check complete - ' . count($provider_result) . ' providers returned');
+            
+            $result['providers'] = $provider_result;
+            
+        } catch (Exception $e) {
+            amelia_cpt_sync_debug_log('ART Orchestrator: Provider check FAILED - ' . $e->getMessage());
+            $result['providers'] = array();
+        }
+        
+        amelia_cpt_sync_debug_log('ART Orchestrator: Returning shared pool result with ' . count($result['providers']) . ' providers');
         
         return $result;
     }
