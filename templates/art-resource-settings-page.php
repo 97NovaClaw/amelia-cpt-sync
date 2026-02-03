@@ -66,15 +66,22 @@ $settings = get_option('art_resource_settings', array(
                                 <?php _e('None - Manual configuration required', 'amelia-cpt-sync'); ?>
                             </option>
                             <option value="mirrored" <?php selected($settings['default_mode'], 'mirrored'); ?>>
-                                <?php _e('Mirrored - Auto-create 1:1 resource', 'amelia-cpt-sync'); ?>
+                                <?php _e('🔗 Mirrored - Auto-create 1:1 resource per service', 'amelia-cpt-sync'); ?>
+                            </option>
+                            <option value="shared_pool" <?php selected($settings['default_mode'], 'shared_pool'); ?>>
+                                <?php _e('🏊 Shared Pool - Services share resource pool', 'amelia-cpt-sync'); ?>
                             </option>
                             <option value="ask" <?php selected($settings['default_mode'], 'ask'); ?>>
                                 <?php _e('Ask - Prompt when creating services', 'amelia-cpt-sync'); ?>
                             </option>
                         </select>
                         <p class="description">
-                            <?php _e('Choose the default resource mode when a new service is created in Amelia.', 'amelia-cpt-sync'); ?>
+                            <?php _e('Choose the default resource mode for ALL services:', 'amelia-cpt-sync'); ?>
                         </p>
+                        <ul style="margin-top: 8px; margin-left: 20px; font-size: 13px; color: #64748B;">
+                            <li><strong>🔗 Mirrored:</strong> Each service has its own dedicated resource (1:1 relationship)</li>
+                            <li><strong>🏊 Shared Pool:</strong> Multiple services share a pool of resources (e.g., 3 massage services share 5 rooms)</li>
+                        </ul>
                     </td>
                 </tr>
                 
@@ -147,12 +154,45 @@ $settings = get_option('art_resource_settings', array(
                 </tr>
             </table>
             
-            <!-- Future modes placeholders -->
-            <h3><?php _e('Shared Pool Mode', 'amelia-cpt-sync'); ?> <span style="color: #666; font-weight: normal; font-size: 14px;">(Coming in Phase 2)</span></h3>
-            <p style="color: #666; font-style: italic;"><?php _e('Settings for shared resource pools will be available in v2.24.0', 'amelia-cpt-sync'); ?></p>
+            <!-- Shared Pool Mode Settings -->
+            <h3><?php _e('🏊 Shared Pool Mode', 'amelia-cpt-sync'); ?> <span style="color: #10B981; font-weight: 600; font-size: 14px;">✓ Available (v2.32.0)</span></h3>
+            <p class="description" style="margin-bottom: 16px;">
+                <?php _e('Multiple services share a pool of resources. The system automatically assigns an available resource based on your selection strategy.', 'amelia-cpt-sync'); ?>
+            </p>
             
-            <h3><?php _e('Quantity Pool Mode', 'amelia-cpt-sync'); ?> <span style="color: #666; font-weight: normal; font-size: 14px;">(Coming in Phase 2)</span></h3>
-            <p style="color: #666; font-style: italic;"><?php _e('Settings for quantity-based resources will be available in v2.24.0', 'amelia-cpt-sync'); ?></p>
+            <table class="form-table">
+                <tr>
+                    <th scope="row">
+                        <label><?php _e('Default Selection Strategy', 'amelia-cpt-sync'); ?></label>
+                    </th>
+                    <td>
+                        <?php
+                        $pool_settings = $settings['shared_pool'] ?? array();
+                        $default_strategy = $pool_settings['default_strategy'] ?? 'first_available';
+                        ?>
+                        <select name="art_resource_settings[shared_pool][default_strategy]" class="regular-text">
+                            <option value="first_available" <?php selected($default_strategy, 'first_available'); ?>>
+                                <?php _e('⚡ First Available - Use first resource with capacity', 'amelia-cpt-sync'); ?>
+                            </option>
+                            <option value="least_used" <?php selected($default_strategy, 'least_used'); ?>>
+                                <?php _e('⚖️ Least Used - Balance load across pool', 'amelia-cpt-sync'); ?>
+                            </option>
+                            <option value="manual" <?php selected($default_strategy, 'manual'); ?>>
+                                <?php _e('👤 Manual - Admin chooses at booking time', 'amelia-cpt-sync'); ?>
+                            </option>
+                        </select>
+                        <p class="description">
+                            <?php _e('How the system selects which resource to use when multiple are available. Can be overridden per service.', 'amelia-cpt-sync'); ?>
+                        </p>
+                    </td>
+                </tr>
+            </table>
+            
+            <!-- Future mode placeholder -->
+            <h3><?php _e('📦 Composite Mode', 'amelia-cpt-sync'); ?> <span style="color: #94A3B8; font-weight: normal; font-size: 14px;">(Future Enhancement)</span></h3>
+            <p style="color: #64748B; font-style: italic;">
+                <?php _e('For services requiring ALL of multiple specific resources (e.g., Camera + Lighting + Backdrop). Contact developer if needed.', 'amelia-cpt-sync'); ?>
+            </p>
             
             <h3><?php _e('Provider Bound Mode', 'amelia-cpt-sync'); ?> <span style="color: #666; font-weight: normal; font-size: 14px;">(Coming in Phase 3)</span></h3>
             <p style="color: #666; font-style: italic;"><?php _e('Settings for provider-specific resources will be available in v2.25.0', 'amelia-cpt-sync'); ?></p>
