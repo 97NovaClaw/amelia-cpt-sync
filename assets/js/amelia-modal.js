@@ -299,16 +299,16 @@
                 }
             });
             
-            // Gather resource config (mode-specific fields)
-            var qtyInput = $('input[name="resource_config[quantity_required]"]');
-            if (qtyInput.length) {
-                resourceConfig.quantity_required = qtyInput.val();
+            // Gather resource config (new simplified fields)
+            var resourceSelect = $('#resource_select');
+            if (resourceSelect.length) {
+                resourceConfig.resource_id = resourceSelect.val();
+                resourceConfig.resource_name = $('#resource_name').val();
+                resourceConfig.resource_quantity = $('#resource_quantity').val();
             }
             
-            var autoCreateInput = $('input[name="resource_config[auto_create]"]');
-            if (autoCreateInput.length) {
-                resourceConfig.auto_create = autoCreateInput.is(':checked') ? 1 : 0;
-            }
+            // Default quantity_required to 1 (hidden field, functional but usually 1)
+            resourceConfig.quantity_required = 1;
             
             console.log('[Amelia CPT Sync] Saving custom field values:', customFields);
             console.log('[Amelia CPT Sync] Saving resource config:', resourceConfig);

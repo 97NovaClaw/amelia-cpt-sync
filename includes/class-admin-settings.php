@@ -737,6 +737,13 @@ class Amelia_CPT_Sync_Admin_Settings {
         // Get all resources linked to this service from Amelia
         $all_service_resources = $resource_manager->get_all_service_resources($service_id);
         
+        // Fetch ALL resources for dropdown (if mirrored mode)
+        $all_resources = array();
+        if ($global_mode === 'mirrored') {
+            $data_manager = new ART_Amelia_Data_Manager();
+            $all_resources = $data_manager->get_all_resources();
+        }
+        
         // Show modal if custom fields exist OR resource mode needs config
         $has_content = !empty($definitions) || $global_mode !== 'none';
         
@@ -756,71 +763,97 @@ class Amelia_CPT_Sync_Admin_Settings {
             
             <!-- RESOURCE CONFIGURATION SECTION (Mode-Specific) -->
             <?php if ($global_mode === 'mirrored'): ?>
-            <div style="background: #F0F6FC; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 3px solid #2271B1;">
-                <h4 style="margin-top: 0; color: #2271B1;">
-                    <span class="dashicons dashicons-admin-tools" style="vertical-align: middle;"></span>
-                    <?php _e('Resource Configuration', 'amelia-cpt-sync'); ?>
-                </h4>
+            <h4 style="margin: 20px 0 10px 0;"><?php _e('Resource Configuration', 'amelia-cpt-sync'); ?></h4>
+            
+            <table class="form-table">
+                <!-- Resource Selection -->
+                <tr>
+                    <th scope="row">
+                        <label for="resource_select"><?php _e('Resource', 'amelia-cpt-sync'); ?></label>
+                    </th>
+                    <td>
+                        <select id="resource_select" 
+                                name="resource_config[resource_id]" 
+                                class="regular-text"
+                                style="width: 100%; max-width: 400px;">
+                            <option value="new"><?php _e('— Create New Resource —', 'amelia-cpt-sync'); ?></option>
+                            <?php foreach ($all_resources as $res): ?>
+                                <option value="<?php echo esc_attr($res['id']); ?>" 
+                                        data-name="<?php echo esc_attr($res['name']); ?>"
+                                        data-quantity="<?php echo esc_attr($res['quantity']); ?>"
+                                        <?php selected($mirrored_resource_id, $res['id']); ?>>
+                                    <?php echo esc_html($res['name']); ?> (<?php echo esc_html($res['quantity']); ?> units)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p class="description"><?php _e('Select existing resource or choose "Create New"', 'amelia-cpt-sync'); ?></p>
+                    </td>
+                </tr>
                 
-                <table class="form-table" style="margin-bottom: 0;">
-                    <!-- Linked Resource Display -->
-                    <tr>
-                        <th scope="row"><?php _e('Linked Resource', 'amelia-cpt-sync'); ?></th>
-                        <td>
-                            <?php if ($linked_resource): ?>
-                                <div style="background: #fff; padding: 12px; border: 1px solid #2271B1; border-radius: 4px; margin-bottom: 12px;">
-                                    <strong style="color: #2271B1;"><?php echo esc_html($linked_resource['name']); ?></strong><br>
-                                    <span style="font-size: 12px; color: #666;">
-                                        <span class="dashicons dashicons-database" style="font-size: 14px; vertical-align: middle;"></span>
-                                        <?php echo esc_html($linked_resource['quantity']); ?> units available in Amelia
-                                    </span>
-                                    <br>
-                                    <a href="<?php echo admin_url('admin.php?page=wpamelia-services#/resources'); ?>" target="_blank" style="font-size: 12px;">
-                                        <?php _e('Edit quantity in Amelia →', 'amelia-cpt-sync'); ?>
-                                    </a>
-                                </div>
-                            <?php else: ?>
-                                <div style="background: #FFF9E6; padding: 10px; border-left: 3px solid #F59E0B; margin-bottom: 12px;">
-                                    <span style="color: #92400E;">
-                                        <span class="dashicons dashicons-info" style="vertical-align: middle;"></span>
-                                        <?php _e('No resource linked yet', 'amelia-cpt-sync'); ?>
-                                    </span>
-                                </div>
-                                <label>
-                                    <input type="checkbox" name="resource_config[auto_create]" value="1" checked>
-                                    <?php _e('Auto-create resource for this service', 'amelia-cpt-sync'); ?>
-                                </label>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
+                <!-- Resource Name (for renaming or new creation) -->
+                <tr id="row_resource_name">
+                    <th scope="row">
+                        <label for="resource_name"><?php _e('Resource Name', 'amelia-cpt-sync'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text" 
+                               id="resource_name" 
+                               name="resource_config[resource_name]"
+                               class="regular-text"
+                               value="<?php echo esc_attr($linked_resource ? $linked_resource['name'] : $service_name . ' (Resource)'); ?>"
+                               style="width: 100%; max-width: 400px;">
+                        <p class="description"><?php _e('Name will be updated when you save', 'amelia-cpt-sync'); ?></p>
+                    </td>
+                </tr>
+                
+                <!-- Resource Quantity -->
+                <tr>
+                    <th scope="row">
+                        <label for="resource_quantity"><?php _e('Quantity Available', 'amelia-cpt-sync'); ?></label>
+                    </th>
+                    <td>
+                        <input type="number" 
+                               id="resource_quantity" 
+                               name="resource_config[resource_quantity]"
+                               class="small-text"
+                               min="1"
+                               value="<?php echo esc_attr($linked_resource ? $linked_resource['quantity'] : 1); ?>">
+                        <p class="description"><?php _e('Total units available for booking', 'amelia-cpt-sync'); ?></p>
+                    </td>
+                </tr>
+            </table>
+            
+            <script>
+            jQuery(document).ready(function($) {
+                // Initialize Select2 if available
+                if ($.fn.select2) {
+                    $('#resource_select').select2({
+                        width: '100%',
+                        dropdownParent: $('#amelia-cpt-sync-custom-fields-modal')
+                    });
+                }
+                
+                // When resource changes, update name and quantity fields
+                $('#resource_select').on('change', function() {
+                    var selected = $(this).find(':selected');
+                    var isNew = $(this).val() === 'new';
                     
-                    <!-- Units Per Booking -->
-                    <tr>
-                        <th scope="row">
-                            <label for="quantity_required"><?php _e('Units Per Booking', 'amelia-cpt-sync'); ?></label>
-                        </th>
-                        <td>
-                            <input type="number" 
-                                   id="quantity_required" 
-                                   name="resource_config[quantity_required]"
-                                   class="small-text"
-                                   min="1"
-                                   value="<?php echo esc_attr($quantity_required); ?>">
-                            <p class="description"><?php _e('How many units does one booking consume? (Usually 1)', 'amelia-cpt-sync'); ?></p>
-                        </td>
-                    </tr>
-                </table>
-            </div>
+                    if (isNew) {
+                        $('#resource_name').val('<?php echo esc_js($service_name); ?> (Resource)');
+                        $('#resource_quantity').val(1);
+                    } else {
+                        $('#resource_name').val(selected.data('name') || selected.text().split(' (')[0]);
+                        $('#resource_quantity').val(selected.data('quantity') || 1);
+                    }
+                });
+            });
+            </script>
             <?php endif; ?>
             
             <?php if ($global_mode === 'shared_pool'): ?>
-            <div style="background: #FFF9E6; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 3px solid #F59E0B;">
-                <h4 style="margin-top: 0; color: #92400E;">
-                    <span class="dashicons dashicons-warning" style="vertical-align: middle;"></span>
-                    <?php _e('Shared Pool Mode', 'amelia-cpt-sync'); ?>
-                </h4>
-                <p style="margin: 0; color: #92400E;"><?php _e('Shared Pool mode is planned for Phase 2. Resource configuration coming soon.', 'amelia-cpt-sync'); ?></p>
-            </div>
+            <p class="description" style="color: #92400E; background: #FFF9E6; padding: 10px; border-radius: 4px; margin: 20px 0;">
+                <?php _e('⚠️ Shared Pool mode is planned for Phase 2. Resource configuration coming soon.', 'amelia-cpt-sync'); ?>
+            </p>
             <?php endif; ?>
             
             <?php if (!empty($definitions)): ?>
@@ -896,27 +929,65 @@ class Amelia_CPT_Sync_Admin_Settings {
             
             if ($global_mode === 'mirrored') {
                 $mode_settings['quantity_required'] = isset($resource_config['quantity_required']) ? absint($resource_config['quantity_required']) : 1;
-                $mode_settings['auto_create'] = !empty($resource_config['auto_create']);
                 $mode_settings['sync_name'] = $global_settings['mirrored']['sync_name'] ?? true;
                 
-                // Auto-create resource if requested AND no resource exists
-                if ($mode_settings['auto_create']) {
-                    $existing_config = $resource_manager->get_service_config($service_id);
-                    $existing_resource_id = ($existing_config && isset($existing_config->mode_settings['mirrored_resource_id'])) 
-                        ? $existing_config->mode_settings['mirrored_resource_id'] 
-                        : null;
+                $resource_api = new ART_Resource_API();
+                $resource_id = $resource_config['resource_id'] ?? null;
+                $resource_name = sanitize_text_field($resource_config['resource_name'] ?? '');
+                $resource_quantity = absint($resource_config['resource_quantity'] ?? 1);
+                
+                // Get service name for default resource name
+                $service_data = $this->get_amelia_service_by_id($service_id);
+                $service_name = $service_data['name'] ?? 'Service';
+                
+                // Create new or update existing resource
+                if ($resource_id === 'new' || empty($resource_id)) {
+                    // Create new resource
+                    amelia_cpt_sync_debug_log("Creating new resource for service #{$service_id}");
                     
-                    if (!$existing_resource_id) {
-                        $resource_id = $resource_manager->auto_create_mirrored_resource($service_id);
-                        if (!is_wp_error($resource_id)) {
-                            $mode_settings['mirrored_resource_id'] = $resource_id;
-                            amelia_cpt_sync_debug_log("Auto-created resource #{$resource_id} for service #{$service_id}");
-                        }
+                    $new_resource = $resource_api->create_resource(array(
+                        'name' => $resource_name ?: ($service_name . ' (Resource)'),
+                        'quantity' => max(1, $resource_quantity),
+                        'status' => 'visible',
+                        'entities' => array(
+                            array('entityId' => $service_id, 'entityType' => 'service')
+                        )
+                    ));
+                    
+                    if (!is_wp_error($new_resource)) {
+                        $mode_settings['mirrored_resource_id'] = $new_resource['id'];
+                        amelia_cpt_sync_debug_log("Created resource #{$new_resource['id']} for service #{$service_id}");
                     } else {
-                        // Preserve existing resource link
-                        $mode_settings['mirrored_resource_id'] = $existing_resource_id;
+                        amelia_cpt_sync_debug_log("ERROR creating resource: " . $new_resource->get_error_message());
                     }
+                } else {
+                    // Update existing resource name and/or quantity
+                    amelia_cpt_sync_debug_log("Updating resource #{$resource_id} for service #{$service_id}");
+                    
+                    $update_data = array();
+                    
+                    if (!empty($resource_name)) {
+                        $update_data['name'] = $resource_name;
+                    }
+                    if ($resource_quantity > 0) {
+                        $update_data['quantity'] = $resource_quantity;
+                    }
+                    
+                    if (!empty($update_data)) {
+                        $update_result = $resource_api->update_resource(intval($resource_id), $update_data);
+                        if (!is_wp_error($update_result)) {
+                            amelia_cpt_sync_debug_log("Updated resource #{$resource_id}: " . wp_json_encode($update_data));
+                        } else {
+                            amelia_cpt_sync_debug_log("ERROR updating resource: " . $update_result->get_error_message());
+                        }
+                    }
+                    
+                    $mode_settings['mirrored_resource_id'] = intval($resource_id);
                 }
+                
+                // Clear resource caches
+                delete_transient('art_all_resources');
+                delete_transient('art_resource_' . ($mode_settings['mirrored_resource_id'] ?? 0));
             }
             
             $resource_manager->save_service_config($service_id, array(
