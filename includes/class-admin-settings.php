@@ -740,7 +740,7 @@ class Amelia_CPT_Sync_Admin_Settings {
         // Fetch ALL resources for dropdown (if mirrored mode)
         $all_resources = array();
         if ($global_mode === 'mirrored') {
-            $data_manager = new ART_Amelia_Data_Manager();
+            $data_manager = ART_Amelia_Data_Manager::get_instance();
             $all_resources = $data_manager->get_all_resources();
         }
         
