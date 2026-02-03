@@ -1503,15 +1503,23 @@ class Amelia_CPT_Sync_Admin_Settings {
                 $cleanup_orphan = $resource_config['cleanup_orphan'] ?? false;
                 $is_new_service = isset($resource_config['is_new_service']) && $resource_config['is_new_service'] === '1';
                 
-                if ($action === 'switch' && $original_resource_id && $original_resource_id != $resource_id) {
+                // Get the actual new resource ID (either switched-to or newly created)
+                $new_resource_id = $mode_settings['mirrored_resource_id'] ?? null;
+                
+                // CRITICAL: Orphan cleanup applies to BOTH 'switch' (select existing) AND 'create' (create new)
+                // When user creates a NEW resource, the original auto-created one becomes an orphan
+                if (($action === 'switch' || $action === 'create') && 
+                    $original_resource_id && 
+                    $new_resource_id && 
+                    $original_resource_id != $new_resource_id) {
                     
                     // CRITICAL CHECK: Only cleanup orphans for NEW services, not existing ones
                     if (!$is_new_service) {
                         amelia_cpt_sync_debug_log("⏭️ Skipping orphan cleanup: This is an UPDATE to an existing service (Amelia: 'Successfully updated')");
                         amelia_cpt_sync_debug_log("  → User is reconfiguring an existing service - preserving original resource #{$original_resource_id}");
                     } else {
-                        amelia_cpt_sync_debug_log("⚙️ Checking for orphan cleanup: This is a NEW service (Amelia: 'Successfully added')");
-                        amelia_cpt_sync_debug_log("  → Resource #{$original_resource_id} was auto-created for first-time setup");
+                        amelia_cpt_sync_debug_log("⚙️ Checking for orphan cleanup: This is a NEW service with action '{$action}' (Amelia: 'Successfully added')");
+                        amelia_cpt_sync_debug_log("  → Resource #{$original_resource_id} was auto-created, now switching to #{$new_resource_id}");
                     
                     // Check 1: Any active bookings/assignments?
                     global $wpdb;
