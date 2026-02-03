@@ -1358,102 +1358,80 @@ class Amelia_CPT_Sync_Admin_Settings {
                     
                     $switch_success = true;
                     
-                    // STEP 1: Add this service to the NEW resource's entities
+                    // Use database transaction for atomicity
+                    global $wpdb;
+                    $wpdb->query('START TRANSACTION');
+                    
                     try {
-                        // Use Resource Manager (DB query) instead of API (API GET returns 405)
-                        $new_resource = $resource_manager->get_resource(intval($resource_id));
+                        $entities_table = $wpdb->prefix . 'amelia_resources_to_entities';
                         
-                        if (is_wp_error($new_resource)) {
-                            throw new Exception("Failed to fetch new resource: " . $new_resource->get_error_message());
-                        }
+                        // STEP 1: Add this service to the NEW resource's entities (DIRECT DB)
+                        // Check if already linked
+                        $existing = $wpdb->get_var($wpdb->prepare(
+                            "SELECT id FROM {$entities_table} 
+                            WHERE resourceId = %d AND entityId = %d AND entityType = 'service'",
+                            $resource_id,
+                            $service_id
+                        ));
                         
-                        $entities = $new_resource['entities'] ?? [];
-                        
-                        // Check if already linked (shouldn't be, but safety check)
-                        $already_linked = false;
-                        foreach ($entities as $entity) {
-                            $entity_id = $entity['entity_id'] ?? $entity['entityId'] ?? null;
-                            $entity_type = $entity['entity_type'] ?? $entity['entityType'] ?? null;
-                            if ($entity_id == $service_id && $entity_type === 'service') {
-                                $already_linked = true;
-                                break;
-                            }
-                        }
-                        
-                        if (!$already_linked) {
-                            // Format entities for API (Amelia expects specific format)
-                            $formatted_entities = [];
-                            foreach ($entities as $entity) {
-                                $formatted_entities[] = [
-                                    'entityId' => $entity['entity_id'] ?? $entity['entityId'],
-                                    'entityType' => $entity['entity_type'] ?? $entity['entityType']
-                                ];
+                        if (!$existing) {
+                            // Insert new entity link directly
+                            $insert_result = $wpdb->insert(
+                                $entities_table,
+                                [
+                                    'resourceId' => intval($resource_id),
+                                    'entityId' => intval($service_id),
+                                    'entityType' => 'service'
+                                ],
+                                ['%d', '%d', '%s']
+                            );
+                            
+                            if ($insert_result === false) {
+                                throw new Exception("DB insert failed: " . $wpdb->last_error);
                             }
                             
-                            // Add this service
-                            $formatted_entities[] = [
-                                'entityId' => $service_id,
-                                'entityType' => 'service'
-                            ];
+                            amelia_cpt_sync_debug_log("✓ Added Service #{$service_id} to Resource #{$resource_id} entities (direct DB)");
                             
-                            // Update new resource with added entity
-                            $update_result = $resource_api->update_resource(intval($resource_id), [
-                                'entities' => $formatted_entities
-                            ]);
-                            
-                            if (is_wp_error($update_result)) {
-                                throw new Exception("Failed to add service to resource entities: " . $update_result->get_error_message());
-                            }
-                            
-                            amelia_cpt_sync_debug_log("✓ Added Service #{$service_id} to Resource #{$resource_id} entities");
+                            // Clear cache immediately for fresh reads
+                            delete_transient('art_resource_' . $resource_id);
+                            delete_transient('art_all_resources');
                         } else {
                             amelia_cpt_sync_debug_log("Service #{$service_id} already linked to Resource #{$resource_id}");
                         }
                         
-                    } catch (Exception $e) {
-                        amelia_cpt_sync_debug_log("ERROR adding entity link: " . $e->getMessage());
-                        $switch_success = false;
-                    }
-                    
-                    // STEP 2: Remove this service from the OLD resource's entities
-                    if ($switch_success && $original_resource_id && $original_resource_id != $resource_id) {
-                        try {
-                            // Use Resource Manager (DB query) instead of API
-                            $old_resource = $resource_manager->get_resource(intval($original_resource_id));
+                        // STEP 2: Remove this service from the OLD resource's entities (DIRECT DB)
+                        if ($original_resource_id && $original_resource_id != $resource_id) {
+                            // Delete old entity link directly
+                            $delete_result = $wpdb->delete(
+                                $entities_table,
+                                [
+                                    'resourceId' => intval($original_resource_id),
+                                    'entityId' => intval($service_id),
+                                    'entityType' => 'service'
+                                ],
+                                ['%d', '%d', '%s']
+                            );
                             
-                            if (!is_wp_error($old_resource)) {
-                                $old_entities = $old_resource['entities'] ?? [];
-                                
-                                // Remove this service from entities
-                                $formatted_entities = [];
-                                foreach ($old_entities as $entity) {
-                                    $entity_id = $entity['entity_id'] ?? $entity['entityId'] ?? null;
-                                    $entity_type = $entity['entity_type'] ?? $entity['entityType'] ?? null;
-                                    
-                                    if ($entity_id != $service_id || $entity_type !== 'service') {
-                                        $formatted_entities[] = [
-                                            'entityId' => $entity_id,
-                                            'entityType' => $entity_type
-                                        ];
-                                    }
-                                }
-                                
-                                // Update old resource with removed entity
-                                $update_result = $resource_api->update_resource(intval($original_resource_id), [
-                                    'entities' => $formatted_entities
-                                ]);
-                                
-                                if (is_wp_error($update_result)) {
-                                    amelia_cpt_sync_debug_log("WARNING: Failed to remove service from old resource entities: " . $update_result->get_error_message());
-                                    // Continue anyway - new link is more important
-                                } else {
-                                    amelia_cpt_sync_debug_log("✓ Removed Service #{$service_id} from Resource #{$original_resource_id} entities");
-                                }
+                            if ($delete_result === false) {
+                                throw new Exception("DB delete failed: " . $wpdb->last_error);
                             }
-                        } catch (Exception $e) {
-                            amelia_cpt_sync_debug_log("WARNING removing old entity link: " . $e->getMessage());
-                            // Continue - not critical if this fails
+                            
+                            amelia_cpt_sync_debug_log("✓ Removed Service #{$service_id} from Resource #{$original_resource_id} entities (direct DB)");
+                            
+                            // Clear cache immediately for fresh reads
+                            delete_transient('art_resource_' . $original_resource_id);
+                            delete_transient('art_all_resources');
                         }
+                        
+                        // Commit transaction
+                        $wpdb->query('COMMIT');
+                        amelia_cpt_sync_debug_log("✓ Entity management transaction committed");
+                        
+                    } catch (Exception $e) {
+                        // Rollback on any error
+                        $wpdb->query('ROLLBACK');
+                        amelia_cpt_sync_debug_log("✗ Transaction rolled back: " . $e->getMessage());
+                        $switch_success = false;
                     }
                     
                     // STEP 3: Update ART config (only if switch was successful)
@@ -1525,14 +1503,15 @@ class Amelia_CPT_Sync_Admin_Settings {
                     amelia_cpt_sync_debug_log("  → Assignments check: {$assignment_count} active bookings");
                     
                     // Check 2: Any entity links remaining in Amelia?
-                    $old_resource = $resource_manager->get_resource(intval($original_resource_id));
-                    $entity_count = 0;
+                    // Direct DB query (fresh data since we just did direct DB writes)
+                    global $wpdb;
+                    $entities_table = $wpdb->prefix . 'amelia_resources_to_entities';
+                    $entity_count = $wpdb->get_var($wpdb->prepare(
+                        "SELECT COUNT(*) FROM {$entities_table} WHERE resourceId = %d",
+                        $original_resource_id
+                    ));
                     
-                    if (!is_wp_error($old_resource)) {
-                        $entities = $old_resource['entities'] ?? [];
-                        $entity_count = count($entities);
-                        amelia_cpt_sync_debug_log("  → Entity links check: {$entity_count} services/locations/employees linked");
-                    }
+                    amelia_cpt_sync_debug_log("  → Entity links check: {$entity_count} services/locations/employees linked");
                     
                     // Delete only if BOTH checks pass (0 bookings AND 0 entities)
                     if ($assignment_count == 0 && $entity_count == 0) {

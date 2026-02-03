@@ -277,6 +277,9 @@
                         class: 'button button-secondary',
                         click: function() {
                             $(this).dialog('close');
+                            // Refresh page to ensure Amelia UI is up to date
+                            console.log('[Amelia CPT Sync] Skip clicked, refreshing page...');
+                            location.reload();
                         }
                     }
                 ],
@@ -351,14 +354,9 @@
                         console.log('[Amelia CPT Sync] Custom fields saved successfully');
                         modalDialog.dialog('close');
                         
-                        // Show success notice
-                        if ($('.amelia-page-header').length) {
-                            var notice = $('<div class="notice notice-success is-dismissible" style="margin: 10px 0;"><p><strong>Amelia to CPT Sync:</strong> Custom field details saved successfully!</p></div>');
-                            $('.amelia-page-header').after(notice);
-                            setTimeout(function() {
-                                notice.fadeOut(400, function() { $(this).remove(); });
-                            }, 3000);
-                        }
+                        // Refresh page to show updated data
+                        console.log('[Amelia CPT Sync] Refreshing page...');
+                        location.reload();
                     } else {
                         alert('Error: ' + response.data.message);
                     }
