@@ -2093,6 +2093,118 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     color: #B45309;
 }
 
+/* Resource Quantity Display */
+.resource-quantity {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #E5E7EB;
+}
+
+.qty-bar {
+    height: 8px;
+    background: #E5E7EB;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+.qty-bar-used {
+    height: 100%;
+    background: linear-gradient(90deg, #10B981 0%, #059669 100%);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.resource-item.soft-block .qty-bar-used {
+    background: linear-gradient(90deg, #F59E0B 0%, #D97706 100%);
+}
+
+.resource-item.hard-block .qty-bar-used,
+.resource-item.unavailable .qty-bar-used {
+    background: linear-gradient(90deg, #EF4444 0%, #DC2626 100%);
+}
+
+.qty-text {
+    font-size: 12px;
+    color: #6B7280;
+}
+
+/* Multi-resource header */
+.multi-resource-header {
+    background: #EFF6FF;
+    color: #1E40AF;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.multi-resource-header .dashicons {
+    font-size: 16px;
+}
+
+/* Status badges */
+.status-badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.status-badge.available {
+    background: #D1FAE5;
+    color: #065F46;
+}
+
+.status-badge.soft-block,
+.status-badge.partial {
+    background: #FEF3C7;
+    color: #92400E;
+}
+
+.status-badge.unavailable {
+    background: #FEE2E2;
+    color: #991B1B;
+}
+
+/* Resource item states */
+.resource-item.partial {
+    border-left: 3px solid #F59E0B;
+    background: #FFFBEB;
+}
+
+.resource-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.resource-message {
+    margin-top: 6px;
+    padding: 6px 8px;
+    background: #F8FAFC;
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #64748B;
+}
+
+.resource-item.soft-block .resource-message {
+    background: #FFFBEB;
+    color: #92400E;
+}
+
+.resource-item.hard-block .resource-message,
+.resource-item.unavailable .resource-message {
+    background: #FEF2F2;
+    color: #991B1B;
+}
+
 /* Old resource card styles (legacy, can be removed) */
 .resource-card {
     display: none; /* Using resource-item instead */
@@ -5806,6 +5918,9 @@ jQuery(document).ready(function($) {
     /**
      * Render resource availability column (matches provider styling)
      */
+    /**
+     * Render resource availability column (with quantity support)
+     */
     function renderResourceColumn(data) {
         var $container = $('#resource-status-list');
         
@@ -5816,79 +5931,110 @@ jQuery(document).ready(function($) {
         
         var html = '';
         
-        // Mode 1: Mirrored (single resource)
-        if (data.resource_mode === 'mirrored' && data.resources.assigned) {
-            var resource = data.resources.assigned[0];
-            var isAvailable = resource.status === 'available';
-            var isSoftBlock = resource.status === 'soft_block';
-            var isHardBlock = resource.status === 'unavailable';
-            
-            // Group label (adapt based on viewing mode)
-            // Only show "Currently Selected" when:
-            // 1. We're in 'current' mode (not exploring)
-            // 2. There's an active booking
-            // 3. This resource matches the active booking's resource
-            var isCurrentBooking = (typeof bookingViewState !== 'undefined' && 
-                                   bookingViewState.mode === 'current' && 
-                                   artDetailData.hasActiveBooking && 
-                                   artDetailData.activeResource &&
-                                   resource.id == artDetailData.activeResource.id);
-            
-            if (isCurrentBooking) {
-                // Viewing current booking - show "Currently Selected"
-                html += '<div class="resource-group">';
-                html += '<div class="resource-group-label" style="background: #E0E7FF; color: #4338CA; border-left: 3px solid #4338CA;">';
-                html += '<span class="dashicons dashicons-saved"></span> <?php _e('Currently Selected Resource', 'amelia-cpt-sync'); ?></div>';
-            } else if (isAvailable) {
-                html += '<div class="resource-group">';
-                html += '<div class="resource-group-label available"><?php _e('✓ Available', 'amelia-cpt-sync'); ?></div>';
-            } else if (isSoftBlock) {
-                html += '<div class="resource-group">';
-                html += '<div class="resource-group-label" style="background: #FEF3C7; color: #92400E; border-left: 3px solid #F59E0B;">';
-                html += '⚠️ <?php _e('Tentative Conflict', 'amelia-cpt-sync'); ?></div>';
-            } else {
-                html += '<div class="resource-group">';
-                html += '<div class="resource-group-label blocked"><?php _e('✗ Blocked', 'amelia-cpt-sync'); ?></div>';
-            }
-            
-            // Resource item (matches provider-item structure)
-            html += '<div class="resource-item">';
-            html += '<div class="resource-icon">';
-            html += isAvailable ? '✓' : (isSoftBlock ? '⚠️' : '✗');
-            html += '</div>';
-            html += '<div class="resource-info">';
-            html += '<div class="resource-name">' + resource.name + '</div>';
-            
-            // Status display with message
-            var statusText = isAvailable ? '<?php _e('Available', 'amelia-cpt-sync'); ?>' : 
-                            (isSoftBlock ? '<?php _e('Tentative Conflict', 'amelia-cpt-sync'); ?>' : 
-                             '<?php _e('Booked', 'amelia-cpt-sync'); ?>');
-            html += '<div class="resource-status">' + statusText + '</div>';
-            
-            // Show conflict message if exists (with linkified request references)
-            if ((isSoftBlock || isHardBlock) && resource.message) {
-                html += '<div class="resource-meta" style="color: ' + (isSoftBlock ? '#D97706' : '#DC2626') + ';">' + 
-                        linkifyRequestReferences(resource.message) + '</div>';
-            }
-            
-            if (isHardBlock && data.resources.next_available) {
-                html += '<div class="resource-meta">Next free: ' + data.resources.next_available + '</div>';
-            }
-            
-            html += '</div>';
-            html += '</div>'; // Close resource-item
-            html += '</div>'; // Close resource-group
-            
-            // Add alert if blocked
-            if (data.resource_block) {
-                html += '<div class="resource-block-alert" style="margin: 12px; padding: 12px; background: #FEF3C7; border: 2px solid #F59E0B; border-radius: 6px;">';
-                html += '<div style="color: #92400E; font-weight: 600; font-size: 12px; margin-bottom: 6px;">⚠️ <?php _e('All Providers Blocked', 'amelia-cpt-sync'); ?></div>';
-                html += '<div style="color: #78350F; font-size: 11px;">' + (data.resource_message || '<?php _e('This resource is booked', 'amelia-cpt-sync'); ?>') + '</div>';
-                html += '</div>';
-            }
+        // Handle multiple resources
+        var resources = data.resources.assigned || [];
+        
+        if (resources.length === 0) {
+            $container.html('<div class="resource-placeholder"><?php _e('No resources configured', 'amelia-cpt-sync'); ?></div>');
+            return;
         }
         
-        // Future modes: shared_pool, quantity_pool, etc. will be added here
+        // Multi-resource indicator
+        if (resources.length > 1) {
+            html += '<div class="multi-resource-header">';
+            html += '<span class="dashicons dashicons-database"></span> ';
+            html += resources.length + ' <?php _e('resources required', 'amelia-cpt-sync'); ?>';
+            html += '</div>';
+        }
+        
+        resources.forEach(function(resource, index) {
+            var isAvailable = resource.status === 'available';
+            var isSoftBlock = resource.status === 'soft_block';
+            var isPartial = resource.status === 'partial';
+            var isHardBlock = resource.status === 'unavailable';
+            
+            // Group label for first resource
+            if (index === 0) {
+                var isCurrentBooking = (typeof bookingViewState !== 'undefined' && 
+                                       bookingViewState.mode === 'current' && 
+                                       artDetailData.hasActiveBooking && 
+                                       artDetailData.activeResource &&
+                                       artDetailData.activeResource.id === resource.id);
+                
+                if (isCurrentBooking) {
+                    html += '<div class="resource-group-label current-selection">';
+                    html += '<span class="dashicons dashicons-saved"></span> <?php _e('Currently Selected Resource', 'amelia-cpt-sync'); ?></div>';
+                } else {
+                    var labelClass = isAvailable ? 'available' : (isSoftBlock || isPartial ? 'warning' : 'blocked');
+                    var labelText = isAvailable ? '<?php _e('AVAILABLE', 'amelia-cpt-sync'); ?>' : 
+                                   (isSoftBlock ? '<?php _e('MIGHT CONFLICT', 'amelia-cpt-sync'); ?>' : '<?php _e('UNAVAILABLE', 'amelia-cpt-sync'); ?>');
+                    html += '<div class="resource-group-label ' + labelClass + '">' + (isAvailable ? '✓ ' : (isSoftBlock ? '⚠️ ' : '✗ ')) + labelText + '</div>';
+                }
+            }
+            
+            // Resource card
+            var cardClass = 'resource-item';
+            if (isAvailable) cardClass += ' available';
+            if (isSoftBlock) cardClass += ' soft-block';
+            if (isPartial) cardClass += ' partial';
+            if (isHardBlock) cardClass += ' hard-block';
+            
+            html += '<div class="' + cardClass + '">';
+            
+            // Resource header with name and status badge
+            html += '<div class="resource-header">';
+            html += '<span class="resource-name">' + resource.name + '</span>';
+            
+            // Status badge
+            var statusBadge = '';
+            if (isAvailable) {
+                statusBadge = '<span class="status-badge available">✓ Available</span>';
+            } else if (isSoftBlock) {
+                statusBadge = '<span class="status-badge soft-block">⚠️ Might Conflict</span>';
+            } else if (isPartial) {
+                statusBadge = '<span class="status-badge partial">⚠️ Partial</span>';
+            } else {
+                statusBadge = '<span class="status-badge unavailable">✗ Unavailable</span>';
+            }
+            html += statusBadge;
+            html += '</div>';
+            
+            // Quantity display (NEW)
+            if (resource.total_quantity && resource.total_quantity > 1) {
+                var qtyUsed = resource.booked_quantity || 0;
+                var qtyTotal = resource.total_quantity;
+                var qtyAvail = resource.available_quantity || 0;
+                
+                html += '<div class="resource-quantity">';
+                html += '<div class="qty-bar">';
+                
+                // Visual bar showing usage
+                var usedPercent = Math.round((qtyUsed / qtyTotal) * 100);
+                html += '<div class="qty-bar-used" style="width: ' + usedPercent + '%"></div>';
+                html += '</div>';
+                
+                html += '<span class="qty-text">' + qtyAvail + ' of ' + qtyTotal + ' available</span>';
+                html += '</div>';
+            }
+            
+            // Message (conflict details)
+            if (resource.message) {
+                var messageHtml = resource.message;
+                // Make request references clickable
+                messageHtml = linkifyRequestReferences(messageHtml);
+                html += '<div class="resource-message">' + messageHtml + '</div>';
+            }
+            
+            html += '</div>';  // End resource-item
+        });
+        
+        // Add alert if blocked
+        if (data.resource_block) {
+            html += '<div class="resource-block-alert" style="margin: 12px; padding: 12px; background: #FEF3C7; border: 2px solid #F59E0B; border-radius: 6px;">';
+            html += '<div style="color: #92400E; font-weight: 600; font-size: 12px; margin-bottom: 6px;">⚠️ <?php _e('All Providers Blocked', 'amelia-cpt-sync'); ?></div>';
+            html += '<div style="color: #78350F; font-size: 11px;">' + (data.resource_message || '<?php _e('This resource is booked', 'amelia-cpt-sync'); ?>') + '</div>';
+            html += '</div>';
+        }
         
         $container.html(html);
     }

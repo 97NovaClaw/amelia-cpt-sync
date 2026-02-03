@@ -180,13 +180,32 @@ class ART_Booking_Orchestrator {
      * @return array Updated result
      */
     private function check_mode_mirrored($params, $config, $result) {
-        amelia_cpt_sync_debug_log('ART Orchestrator: Mode MIRRORED - Checking 1:1 resource');
+        amelia_cpt_sync_debug_log('ART Orchestrator: Mode MIRRORED - Checking resource(s)');
         
-        // Get the mirrored resource ID
-        $resource_id = $config->mode_settings['mirrored_resource_id'] ?? null;
+        // Get the mirrored resource ID from config (explicit setting)
+        $configured_resource_id = $config->mode_settings['mirrored_resource_id'] ?? null;
         
-        if (!$resource_id) {
-            amelia_cpt_sync_debug_log('ART Orchestrator: No mirrored resource ID configured');
+        // Get ALL resources linked to this service from Amelia
+        $all_service_resources = $this->resource_manager->get_all_service_resources($params['service_id']);
+        
+        amelia_cpt_sync_debug_log('ART Orchestrator: Found ' . count($all_service_resources) . ' resources linked to service #' . $params['service_id']);
+        
+        // Determine which resources to check
+        $resources_to_check = array();
+        
+        if ($configured_resource_id) {
+            // Explicit config takes priority - check only configured resource
+            $resources_to_check[] = $configured_resource_id;
+            amelia_cpt_sync_debug_log('ART Orchestrator: Using configured resource #' . $configured_resource_id);
+        } elseif (!empty($all_service_resources)) {
+            // Auto-detect from Amelia's linking
+            foreach ($all_service_resources as $res) {
+                $resources_to_check[] = $res['id'];
+            }
+            amelia_cpt_sync_debug_log('ART Orchestrator: Auto-detected resources: ' . implode(', ', $resources_to_check));
+        } else {
+            // No resources configured or linked
+            amelia_cpt_sync_debug_log('ART Orchestrator: No resources configured or linked');
             
             $result['resource_block'] = true;
             $result['resource_message'] = 'Resource not configured for this service';
@@ -195,77 +214,113 @@ class ART_Booking_Orchestrator {
             return $result;
         }
         
-        // Check resource availability (exclude current appointment if editing)
+        // Check each resource
         $exclude_id = !empty($params['exclude_appointment_id']) ? $params['exclude_appointment_id'] : null;
+        $quantity_needed = $config->mode_settings['quantity_required'] ?? 1;
         
-        $resource_check = $this->resource_manager->is_resource_available(
-            $resource_id,
-            $params['date'],
-            $params['time'],
-            $params['duration'],
-            $exclude_id
-        );
+        $all_resource_results = array();
+        $any_hard_block = false;
+        $any_soft_block = false;
+        $all_available = true;
+        $first_block_message = null;
+        $first_block_request_id = null;
         
-        // Get resource details
-        $resource = $this->resource_manager->get_resource($resource_id);
-        $resource_name = is_wp_error($resource) ? 'Unknown Resource' : ($resource['name'] ?? 'Unknown Resource');
-        
-        // Determine resource status for UI display
-        $resource_status = 'available';
-        if (!$resource_check['available']) {
-            $resource_status = ($resource_check['block_type'] === 'soft') ? 'soft_block' : 'unavailable';
-        }
-        
-        // Build resource result
-        $result['resources'] = array(
-            'config' => array('mode' => 'mirrored'),
-            'assigned' => array(
-                array(
-                    'id' => $resource_id,
-                    'name' => $resource_name,
-                    'status' => $resource_status,
-                    'message' => $resource_check['message']
-                )
-            )
-        );
-        
-        // Handle resource conflicts (hard vs soft block)
-        if (!$resource_check['available']) {
-            if ($resource_check['block_type'] === 'hard') {
-                // HARD BLOCK: Confirmed booking conflict - cannot book
-                amelia_cpt_sync_debug_log('ART Orchestrator: Mirrored resource HARD BLOCKED - ' . $resource_name);
-                
-                $next_available = $this->resource_manager->get_next_available($resource_id, $params['date']);
-                
-                $result['resource_block'] = true;
-                $result['resource_message'] = $resource_check['message'];
-                $result['resources']['next_available'] = $next_available;
-                
-                // Get providers but mark all as blocked
-                $result['providers'] = $this->get_all_providers_blocked($params['service_id'], 'Resource unavailable');
-                
-                $result['can_book'] = false;
-                $result['early_return'] = true;
-                
-                return $result;
-            } else {
-                // SOFT BLOCK: Tentative booking conflict - show warning but allow force-book
-                amelia_cpt_sync_debug_log('ART Orchestrator: Mirrored resource SOFT BLOCKED (tentative) - ' . $resource_name);
-                
-                $result['resource_warning'] = true;
-                $result['resource_message'] = $resource_check['message'];
-                $result['requires_force'] = true;
-                // can_book remains true - proceed to provider check
-            }
-        }
-        
-        amelia_cpt_sync_debug_log('ART Orchestrator: Mirrored resource available (or soft block) - ' . $resource_name);
-        amelia_cpt_sync_debug_log('ART Orchestrator: Proceeding to provider availability check');
-        
-        // Resource available, proceed with provider check (exclude current appointment if editing)
-        try {
-            $exclude_id = !empty($params['exclude_appointment_id']) ? $params['exclude_appointment_id'] : null;
+        foreach ($resources_to_check as $resource_id) {
+            $resource_check = $this->resource_manager->is_resource_available(
+                $resource_id,
+                $params['date'],
+                $params['time'],
+                $params['duration'],
+                $exclude_id,
+                $quantity_needed
+            );
             
+            // Get resource details
+            $resource = $this->resource_manager->get_resource($resource_id);
+            $resource_name = is_wp_error($resource) ? 'Unknown Resource' : ($resource['name'] ?? 'Unknown Resource');
+            
+            // Determine status
+            $resource_status = 'available';
+            if (!$resource_check['available']) {
+                $all_available = false;
+                if ($resource_check['block_type'] === 'hard') {
+                    $resource_status = 'unavailable';
+                    $any_hard_block = true;
+                    if (!$first_block_message) {
+                        $first_block_message = $resource_check['message'];
+                        $first_block_request_id = $resource_check['conflicting_request_id'];
+                    }
+                } else {
+                    $resource_status = 'soft_block';
+                    $any_soft_block = true;
+                    if (!$first_block_message) {
+                        $first_block_message = $resource_check['message'];
+                        $first_block_request_id = $resource_check['conflicting_request_id'];
+                    }
+                }
+            } elseif ($resource_check['block_type'] !== 'none') {
+                $resource_status = 'partial';
+            }
+            
+            $all_resource_results[] = array(
+                'id' => $resource_id,
+                'name' => $resource_name,
+                'status' => $resource_status,
+                'message' => $resource_check['message'],
+                'total_quantity' => $resource_check['total_quantity'],
+                'booked_quantity' => $resource_check['booked_quantity'],
+                'available_quantity' => $resource_check['available_quantity'],
+                'conflicts' => $resource_check['conflicts']
+            );
+            
+            amelia_cpt_sync_debug_log('ART Orchestrator: Resource #' . $resource_id . ' (' . $resource_name . ') status: ' . $resource_status);
+        }
+        
+        // Build resources result
+        $result['resources'] = array(
+            'config' => array(
+                'mode' => 'mirrored',
+                'multi_resource' => count($resources_to_check) > 1
+            ),
+            'assigned' => $all_resource_results
+        );
+        
+        // Determine overall outcome
+        // For mirrored mode with multiple resources: ALL must be available (composite behavior)
+        if ($any_hard_block) {
+            amelia_cpt_sync_debug_log('ART Orchestrator: HARD BLOCK - One or more resources unavailable');
+            
+            $result['resource_block'] = true;
+            $result['resource_message'] = $first_block_message;
+            
+            // Get providers but mark all as blocked
+            $result['providers'] = $this->get_all_providers_blocked($params['service_id'], 'Resource unavailable');
+            
+            $result['can_book'] = false;
+            $result['early_return'] = true;
+            
+            return $result;
+        }
+        
+        if ($any_soft_block) {
+            amelia_cpt_sync_debug_log('ART Orchestrator: SOFT BLOCK - Tentative booking conflicts exist');
+            
+            $result['resource_warning'] = true;
+            $result['resource_message'] = $first_block_message;
+            $result['requires_force'] = true;
+            // Proceed to provider check
+        }
+        
+        if (!$all_available && !$any_hard_block && !$any_soft_block) {
+            // Partial availability scenario
+            amelia_cpt_sync_debug_log('ART Orchestrator: PARTIAL - Some resources have reduced availability');
+            $result['resource_warning'] = true;
+        }
+        
+        amelia_cpt_sync_debug_log('ART Orchestrator: Resources check complete, proceeding to provider check');
+        
+        // Resource available (or soft block), proceed with provider check
+        try {
             $provider_result = $this->availability_engine->check_availability(
                 $params['date'],
                 $params['time'],
@@ -275,13 +330,9 @@ class ART_Booking_Orchestrator {
                 $exclude_id
             );
             
-            // Availability Engine returns providers array directly (not wrapped)
             amelia_cpt_sync_debug_log('ART Orchestrator: Provider check complete - ' . count($provider_result) . ' providers returned');
-            amelia_cpt_sync_debug_log('ART Orchestrator: Sample provider - ' . wp_json_encode(array_slice($provider_result, 0, 1)));
             
-            $result['providers'] = $provider_result;  // Direct assignment
-            
-            amelia_cpt_sync_debug_log('ART Orchestrator: Assigned to result, count: ' . count($result['providers']));
+            $result['providers'] = $provider_result;
             
         } catch (Exception $e) {
             amelia_cpt_sync_debug_log('ART Orchestrator: Provider check FAILED - ' . $e->getMessage());

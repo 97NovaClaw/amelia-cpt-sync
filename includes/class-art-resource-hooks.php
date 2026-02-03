@@ -215,7 +215,7 @@ class ART_Resource_Hooks {
     /**
      * Handle booking creation
      *
-     * Assign resources to the new booking
+     * Assign resources to the new booking with correct quantity
      *
      * @param int $request_id Request ID
      * @param int $appointment_id Appointment ID
@@ -238,10 +238,29 @@ class ART_Resource_Hooks {
         
         // Assign resources based on mode
         $resource_ids = array();
+        $quantities = array();
         
         switch ($config->resource_mode) {
             case 'mirrored':
-                $resource_ids = array($config->mode_settings['mirrored_resource_id']);
+                // Get all resources linked to service (for multi-resource support)
+                $all_resources = $this->resource_manager->get_all_service_resources($service_id);
+                $configured_resource_id = $config->mode_settings['mirrored_resource_id'] ?? null;
+                
+                if ($configured_resource_id) {
+                    // Use configured resource only
+                    $resource_ids = array($configured_resource_id);
+                } elseif (!empty($all_resources)) {
+                    // Use all auto-detected resources
+                    foreach ($all_resources as $res) {
+                        $resource_ids[] = $res['id'];
+                    }
+                }
+                
+                // Get quantity needed for each resource (default 1)
+                $quantity_needed = $config->mode_settings['quantity_required'] ?? 1;
+                foreach ($resource_ids as $rid) {
+                    $quantities[] = $quantity_needed;
+                }
                 break;
                 
             // Other modes will be handled in future phases
@@ -251,10 +270,11 @@ class ART_Resource_Hooks {
             $this->resource_manager->assign_resources(
                 $request_id,
                 $appointment_id,
-                $resource_ids
+                $resource_ids,
+                $quantities  // Pass quantity array
             );
             
-            amelia_cpt_sync_debug_log('ART Resource Hooks: Assigned ' . count($resource_ids) . ' resources');
+            amelia_cpt_sync_debug_log('ART Resource Hooks: Assigned ' . count($resource_ids) . ' resource(s) with quantities: ' . implode(', ', $quantities));
         }
     }
     

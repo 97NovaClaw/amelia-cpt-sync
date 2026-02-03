@@ -165,21 +165,52 @@ class ART_Resource_Manager {
     /**
      * Check if a resource is available for a time slot
      *
+     * Now quantity-aware: checks how many units are booked vs total quantity.
+     *
      * @param int $resource_id Resource ID
      * @param string $date Date (Y-m-d)
      * @param string $time Time (H:i)
      * @param int $duration Duration in seconds
      * @param int $exclude_appointment_id Optional appointment ID to exclude (for self-blocking prevention)
+     * @param int $quantity_needed How many units of this resource are needed (default 1)
      * @return array {
-     *     @type bool   $available   True if available
+     *     @type bool   $available   True if sufficient quantity available
      *     @type string $block_type  'none', 'soft' (tentative), 'hard' (confirmed)
-     *     @type string|null $message Human-readable status message with request reference
-     *     @type int|null $conflicting_request_id ART request ID if conflict exists
+     *     @type string|null $message Human-readable status message
+     *     @type int|null $conflicting_request_id ART request ID if conflict exists (for hard blocks)
+     *     @type int $total_quantity Resource's max quantity
+     *     @type int $booked_quantity Currently booked at this time
+     *     @type int $available_quantity Remaining available
+     *     @type int $hard_booked Count of confirmed (approved) bookings
+     *     @type int $soft_booked Count of tentative (pending) bookings
+     *     @type array $conflicts List of conflicting appointments with details
      * }
      */
-    public function is_resource_available($resource_id, $date, $time, $duration, $exclude_appointment_id = null) {
+    public function is_resource_available($resource_id, $date, $time, $duration, $exclude_appointment_id = null, $quantity_needed = 1) {
         amelia_cpt_sync_debug_log('ART Resource: Checking availability for resource #' . $resource_id);
-        amelia_cpt_sync_debug_log('ART Resource: Check params - date: ' . $date . ', time: ' . $time . ', duration: ' . $duration);
+        amelia_cpt_sync_debug_log('ART Resource: Check params - date: ' . $date . ', time: ' . $time . ', duration: ' . $duration . ', qty_needed: ' . $quantity_needed);
+        
+        // Get resource details including quantity
+        $resource = $this->get_resource($resource_id);
+        
+        if (is_wp_error($resource)) {
+            amelia_cpt_sync_debug_log('ART Resource: Failed to fetch resource #' . $resource_id);
+            return array(
+                'available' => false,
+                'block_type' => 'hard',
+                'message' => 'Resource not found',
+                'conflicting_request_id' => null,
+                'total_quantity' => 0,
+                'booked_quantity' => 0,
+                'available_quantity' => 0,
+                'hard_booked' => 0,
+                'soft_booked' => 0,
+                'conflicts' => array()
+            );
+        }
+        
+        $total_quantity = intval($resource['quantity'] ?? 1);
+        amelia_cpt_sync_debug_log('ART Resource: Total quantity for resource #' . $resource_id . ' = ' . $total_quantity);
         
         // UTC FIREWALL: Convert local datetime to UTC to determine correct date range
         $local_datetime = $date . ' ' . $time . ':00';
@@ -213,11 +244,15 @@ class ART_Resource_Manager {
         
         amelia_cpt_sync_debug_log('ART Resource: Request UTC timestamps - ' . $request_start_timestamp . ' to ' . $request_end_timestamp);
         
+        // Track all overlapping appointments
+        $hard_booked = 0;  // Confirmed (approved) bookings
+        $soft_booked = 0;  // Tentative (pending) bookings
+        $conflicts = array();
+        $first_hard_conflict = null;
+        $first_soft_conflict = null;
+        
         // Check each appointment to see if it uses this resource
-        $checked_count = 0;
-        foreach ($appointments as $index => $appt) {
-            $checked_count++;
-            
+        foreach ($appointments as $appt) {
             // Check if this appointment uses this resource
             if (!$this->appointment_uses_resource($appt, $resource_id)) {
                 continue;
@@ -227,55 +262,124 @@ class ART_Resource_Manager {
             $appt_start_timestamp = strtotime($appt['start_utc']);
             $appt_end_timestamp = strtotime($appt['end_utc']);
             
-            amelia_cpt_sync_debug_log('ART Resource: Appt #' . $appt['id'] . ' UTC timestamps - ' . $appt_start_timestamp . ' to ' . $appt_end_timestamp);
-            
             // Overlap if: (request_start < appt_end) AND (request_end > appt_start)
             if ($request_start_timestamp < $appt_end_timestamp && $request_end_timestamp > $appt_start_timestamp) {
                 $appt_status = $appt['status'] ?? 'approved';
                 
-                // DEBUG: Log appointment data to check if request_id is present
-                amelia_cpt_sync_debug_log('ART Resource: Appointment data for overlap', array(
-                    'id' => $appt['id'],
-                    'status' => $appt_status,
-                    'request_id' => $appt['request_id'] ?? 'NULL',
-                    'all_keys' => array_keys($appt)
-                ));
+                // Get quantity used by this appointment (from our tracking table)
+                $qty_used = $this->get_appointment_quantity_used($appt['id'], $resource_id);
                 
-                $request_ref = !empty($appt['request_id']) ? " (Req #{$appt['request_id']})" : '';
-                
-                // Format time range in local timezone for user display
+                // Format time range for messages
                 $start_local = get_date_from_gmt($appt['start_utc']);
                 $end_local = get_date_from_gmt($appt['end_utc']);
                 $time_range = date('g:i A', strtotime($start_local)) . ' - ' . date('g:i A', strtotime($end_local));
                 
+                $request_ref = !empty($appt['request_id']) ? " (Req #{$appt['request_id']})" : '';
+                
+                $conflict_entry = array(
+                    'appointment_id' => $appt['id'],
+                    'status' => $appt_status,
+                    'request_id' => $appt['request_id'] ?? null,
+                    'quantity_used' => $qty_used,
+                    'time_range' => $time_range
+                );
+                $conflicts[] = $conflict_entry;
+                
                 if ($appt_status === 'approved') {
-                    amelia_cpt_sync_debug_log('ART Resource: HARD BLOCK - Confirmed booking overlap (Appt #' . $appt['id'] . ')');
-                    return array(
-                        'available' => false,
-                        'block_type' => 'hard',
-                        'message' => "Confirmed booking - {$time_range}{$request_ref}",
-                        'conflicting_request_id' => $appt['request_id'] ?? null
-                    );
+                    $hard_booked += $qty_used;
+                    if (!$first_hard_conflict) {
+                        $first_hard_conflict = array(
+                            'message' => "Confirmed booking - {$time_range}{$request_ref}",
+                            'request_id' => $appt['request_id'] ?? null
+                        );
+                    }
+                    amelia_cpt_sync_debug_log('ART Resource: Hard conflict - Appt #' . $appt['id'] . ' uses ' . $qty_used . ' units');
                 } else {
-                    amelia_cpt_sync_debug_log('ART Resource: SOFT BLOCK - Tentative booking overlap (Appt #' . $appt['id'] . ')');
-                    return array(
-                        'available' => false,
-                        'block_type' => 'soft',
-                        'message' => "Tentative booking - {$time_range}{$request_ref}",
-                        'conflicting_request_id' => $appt['request_id'] ?? null
-                    );
+                    $soft_booked += $qty_used;
+                    if (!$first_soft_conflict) {
+                        $first_soft_conflict = array(
+                            'message' => "Tentative booking - {$time_range}{$request_ref}",
+                            'request_id' => $appt['request_id'] ?? null
+                        );
+                    }
+                    amelia_cpt_sync_debug_log('ART Resource: Soft conflict - Appt #' . $appt['id'] . ' uses ' . $qty_used . ' units');
                 }
             }
         }
         
-        amelia_cpt_sync_debug_log('ART Resource: Checked ' . $checked_count . ' appointments, no conflicts found');
-        amelia_cpt_sync_debug_log('ART Resource: Resource #' . $resource_id . ' is AVAILABLE');
-        return array(
+        $total_booked = $hard_booked + $soft_booked;
+        $available_quantity = max(0, $total_quantity - $total_booked);
+        
+        amelia_cpt_sync_debug_log('ART Resource: Quantity summary - total: ' . $total_quantity . ', hard_booked: ' . $hard_booked . ', soft_booked: ' . $soft_booked . ', available: ' . $available_quantity . ', needed: ' . $quantity_needed);
+        
+        // Determine availability based on quantity
+        $result = array(
+            'total_quantity' => $total_quantity,
+            'booked_quantity' => $total_booked,
+            'available_quantity' => $available_quantity,
+            'hard_booked' => $hard_booked,
+            'soft_booked' => $soft_booked,
+            'conflicts' => $conflicts
+        );
+        
+        // Case 1: Hard block - confirmed bookings use all units
+        if ($hard_booked >= $total_quantity) {
+            amelia_cpt_sync_debug_log('ART Resource: HARD BLOCK - All ' . $total_quantity . ' units confirmed booked');
+            return array_merge($result, array(
+                'available' => false,
+                'block_type' => 'hard',
+                'message' => $first_hard_conflict['message'] . ' (' . $hard_booked . '/' . $total_quantity . ' in use)',
+                'conflicting_request_id' => $first_hard_conflict['request_id']
+            ));
+        }
+        
+        // Case 2: Soft block - tentative bookings use remaining units  
+        if ($total_booked >= $total_quantity) {
+            amelia_cpt_sync_debug_log('ART Resource: SOFT BLOCK - All units booked (some tentative)');
+            return array_merge($result, array(
+                'available' => false,
+                'block_type' => 'soft',
+                'message' => $first_soft_conflict['message'] . ' (' . $total_booked . '/' . $total_quantity . ' in use)',
+                'conflicting_request_id' => $first_soft_conflict['request_id']
+            ));
+        }
+        
+        // Case 3: Partial availability - some units available but conflicts exist
+        if (!empty($conflicts) && $available_quantity >= $quantity_needed) {
+            amelia_cpt_sync_debug_log('ART Resource: AVAILABLE with conflicts - ' . $available_quantity . ' of ' . $total_quantity . ' available');
+            
+            $conflict_type = ($hard_booked > 0) ? 'hard' : 'soft';
+            $conflict_msg = ($hard_booked > 0) ? $first_hard_conflict : $first_soft_conflict;
+            
+            return array_merge($result, array(
+                'available' => true,  // Still available because quantity_needed is met
+                'block_type' => $conflict_type,  // Indicates there ARE conflicts (for UI warning)
+                'message' => $available_quantity . ' of ' . $total_quantity . ' available',
+                'conflicting_request_id' => $conflict_msg ? $conflict_msg['request_id'] : null
+            ));
+        }
+        
+        // Case 4: Not enough units available
+        if ($available_quantity < $quantity_needed) {
+            amelia_cpt_sync_debug_log('ART Resource: BLOCKED - Need ' . $quantity_needed . ' but only ' . $available_quantity . ' available');
+            
+            $conflict = $first_hard_conflict ?: $first_soft_conflict;
+            return array_merge($result, array(
+                'available' => false,
+                'block_type' => $first_hard_conflict ? 'hard' : 'soft',
+                'message' => 'Need ' . $quantity_needed . ', only ' . $available_quantity . ' available',
+                'conflicting_request_id' => $conflict ? $conflict['request_id'] : null
+            ));
+        }
+        
+        // Case 5: Fully available - no conflicts at all
+        amelia_cpt_sync_debug_log('ART Resource: FULLY AVAILABLE - ' . $total_quantity . ' units, 0 booked');
+        return array_merge($result, array(
             'available' => true,
             'block_type' => 'none',
-            'message' => null,
+            'message' => ($total_quantity > 1) ? 'All ' . $total_quantity . ' available' : null,
             'conflicting_request_id' => null
-        );
+        ));
     }
     
     /**
@@ -395,6 +499,42 @@ class ART_Resource_Manager {
         
         amelia_cpt_sync_debug_log('ART Resource: NO MATCH - Appointment does not use this resource');
         return false;
+    }
+    
+    /**
+     * Get the quantity of a resource used by a specific appointment
+     *
+     * Checks our art_resource_assignments table first, falls back to 1.
+     *
+     * @param int $appointment_id Amelia appointment ID
+     * @param int $resource_id Resource ID
+     * @return int Quantity used (minimum 1)
+     */
+    private function get_appointment_quantity_used($appointment_id, $resource_id) {
+        $table = $this->wpdb->prefix . 'art_resource_assignments';
+        
+        $quantity = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT quantity_used FROM $table 
+            WHERE amelia_appointment_id = %d 
+            AND amelia_resource_id = %d 
+            AND status = 'active'",
+            $appointment_id,
+            $resource_id
+        ));
+        
+        // If not tracked in our table, assume 1 unit used
+        return $quantity ? intval($quantity) : 1;
+    }
+    
+    /**
+     * Get all resources linked to a service (from Amelia's resources_to_entities)
+     *
+     * @param int $service_id Service ID
+     * @return array Array of resource DTOs with quantity info
+     */
+    public function get_all_service_resources($service_id) {
+        // Use Data Manager which already has this method
+        return $this->data_manager->get_resources_for_service($service_id);
     }
     
     // ========================================
