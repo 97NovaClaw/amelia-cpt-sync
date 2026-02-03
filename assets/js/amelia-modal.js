@@ -52,12 +52,14 @@
                                 if (response.data && response.data.service) {
                                     var serviceId = response.data.service.id;
                                     var serviceName = response.data.service.name;
+                                    var isNewService = response.message.includes('Successfully added');
                                     
                                     console.log('[Amelia CPT Sync] ✅ Service save detected via XHR!');
                                     console.log('[Amelia CPT Sync] Service ID:', serviceId, 'Name:', serviceName);
+                                    console.log('[Amelia CPT Sync] Is New Service:', isNewService);
                                     
                                     setTimeout(function() {
-                                        showCustomFieldsPrompt(serviceId, serviceName);
+                                        showCustomFieldsPrompt(serviceId, serviceName, isNewService);
                                     }, 500);
                                 }
                             }
@@ -154,9 +156,11 @@
                         if (response.data && response.data.service) {
                             var serviceId = response.data.service.id;
                             var serviceName = response.data.service.name;
+                            var isNewService = response.message.includes('Successfully added');
                             
                             console.log('[Amelia CPT Sync] ✅ Service detected:', serviceId, serviceName);
                             console.log('[Amelia CPT Sync] Message type:', response.message);
+                            console.log('[Amelia CPT Sync] Is New Service:', isNewService);
                             
                             // Only show modal for add/update, not retrieve
                             if (response.message.includes('Successfully added') || 
@@ -166,7 +170,7 @@
                                 
                                 // Small delay to let Amelia finish its UI updates
                                 setTimeout(function() {
-                                    showCustomFieldsPrompt(serviceId, serviceName);
+                                    showCustomFieldsPrompt(serviceId, serviceName, isNewService);
                                 }, 500);
                             }
                         }
@@ -180,25 +184,26 @@
         /**
          * Show prompt to add custom fields
          */
-        function showCustomFieldsPrompt(serviceId, serviceName) {
+        function showCustomFieldsPrompt(serviceId, serviceName, isNewService) {
             pendingServiceId = serviceId;
             pendingServiceName = serviceName;
             
             // Load custom fields and show modal
-            loadCustomFieldsModal(serviceId, serviceName);
+            loadCustomFieldsModal(serviceId, serviceName, isNewService);
         }
         
         /**
          * Load custom fields modal content
          */
-        function loadCustomFieldsModal(serviceId, serviceName) {
+        function loadCustomFieldsModal(serviceId, serviceName, isNewService) {
             console.log('[Amelia CPT Sync] Loading custom fields modal for service:', serviceId);
+            console.log('[Amelia CPT Sync] Is New Service:', isNewService);
             
             // Log to server debug.txt as well
             $.post(ameliaCptSyncModal.ajax_url, {
                 action: 'amelia_cpt_sync_log_debug',
                 nonce: ameliaCptSyncModal.nonce,
-                message: 'Modal: Loading custom fields for service ' + serviceId + ' (' + serviceName + ')'
+                message: 'Modal: Loading custom fields for service ' + serviceId + ' (' + serviceName + ') - Is New: ' + isNewService
             });
             
             $.ajax({
@@ -208,7 +213,8 @@
                     action: 'amelia_cpt_sync_get_custom_fields_modal',
                     nonce: ameliaCptSyncModal.nonce,
                     service_id: serviceId,
-                    service_name: serviceName
+                    service_name: serviceName,
+                    is_new_service: isNewService ? '1' : '0'
                 },
                 success: function(response) {
                     console.log('[Amelia CPT Sync] Modal AJAX response:', response);
@@ -310,7 +316,8 @@
                     resource_quantity: stateData.resource_quantity,
                     original_resource_id: stateData.original_resource_id,
                     cleanup_orphan: stateData.cleanup_orphan,
-                    quantity_required: 1  // Legacy field, defaults to 1
+                    quantity_required: 1,  // Legacy field, defaults to 1
+                    is_new_service: window.resourceModalState.isNewService ? '1' : '0'
                 };
             } else {
                 // Fallback for shared_pool or other modes without state machine

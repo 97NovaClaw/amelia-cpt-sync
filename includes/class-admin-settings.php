@@ -705,6 +705,7 @@ class Amelia_CPT_Sync_Admin_Settings {
         
         $service_id = isset($_POST['service_id']) ? intval($_POST['service_id']) : 0;
         $service_name = isset($_POST['service_name']) ? sanitize_text_field($_POST['service_name']) : 'Unknown Service';
+        $is_new_service = isset($_POST['is_new_service']) && $_POST['is_new_service'] === '1';
         
         if (!$service_id) {
             wp_send_json_error(array('message' => 'No service ID provided'));
@@ -1081,6 +1082,7 @@ class Amelia_CPT_Sync_Admin_Settings {
                 // Resource Modal State Machine
                 var resourceModalState = {
                     currentState: 'default',  // 'default' or 'selecting'
+                    isNewService: <?php echo $is_new_service ? 'true' : 'false'; ?>,
                     linkedResource: {
                         id: <?php echo $linked_resource ? intval($linked_resource['id']) : 'null'; ?>,
                         name: '<?php echo esc_js($linked_resource['name'] ?? ''); ?>',
@@ -1357,7 +1359,8 @@ class Amelia_CPT_Sync_Admin_Settings {
                     
                     // STEP 1: Add this service to the NEW resource's entities
                     try {
-                        $new_resource = $resource_api->get_resource(intval($resource_id));
+                        // Use Resource Manager (DB query) instead of API (API GET returns 405)
+                        $new_resource = $resource_manager->get_resource(intval($resource_id));
                         
                         if (is_wp_error($new_resource)) {
                             throw new Exception("Failed to fetch new resource: " . $new_resource->get_error_message());
@@ -1414,7 +1417,8 @@ class Amelia_CPT_Sync_Admin_Settings {
                     // STEP 2: Remove this service from the OLD resource's entities
                     if ($switch_success && $original_resource_id && $original_resource_id != $resource_id) {
                         try {
-                            $old_resource = $resource_api->get_resource(intval($original_resource_id));
+                            // Use Resource Manager (DB query) instead of API
+                            $old_resource = $resource_manager->get_resource(intval($original_resource_id));
                             
                             if (!is_wp_error($old_resource)) {
                                 $old_entities = $old_resource['entities'] ?? [];
@@ -1491,13 +1495,22 @@ class Amelia_CPT_Sync_Admin_Settings {
                 }
                 
                 // ENHANCED ORPHAN CLEANUP LOGIC (Appendix K.2 + Entity Check)
-                // Delete original resource only if: auto-created + 0 bookings + 0 entity links
+                // Delete original resource ONLY if this is a NEW service (first-time setup)
+                // Not for existing services being reconfigured!
                 $action = $resource_config['action'] ?? 'update';
                 $original_resource_id = $resource_config['original_resource_id'] ?? null;
                 $cleanup_orphan = $resource_config['cleanup_orphan'] ?? false;
+                $is_new_service = isset($resource_config['is_new_service']) && $resource_config['is_new_service'] === '1';
                 
-                if ($action === 'switch' && $original_resource_id && $cleanup_orphan) {
-                    amelia_cpt_sync_debug_log("⚙️ Checking for orphan cleanup: Resource #{$original_resource_id}");
+                if ($action === 'switch' && $original_resource_id && $original_resource_id != $resource_id) {
+                    
+                    // CRITICAL CHECK: Only cleanup orphans for NEW services, not existing ones
+                    if (!$is_new_service) {
+                        amelia_cpt_sync_debug_log("⏭️ Skipping orphan cleanup: This is an UPDATE to an existing service (Amelia: 'Successfully updated')");
+                        amelia_cpt_sync_debug_log("  → User is reconfiguring an existing service - preserving original resource #{$original_resource_id}");
+                    } else {
+                        amelia_cpt_sync_debug_log("⚙️ Checking for orphan cleanup: This is a NEW service (Amelia: 'Successfully added')");
+                        amelia_cpt_sync_debug_log("  → Resource #{$original_resource_id} was auto-created for first-time setup");
                     
                     // Check 1: Any active bookings/assignments?
                     global $wpdb;
@@ -1512,7 +1525,7 @@ class Amelia_CPT_Sync_Admin_Settings {
                     amelia_cpt_sync_debug_log("  → Assignments check: {$assignment_count} active bookings");
                     
                     // Check 2: Any entity links remaining in Amelia?
-                    $old_resource = $resource_api->get_resource(intval($original_resource_id));
+                    $old_resource = $resource_manager->get_resource(intval($original_resource_id));
                     $entity_count = 0;
                     
                     if (!is_wp_error($old_resource)) {
@@ -1539,6 +1552,7 @@ class Amelia_CPT_Sync_Admin_Settings {
                         
                         amelia_cpt_sync_debug_log("✗ Orphan cleanup skipped: Resource #{$original_resource_id} has " . implode(' and ', $reasons));
                     }
+                    } // End if ($is_new_service)
                 }
                 
                 // Track if this is a newly created resource for future orphan detection
