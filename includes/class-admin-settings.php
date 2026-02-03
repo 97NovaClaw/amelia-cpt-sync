@@ -714,9 +714,35 @@ class Amelia_CPT_Sync_Admin_Settings {
         $definitions = $manager->get_field_definitions();
         $values = $manager->get_service_field_values($service_id);
         
-        if (empty($definitions)) {
+        // Get GLOBAL resource settings
+        $global_settings = get_option('art_resource_settings', array());
+        $global_mode = $global_settings['default_mode'] ?? 'none';
+        
+        // Get per-service configuration for quantity and linked resource
+        $resource_manager = new ART_Resource_Manager();
+        $resource_config = $resource_manager->get_service_config($service_id);
+        $mode_settings = $resource_config && $resource_config->mode_settings ? $resource_config->mode_settings : array();
+        $quantity_required = $mode_settings['quantity_required'] ?? 1;
+        $mirrored_resource_id = $mode_settings['mirrored_resource_id'] ?? null;
+        
+        // Get linked resource details
+        $linked_resource = null;
+        if ($mirrored_resource_id) {
+            $linked_resource = $resource_manager->get_resource($mirrored_resource_id);
+            if (is_wp_error($linked_resource)) {
+                $linked_resource = null;
+            }
+        }
+        
+        // Get all resources linked to this service from Amelia
+        $all_service_resources = $resource_manager->get_all_service_resources($service_id);
+        
+        // Show modal if custom fields exist OR resource mode needs config
+        $has_content = !empty($definitions) || $global_mode !== 'none';
+        
+        if (!$has_content) {
             wp_send_json_error(array(
-                'message' => 'No custom fields defined. Please configure custom fields in Amelia to CPT Sync settings first.'
+                'message' => 'No configuration needed for this service.'
             ));
             return;
         }
@@ -728,6 +754,78 @@ class Amelia_CPT_Sync_Admin_Settings {
             <p><strong>Service:</strong> <?php echo esc_html($service_name); ?> (ID: <?php echo esc_html($service_id); ?>)</p>
             <p class="description">Fill in the custom details for this service. These will be synced to your CPT.</p>
             
+            <!-- RESOURCE CONFIGURATION SECTION (Mode-Specific) -->
+            <?php if ($global_mode === 'mirrored'): ?>
+            <div style="background: #F0F6FC; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 3px solid #2271B1;">
+                <h4 style="margin-top: 0; color: #2271B1;">
+                    <span class="dashicons dashicons-admin-tools" style="vertical-align: middle;"></span>
+                    <?php _e('Resource Configuration', 'amelia-cpt-sync'); ?>
+                </h4>
+                
+                <table class="form-table" style="margin-bottom: 0;">
+                    <!-- Linked Resource Display -->
+                    <tr>
+                        <th scope="row"><?php _e('Linked Resource', 'amelia-cpt-sync'); ?></th>
+                        <td>
+                            <?php if ($linked_resource): ?>
+                                <div style="background: #fff; padding: 12px; border: 1px solid #2271B1; border-radius: 4px; margin-bottom: 12px;">
+                                    <strong style="color: #2271B1;"><?php echo esc_html($linked_resource['name']); ?></strong><br>
+                                    <span style="font-size: 12px; color: #666;">
+                                        <span class="dashicons dashicons-database" style="font-size: 14px; vertical-align: middle;"></span>
+                                        <?php echo esc_html($linked_resource['quantity']); ?> units available in Amelia
+                                    </span>
+                                    <br>
+                                    <a href="<?php echo admin_url('admin.php?page=wpamelia-services#/resources'); ?>" target="_blank" style="font-size: 12px;">
+                                        <?php _e('Edit quantity in Amelia →', 'amelia-cpt-sync'); ?>
+                                    </a>
+                                </div>
+                            <?php else: ?>
+                                <div style="background: #FFF9E6; padding: 10px; border-left: 3px solid #F59E0B; margin-bottom: 12px;">
+                                    <span style="color: #92400E;">
+                                        <span class="dashicons dashicons-info" style="vertical-align: middle;"></span>
+                                        <?php _e('No resource linked yet', 'amelia-cpt-sync'); ?>
+                                    </span>
+                                </div>
+                                <label>
+                                    <input type="checkbox" name="resource_config[auto_create]" value="1" checked>
+                                    <?php _e('Auto-create resource for this service', 'amelia-cpt-sync'); ?>
+                                </label>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    
+                    <!-- Units Per Booking -->
+                    <tr>
+                        <th scope="row">
+                            <label for="quantity_required"><?php _e('Units Per Booking', 'amelia-cpt-sync'); ?></label>
+                        </th>
+                        <td>
+                            <input type="number" 
+                                   id="quantity_required" 
+                                   name="resource_config[quantity_required]"
+                                   class="small-text"
+                                   min="1"
+                                   value="<?php echo esc_attr($quantity_required); ?>">
+                            <p class="description"><?php _e('How many units does one booking consume? (Usually 1)', 'amelia-cpt-sync'); ?></p>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <?php endif; ?>
+            
+            <?php if ($global_mode === 'shared_pool'): ?>
+            <div style="background: #FFF9E6; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 3px solid #F59E0B;">
+                <h4 style="margin-top: 0; color: #92400E;">
+                    <span class="dashicons dashicons-warning" style="vertical-align: middle;"></span>
+                    <?php _e('Shared Pool Mode', 'amelia-cpt-sync'); ?>
+                </h4>
+                <p style="margin: 0; color: #92400E;"><?php _e('Shared Pool mode is planned for Phase 2. Resource configuration coming soon.', 'amelia-cpt-sync'); ?></p>
+            </div>
+            <?php endif; ?>
+            
+            <?php if (!empty($definitions)): ?>
+            <!-- CUSTOM FIELDS SECTION -->
+            <h4 style="margin-top: 20px;"><?php _e('CPT Custom Fields', 'amelia-cpt-sync'); ?></h4>
             <table class="form-table">
                 <?php foreach ($definitions as $def): ?>
                     <tr>
@@ -750,6 +848,7 @@ class Amelia_CPT_Sync_Admin_Settings {
                     </tr>
                 <?php endforeach; ?>
             </table>
+            <?php endif; ?>
         </div>
         <?php
         $html = ob_get_clean();
@@ -773,6 +872,7 @@ class Amelia_CPT_Sync_Admin_Settings {
         
         $service_id = isset($_POST['service_id']) ? intval($_POST['service_id']) : 0;
         $values = isset($_POST['custom_fields']) ? $_POST['custom_fields'] : array();
+        $resource_config = isset($_POST['resource_config']) ? $_POST['resource_config'] : array();
         
         if (!$service_id) {
             wp_send_json_error(array('message' => 'No service ID provided'));
@@ -780,8 +880,51 @@ class Amelia_CPT_Sync_Admin_Settings {
         
         amelia_cpt_sync_debug_log("Saving custom field values for service {$service_id}");
         
+        // Save custom fields
         $manager = new Amelia_CPT_Sync_Custom_Fields_Manager();
         $result = $manager->save_service_field_values($service_id, $values);
+        
+        // Save resource configuration using GLOBAL mode
+        $global_settings = get_option('art_resource_settings', array());
+        $global_mode = $global_settings['default_mode'] ?? 'none';
+        
+        if ($global_mode !== 'none' && !empty($resource_config)) {
+            amelia_cpt_sync_debug_log("Saving resource configuration for service {$service_id} (Global Mode: {$global_mode})", $resource_config);
+            
+            $resource_manager = new ART_Resource_Manager();
+            $mode_settings = array();
+            
+            if ($global_mode === 'mirrored') {
+                $mode_settings['quantity_required'] = isset($resource_config['quantity_required']) ? absint($resource_config['quantity_required']) : 1;
+                $mode_settings['auto_create'] = !empty($resource_config['auto_create']);
+                $mode_settings['sync_name'] = $global_settings['mirrored']['sync_name'] ?? true;
+                
+                // Auto-create resource if requested AND no resource exists
+                if ($mode_settings['auto_create']) {
+                    $existing_config = $resource_manager->get_service_config($service_id);
+                    $existing_resource_id = ($existing_config && isset($existing_config->mode_settings['mirrored_resource_id'])) 
+                        ? $existing_config->mode_settings['mirrored_resource_id'] 
+                        : null;
+                    
+                    if (!$existing_resource_id) {
+                        $resource_id = $resource_manager->auto_create_mirrored_resource($service_id);
+                        if (!is_wp_error($resource_id)) {
+                            $mode_settings['mirrored_resource_id'] = $resource_id;
+                            amelia_cpt_sync_debug_log("Auto-created resource #{$resource_id} for service #{$service_id}");
+                        }
+                    } else {
+                        // Preserve existing resource link
+                        $mode_settings['mirrored_resource_id'] = $existing_resource_id;
+                    }
+                }
+            }
+            
+            $resource_manager->save_service_config($service_id, array(
+                'resource_mode' => $global_mode,  // Use GLOBAL mode, not from modal
+                'mode_settings' => $mode_settings,
+                'conflict_handling' => 'strict'
+            ));
+        }
         
         if ($result) {
             // Trigger a re-sync to update the CPT with custom fields
@@ -799,7 +942,11 @@ class Amelia_CPT_Sync_Admin_Settings {
                 }
             }
             
-            wp_send_json_success(array('message' => 'Custom field values saved successfully!'));
+            $success_msg = 'Custom field values saved successfully!';
+            if (!empty($resource_config)) {
+                $success_msg .= ' Resource configuration updated.';
+            }
+            wp_send_json_success(array('message' => $success_msg));
         } else {
             wp_send_json_error(array('message' => 'Failed to save custom field values'));
         }

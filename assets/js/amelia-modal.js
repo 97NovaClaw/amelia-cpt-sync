@@ -286,6 +286,7 @@
          */
         function saveCustomFieldValues(serviceId) {
             var customFields = {};
+            var resourceConfig = {};
             
             // Gather all custom field values
             $('.amelia-custom-fields-form input[name^="custom_fields"]').each(function() {
@@ -298,7 +299,19 @@
                 }
             });
             
+            // Gather resource config (mode-specific fields)
+            var qtyInput = $('input[name="resource_config[quantity_required]"]');
+            if (qtyInput.length) {
+                resourceConfig.quantity_required = qtyInput.val();
+            }
+            
+            var autoCreateInput = $('input[name="resource_config[auto_create]"]');
+            if (autoCreateInput.length) {
+                resourceConfig.auto_create = autoCreateInput.is(':checked') ? 1 : 0;
+            }
+            
             console.log('[Amelia CPT Sync] Saving custom field values:', customFields);
+            console.log('[Amelia CPT Sync] Saving resource config:', resourceConfig);
             
             // Disable buttons
             $('.ui-dialog-buttonpane button').prop('disabled', true);
@@ -310,7 +323,8 @@
                     action: 'amelia_cpt_sync_save_custom_field_values',
                     nonce: ameliaCptSyncModal.nonce,
                     service_id: serviceId,
-                    custom_fields: customFields
+                    custom_fields: customFields,
+                    resource_config: resourceConfig
                 },
                 success: function(response) {
                     if (response.success) {
