@@ -1754,7 +1754,10 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             'provider_id' => absint($_POST['provider_id'] ?? 0),
             'desired_status' => sanitize_key($_POST['desired_status'] ?? 'confirmed'),
             'location_id' => !empty($_POST['location_id']) ? absint($_POST['location_id']) : null,
-            'persons' => absint($_POST['persons'] ?? 1)
+            'persons' => absint($_POST['persons'] ?? 1),
+            'selected_resources' => isset($_POST['selected_resources']) 
+                ? array_map('absint', (array)$_POST['selected_resources']) 
+                : array()
         ));
         
         if (is_wp_error($result)) {

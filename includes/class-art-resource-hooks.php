@@ -263,6 +263,27 @@ class ART_Resource_Hooks {
                 }
                 break;
                 
+            case 'shared_pool':
+                $pool_resource_ids = $config->mode_settings['pool_resource_ids'] ?? array();
+                $selection_strategy = $config->mode_settings['selection_strategy'] ?? 'first_available';
+                $quantity_per_booking = $config->mode_settings['quantity_per_booking'] ?? 1;
+                
+                // Check if user manually selected a resource
+                $selected = $booking_data['selected_resources'] ?? array();
+                
+                if (!empty($selected) && in_array($selected[0], $pool_resource_ids)) {
+                    // Use user's manual selection
+                    $resource_ids = array($selected[0]);
+                    amelia_cpt_sync_debug_log('ART Resource Hooks: Using manually selected resource: #' . $selected[0]);
+                } elseif (!empty($pool_resource_ids)) {
+                    // Auto-select based on strategy (first available for now)
+                    $resource_ids = array($pool_resource_ids[0]);
+                    amelia_cpt_sync_debug_log('ART Resource Hooks: Auto-selected first pool resource: #' . $pool_resource_ids[0]);
+                }
+                
+                $quantities = array($quantity_per_booking);
+                break;
+                
             // Other modes will be handled in future phases
         }
         
