@@ -453,6 +453,22 @@ class ART_Resource_Manager {
             return true;
         }
         
+        // CRITICAL FIX (v2.32.2): Check if this appointment has ANY explicit assignment
+        // If yes, we're tracking it explicitly - don't use service-based fallback (fixes shared pool conflicts)
+        $has_any_assignment = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(*) FROM $assignments_table 
+            WHERE amelia_appointment_id = %d 
+            AND status = 'active'",
+            $appointment['id']
+        ));
+        
+        if ($has_any_assignment > 0) {
+            // This appointment has explicit assignment to a DIFFERENT resource
+            // Don't fall through to service-based matching (prevents shared pool cross-contamination)
+            amelia_cpt_sync_debug_log('ART Resource: NO MATCH - Appointment has explicit assignment to different resource (shared pool mode)');
+            return false;
+        }
+        
         // Check Amelia's built-in resource tracking
         // Note: DTO 'resources' field is already an array
         $resources = $appointment['resources'] ?? array();
@@ -464,7 +480,7 @@ class ART_Resource_Manager {
             }
         }
         
-        // For Mode 1 (Mirrored): Check if appointment is for the service that owns this resource
+        // FALLBACK for legacy/mirrored mode: Check if appointment is for the service that owns this resource
         $resource = $this->get_resource($resource_id);
         
         amelia_cpt_sync_debug_log('ART Resource: Fetched resource #' . $resource_id . ' - ' . wp_json_encode($resource));
