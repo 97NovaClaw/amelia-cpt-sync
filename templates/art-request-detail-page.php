@@ -5146,6 +5146,21 @@ jQuery(document).ready(function($) {
                     artDetailData.existingBookedProviderName = selectedProviderName;
                 }
                 
+                // Update resource info in cache (for "Currently Selected Resource" display)
+                var selectedResourceIds = getSelectedResources();
+                if (selectedResourceIds.length > 0) {
+                    var selectedResourceId = selectedResourceIds[0];
+                    var selectedResourceName = $('.resource-item[data-resource-id="' + selectedResourceId + '"]').find('.resource-name').text();
+                    
+                    if (selectedResourceName) {
+                        artDetailData.activeResource = {
+                            id: selectedResourceId,
+                            name: selectedResourceName
+                        };
+                        console.log('ART DEBUG: Updated activeResource:', artDetailData.activeResource);
+                    }
+                }
+                
                 // Refresh provider list to show new "Currently Selected Provider"
                 if (typeof updateProviderList === 'function') {
                     hasAutoSelectedProvider = false; // Reset flag so it can re-auto-select
@@ -5915,6 +5930,46 @@ jQuery(document).ready(function($) {
         html += '<?php _e('Strategy:', 'amelia-cpt-sync'); ?> ' + strategyLabel;
         html += '</div>';
         
+        // Check if there's a currently assigned resource from active booking (matches provider pattern)
+        var currentlyAssignedResource = null;
+        var isInCurrentMode = (typeof bookingViewState !== 'undefined' && bookingViewState.mode === 'current');
+        
+        if (isInCurrentMode && artDetailData.hasActiveBooking && artDetailData.activeResource) {
+            // Find which pool resource is currently assigned
+            currentlyAssignedResource = pool.find(function(r) {
+                return r.id == artDetailData.activeResource.id;
+            });
+            
+            if (currentlyAssignedResource) {
+                // Remove from main pool list (will show separately)
+                pool = pool.filter(function(r) {
+                    return r.id != artDetailData.activeResource.id;
+                });
+            }
+        }
+        
+        // Show currently assigned resource first (if exists)
+        if (currentlyAssignedResource) {
+            html += '<div class="resource-group">';
+            html += '<div class="resource-group-label" style="background: #E0E7FF; color: #4338CA; border-left: 3px solid #4338CA;">';
+            html += '<span class="dashicons dashicons-saved"></span> <?php _e('Currently Selected Resource', 'amelia-cpt-sync'); ?></div>';
+            
+            var qtyInfo = {
+                total: currentlyAssignedResource.total_quantity || 1,
+                available: currentlyAssignedResource.available_quantity || 0
+            };
+            var conflicts = currentlyAssignedResource.message ? [currentlyAssignedResource.message] : [];
+            
+            html += buildResourceItem(currentlyAssignedResource.id, currentlyAssignedResource.name, currentlyAssignedResource.status, qtyInfo, conflicts);
+            html += '</div>';
+        }
+        
+        // Show label for remaining pool resources (if we separated out the current one)
+        if (currentlyAssignedResource && pool.length > 0) {
+            html += '<div class="resource-group-label" style="background: #F8FAFC; color: #64748B; border-left: 3px solid #CBD5E1;">';
+            html += '<span class="dashicons dashicons-networking"></span> <?php _e('Other Pool Resources', 'amelia-cpt-sync'); ?></div>';
+        }
+        
         // Pool resources list (using buildResourceItem)
         pool.forEach(function(resource) {
             var quantityInfo = {
@@ -5939,6 +5994,18 @@ jQuery(document).ready(function($) {
         }
         
         $container.html(html);
+        
+        // Auto-select the currently assigned resource (after DOM update)
+        if (currentlyAssignedResource) {
+            resourceState.selectedResourceId = currentlyAssignedResource.id;
+            $('#selected-resource-id').val(currentlyAssignedResource.id);
+            
+            // Apply visual selection
+            setTimeout(function() {
+                $('.resource-item[data-resource-id="' + currentlyAssignedResource.id + '"]').addClass('selected');
+                console.log('ART DEBUG: Auto-selected currently assigned resource:', currentlyAssignedResource.id);
+            }, 50);
+        }
     }
     
     /**
