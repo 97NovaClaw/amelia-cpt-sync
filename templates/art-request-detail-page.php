@@ -2079,6 +2079,30 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     color: #B45309;
 }
 
+/* NEW: Detailed conflict display */
+.resource-item .resource-conflicts-detail {
+    margin-top: 4px;
+}
+
+.resource-item .resource-conflict-line {
+    font-size: 10px;
+    line-height: 1.4;
+    margin-top: 2px;
+    color: #991B1B;  /* Dark red for both tentative and confirmed */
+    font-weight: 500;
+}
+
+.resource-item .resource-conflict-line a {
+    color: inherit;
+    text-decoration: none;
+    border-bottom: 1px dotted currentColor;
+}
+
+.resource-item .resource-conflict-line a:hover {
+    color: #7F1D1D;  /* Darker red on hover */
+    border-bottom-style: solid;
+}
+
 /* Resource checkmark (matches provider pattern) */
 .resource-item .resource-check {
     width: 20px;
@@ -5956,11 +5980,13 @@ jQuery(document).ready(function($) {
             
             var qtyInfo = {
                 total: currentlyAssignedResource.total_quantity || 1,
-                available: currentlyAssignedResource.available_quantity || 0
+                available: currentlyAssignedResource.available_quantity || 0,
+                booked: currentlyAssignedResource.booked_quantity || 1
             };
-            var conflicts = currentlyAssignedResource.message ? [currentlyAssignedResource.message] : [];
+            // Use actual conflicts array from backend, not message string
+            var conflicts = currentlyAssignedResource.conflicts || [];
             
-            html += buildResourceItem(currentlyAssignedResource.id, currentlyAssignedResource.name, currentlyAssignedResource.status, qtyInfo, conflicts);
+            html += buildResourceItem(currentlyAssignedResource.id, currentlyAssignedResource.name, currentlyAssignedResource.status, qtyInfo, conflicts, true);
             html += '</div>';
         }
         
@@ -5974,15 +6000,14 @@ jQuery(document).ready(function($) {
         pool.forEach(function(resource) {
             var quantityInfo = {
                 total: resource.total_quantity || 1,
-                available: resource.available_quantity || 0
+                available: resource.available_quantity || 0,
+                booked: resource.booked_quantity || 0
             };
             
-            var conflicts = [];
-            if (resource.message) {
-                conflicts.push(resource.message);
-            }
+            // Use actual conflicts array from backend (not message string)
+            var conflicts = resource.conflicts || [];
             
-            html += buildResourceItem(resource.id, resource.name, resource.status, quantityInfo, conflicts);
+            html += buildResourceItem(resource.id, resource.name, resource.status, quantityInfo, conflicts, false);
         });
         
         // Block alert (if all pool resources unavailable)
@@ -6069,15 +6094,14 @@ jQuery(document).ready(function($) {
             // Build resource card using unified function
             var quantityInfo = {
                 total: resource.total_quantity || 1,
-                available: resource.available_quantity || 0
+                available: resource.available_quantity || 0,
+                booked: resource.booked_quantity || 0
             };
             
-            var conflicts = [];
-            if (resource.message) {
-                conflicts.push(resource.message);
-            }
+            // Use actual conflicts array from backend (not message string)
+            var conflicts = resource.conflicts || [];
             
-            html += buildResourceItem(resource.id, resource.name, resource.status, quantityInfo, conflicts);
+            html += buildResourceItem(resource.id, resource.name, resource.status, quantityInfo, conflicts, false);
         });
         
         // Add alert if blocked
@@ -6245,8 +6269,14 @@ jQuery(document).ready(function($) {
     
     /**
      * Build resource item (mirrors provider pattern - text + checkmark only)
+     * @param {number} id - Resource ID
+     * @param {string} name - Resource name
+     * @param {string} status - Resource status (available, soft_block, unavailable)
+     * @param {object} quantityInfo - {total: X, available: Y, booked: Z}
+     * @param {array} conflicts - Array of conflict objects OR legacy message strings
+     * @param {boolean} isCurrentBooking - If true, shows "Using X of Y" instead of "X of Y available"
      */
-    function buildResourceItem(id, name, status, quantityInfo, conflicts) {
+    function buildResourceItem(id, name, status, quantityInfo, conflicts, isCurrentBooking) {
         var cardClass = 'resource-item';
         if (status === 'available') cardClass += ' available';
         if (status === 'soft_block') cardClass += ' soft-block';
@@ -6255,17 +6285,63 @@ jQuery(document).ready(function($) {
         // Single status line
         var displayStatus = 'Available';
         if (quantityInfo && quantityInfo.total > 1) {
-            displayStatus = quantityInfo.available + ' of ' + quantityInfo.total + ' available';
+            if (isCurrentBooking) {
+                // Format: "Using 1 of 4 (3 others available)"
+                var using = quantityInfo.booked || 1;
+                var othersAvailable = quantityInfo.available;
+                displayStatus = 'Using ' + using + ' of ' + quantityInfo.total + ' (' + othersAvailable + ' others available)';
+            } else {
+                // Format: "3 of 4 available"
+                displayStatus = quantityInfo.available + ' of ' + quantityInfo.total + ' available';
+            }
         } else if (status === 'soft_block') {
             displayStatus = 'Might Conflict';
         } else if (status === 'unavailable') {
             displayStatus = 'Unavailable';
         }
         
+        // Process conflicts - handle both array of objects and legacy string array
         var conflictHtml = '';
         if (conflicts && conflicts.length > 0) {
-            conflictHtml = '<div class="resource-conflicts">' + 
-                conflicts.map(linkifyRequestReferences).join('<br>') + '</div>';
+            // Check if conflicts is array of objects (new format) or strings (legacy)
+            var isObjectArray = typeof conflicts[0] === 'object' && conflicts[0].time_range;
+            
+            if (isObjectArray) {
+                // New format: Group by status and display time ranges
+                var tentative = [];
+                var confirmed = [];
+                
+                conflicts.forEach(function(conflict) {
+                    var timeRange = conflict.time_range;
+                    var requestId = conflict.request_id;
+                    
+                    // Make clickable link to request detail
+                    var timeHtml = timeRange;
+                    if (requestId) {
+                        var url = '<?php echo admin_url('admin.php?page=art-request-detail&request_id='); ?>' + requestId;
+                        timeHtml = '<a href="' + url + '" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor;">' + timeRange + '</a>';
+                    }
+                    
+                    if (conflict.status === 'approved') {
+                        confirmed.push(timeHtml);
+                    } else {
+                        tentative.push(timeHtml);
+                    }
+                });
+                
+                conflictHtml = '<div class="resource-conflicts-detail">';
+                if (tentative.length > 0) {
+                    conflictHtml += '<div class="resource-conflict-line tentative">Tentative: ' + tentative.join(', ') + '</div>';
+                }
+                if (confirmed.length > 0) {
+                    conflictHtml += '<div class="resource-conflict-line confirmed">Booked: ' + confirmed.join(', ') + '</div>';
+                }
+                conflictHtml += '</div>';
+            } else {
+                // Legacy format: Just display strings (for backward compatibility)
+                conflictHtml = '<div class="resource-conflicts">' + 
+                    conflicts.map(linkifyRequestReferences).join('<br>') + '</div>';
+            }
         }
         
         return '<div class="' + cardClass + '" data-resource-id="' + id + '">' +
