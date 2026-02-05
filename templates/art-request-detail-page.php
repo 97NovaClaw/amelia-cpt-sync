@@ -1784,6 +1784,40 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
     color: #B45309;
 }
 
+/* NEW: Detailed conflict display (matches resource pattern) */
+.provider-item .provider-conflicts-detail {
+    margin-top: 4px;
+}
+
+.provider-item .provider-conflict-line {
+    font-size: 10px;
+    line-height: 1.4;
+    margin-top: 2px;
+    font-weight: 500;
+}
+
+/* Dark red for booking conflicts (tentative and confirmed) */
+.provider-item .provider-conflict-line.tentative,
+.provider-item .provider-conflict-line.confirmed {
+    color: #991B1B;  /* Dark red */
+}
+
+/* Normal gray for non-booking conflicts (shifts, schedules) */
+.provider-item .provider-conflict-line.other {
+    color: #64748B;
+}
+
+.provider-item .provider-conflict-line a {
+    color: inherit;
+    text-decoration: none;
+    border-bottom: 1px dotted currentColor;
+}
+
+.provider-item .provider-conflict-line a:hover {
+    color: #7F1D1D;  /* Darker red on hover */
+    border-bottom-style: solid;
+}
+
 .provider-loading {
     display: flex;
     align-items: center;
@@ -6247,13 +6281,69 @@ jQuery(document).ready(function($) {
     
     /**
      * Build provider item with conflict details
+     * Enhanced to match resource pattern: grouped, clickable, dark red
      */
     function buildProviderItemWithConflicts(id, name, initials, status, conflicts) {
         var conflictHtml = '';
         if (conflicts && conflicts.length > 0) {
-            // Linkify request references in each conflict message
-            var linkedConflicts = conflicts.map(function(c) { return linkifyRequestReferences(c); });
-            conflictHtml = '<div class="provider-conflicts">' + linkedConflicts.join('<br>') + '</div>';
+            var tentative = [];
+            var confirmed = [];
+            var other = [];  // For non-booking conflicts (shifts, buffers)
+            
+            conflicts.forEach(function(conflictText) {
+                // Parse conflict strings for booking conflicts
+                // Format: "Tentative booking - 9:28 PM - 1:28 AM (Req #58)"
+                var tentativeMatch = conflictText.match(/Tentative booking - (.+?)(?: \(Req #(\d+)\))?$/);
+                var confirmedMatch = conflictText.match(/Confirmed booking - (.+?)(?: \(Req #(\d+)\))?$/);
+                
+                if (tentativeMatch) {
+                    var timeRange = tentativeMatch[1].trim();
+                    var requestId = tentativeMatch[2];
+                    
+                    // Make time range clickable
+                    var timeHtml = timeRange;
+                    if (requestId) {
+                        var url = '<?php echo admin_url('admin.php?page=art-request-detail&request_id='); ?>' + requestId;
+                        timeHtml = '<a href="' + url + '" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor;">' + timeRange + '</a>';
+                    }
+                    tentative.push(timeHtml);
+                    
+                } else if (confirmedMatch) {
+                    var timeRange = confirmedMatch[1].trim();
+                    var requestId = confirmedMatch[2];
+                    
+                    // Make time range clickable
+                    var timeHtml = timeRange;
+                    if (requestId) {
+                        var url = '<?php echo admin_url('admin.php?page=art-request-detail&request_id='); ?>' + requestId;
+                        timeHtml = '<a href="' + url + '" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor;">' + timeRange + '</a>';
+                    }
+                    confirmed.push(timeHtml);
+                    
+                } else {
+                    // Non-booking conflict (shift, buffer, etc.) - keep as-is
+                    other.push(conflictText);
+                }
+            });
+            
+            conflictHtml = '<div class="provider-conflicts-detail">';
+            
+            // Show non-booking conflicts first (shifts, schedules)
+            if (other.length > 0) {
+                other.forEach(function(text) {
+                    conflictHtml += '<div class="provider-conflict-line other">' + text + '</div>';
+                });
+            }
+            
+            // Show booking conflicts grouped by status
+            if (tentative.length > 0) {
+                conflictHtml += '<div class="provider-conflict-line tentative">Tentative: ' + tentative.join(', ') + '</div>';
+            }
+            if (confirmed.length > 0) {
+                conflictHtml += '<div class="provider-conflict-line confirmed">Booked: ' + confirmed.join(', ') + '</div>';
+            }
+            
+            conflictHtml += '</div>';
         }
         
         return '<div class="provider-item" data-provider-id="' + id + '">' +
