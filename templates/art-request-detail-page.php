@@ -6286,10 +6286,38 @@ jQuery(document).ready(function($) {
         var displayStatus = 'Available';
         if (quantityInfo && quantityInfo.total > 1) {
             if (isCurrentBooking) {
-                // Format: "Using 1 of 4 (3 others available)"
+                // Format: "Using 1 of 4 (approx 2-3 others available)" when conflicts exist
                 var using = quantityInfo.booked || 1;
-                var othersAvailable = quantityInfo.available;
-                displayStatus = 'Using ' + using + ' of ' + quantityInfo.total + ' (' + othersAvailable + ' others available)';
+                var total = quantityInfo.total;
+                
+                // Count other tentative and confirmed bookings from conflicts
+                var otherTentative = 0;
+                var otherConfirmed = 0;
+                
+                if (conflicts && conflicts.length > 0 && typeof conflicts[0] === 'object' && conflicts[0].time_range) {
+                    conflicts.forEach(function(c) {
+                        var qty = c.quantity_used || 1;
+                        if (c.status === 'pending') {
+                            otherTentative += qty;
+                        } else if (c.status === 'approved') {
+                            otherConfirmed += qty;
+                        }
+                    });
+                }
+                
+                // Calculate availability range
+                // Min: assume all tentative bookings stay
+                var minAvailable = total - using - otherTentative - otherConfirmed;
+                // Max: assume all tentative bookings cancel
+                var maxAvailable = total - using - otherConfirmed;
+                
+                if (otherTentative > 0) {
+                    // Show range when tentative bookings exist
+                    displayStatus = 'Using ' + using + ' of ' + total + ' (approx ' + minAvailable + '-' + maxAvailable + ' others available)';
+                } else {
+                    // Exact count when no tentative bookings
+                    displayStatus = 'Using ' + using + ' of ' + total + ' (' + maxAvailable + ' others available)';
+                }
             } else {
                 // Format: "3 of 4 available"
                 displayStatus = quantityInfo.available + ' of ' + quantityInfo.total + ' available';
