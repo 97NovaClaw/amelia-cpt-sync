@@ -312,18 +312,24 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                 $category_name = $category ? $category->name : '';
                             }
                             
-                            // Get assigned resource(s) for this appointment
-                            $assigned_resource = $wpdb->get_row($wpdb->prepare(
-                                "SELECT ra.amelia_resource_id as resource_id, r.name as resource_name
+                            // Get assigned resource(s) for this appointment (ALL of them for composite mode)
+                            $assigned_resources_all = $wpdb->get_results($wpdb->prepare(
+                                "SELECT ra.amelia_resource_id as resource_id, r.name as resource_name, ra.quantity_used
                                  FROM {$wpdb->prefix}art_resource_assignments ra
                                  LEFT JOIN {$wpdb->prefix}amelia_resources r ON ra.amelia_resource_id = r.id
-                                 WHERE ra.amelia_appointment_id = %d
-                                 LIMIT 1",
+                                 WHERE ra.amelia_appointment_id = %d AND ra.status = 'active'
+                                 ORDER BY ra.id ASC",
                                 $active_booking->amelia_appointment_id
                             ));
                             
-                            // Debug log the resource query result
-                            amelia_cpt_sync_debug_log('ART Detail Page: Resource query for appointment #' . $active_booking->amelia_appointment_id . ' returned: ' . ($assigned_resource ? json_encode($assigned_resource) : 'NULL'));
+                            // First resource for backward compatibility (single activeResource)
+                            $assigned_resource = !empty($assigned_resources_all) ? $assigned_resources_all[0] : null;
+                            
+                            // Debug log
+                            amelia_cpt_sync_debug_log('ART Detail Page: Resource query for appointment #' . $active_booking->amelia_appointment_id . ' returned: ' . count($assigned_resources_all) . ' resource(s)');
+                            if ($assigned_resource) {
+                                amelia_cpt_sync_debug_log('ART Detail Page: Primary resource: ' . json_encode($assigned_resource));
+                            }
                             
                             // Attach full details to active_booking object
                             $active_booking->service_name = $appointment_full->service_name ?? '';
@@ -335,7 +341,19 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             $active_booking->service_id = $appointment_full->serviceId;
                             $active_booking->category_id = $appointment_full->category_id;
                             
+                            // All assigned resources (for composite mode)
+                            $active_booking->all_resources = array();
+                            foreach ($assigned_resources_all as $ar) {
+                                $active_booking->all_resources[] = array(
+                                    'id' => intval($ar->resource_id),
+                                    'name' => $ar->resource_name
+                                );
+                            }
+                            
                             amelia_cpt_sync_debug_log('ART Detail Page: activeResource will be: ' . json_encode(array('id' => $active_booking->resource_id, 'name' => $active_booking->resource_name)));
+                            if (count($active_booking->all_resources) > 1) {
+                                amelia_cpt_sync_debug_log('ART Detail Page: activeResources (composite): ' . json_encode($active_booking->all_resources));
+                            }
                             
                             // Convert UTC booking times to local timezone for display
                             $wp_tz = wp_timezone();
@@ -3377,7 +3395,8 @@ jQuery(document).ready(function($) {
         existingBookedProviderId: <?php echo !empty($active_booking->provider_id) ? intval($active_booking->provider_id) : 'null'; ?>,
         existingBookedProviderName: <?php echo !empty($active_booking->provider_name) ? wp_json_encode($active_booking->provider_name) : 'null'; ?>,
         existingBookedLocationId: <?php echo !empty($active_booking->location_id) ? intval($active_booking->location_id) : 'null'; ?>,
-        activeResource: <?php echo (!empty($active_booking->resource_id)) ? wp_json_encode(array('id' => intval($active_booking->resource_id), 'name' => $active_booking->resource_name)) : 'null'; ?>
+        activeResource: <?php echo (!empty($active_booking->resource_id)) ? wp_json_encode(array('id' => intval($active_booking->resource_id), 'name' => $active_booking->resource_name)) : 'null'; ?>,
+        activeResources: <?php echo (!empty($active_booking->all_resources)) ? wp_json_encode($active_booking->all_resources) : '[]'; ?>
     };
     
     // Version and debug logging
@@ -5207,6 +5226,7 @@ jQuery(document).ready(function($) {
                 // Update resource info in cache (for "Currently Selected Resource" display)
                 var selectedResourceIds = getSelectedResources();
                 if (selectedResourceIds.length > 0) {
+                    // Update single activeResource (backward compat)
                     var selectedResourceId = selectedResourceIds[0];
                     var selectedResourceName = $('.resource-item[data-resource-id="' + selectedResourceId + '"]').find('.resource-name').text();
                     
@@ -5215,8 +5235,16 @@ jQuery(document).ready(function($) {
                             id: selectedResourceId,
                             name: selectedResourceName
                         };
-                        console.log('ART DEBUG: Updated activeResource:', artDetailData.activeResource);
                     }
+                    
+                    // Update plural activeResources (for composite mode)
+                    artDetailData.activeResources = [];
+                    selectedResourceIds.forEach(function(resId) {
+                        var resName = $('.resource-item[data-resource-id="' + resId + '"]').find('.resource-name').text();
+                        artDetailData.activeResources.push({ id: resId, name: resName || 'Resource #' + resId });
+                    });
+                    
+                    console.log('ART DEBUG: Updated activeResources:', artDetailData.activeResources);
                 }
                 
                 // Refresh provider list to show new "Currently Selected Provider"
@@ -6103,16 +6131,41 @@ jQuery(document).ready(function($) {
         html += headerIcon + ' ' + headerText;
         html += '</div>';
         
+        // Track auto-selected resource IDs for post-render highlighting
+        var autoSelectedIds = [];
+        
+        // Check if viewing current booking with active resources
+        var isInCurrentMode = (typeof bookingViewState !== 'undefined' && bookingViewState.mode === 'current');
+        var activeResources = (artDetailData.activeResources || []);  // Array for composite mode
+        // Fallback: single activeResource for backward compat
+        if (activeResources.length === 0 && artDetailData.activeResource) {
+            activeResources = [artDetailData.activeResource];
+        }
+        
         // Render each requirement group
         groups.forEach(function(group, groupIdx) {
             var groupSatisfied = group.satisfied;
             var groupLabel = group.label || ('Group ' + (groupIdx + 1));
             var qtyNeeded = group.quantity_needed || 1;
             
+            // Determine the selected resource for this group
+            var selectedId = null;
+            if (isInCurrentMode && activeResources.length > groupIdx) {
+                // Current booking mode: use active resource for this group
+                selectedId = activeResources[groupIdx].id || activeResources[groupIdx];
+            } else if (group.selected && group.selected.id) {
+                // Exploring mode: use orchestrator auto-selection
+                selectedId = group.selected.id;
+            }
+            
+            if (selectedId) autoSelectedIds.push(parseInt(selectedId));
+            
             // Group header
             var statusText = groupSatisfied ? '✓ <?php _e('Satisfied', 'amelia-cpt-sync'); ?>' : 
                             (group.block_type === 'soft' ? '⚠️ <?php _e('Tentative Conflict', 'amelia-cpt-sync'); ?>' : '✗ <?php _e('Unavailable', 'amelia-cpt-sync'); ?>');
             var statusColor = groupSatisfied ? '#059669' : (group.block_type === 'soft' ? '#D97706' : '#DC2626');
+            
+            html += '<div class="composite-group-display" data-group-index="' + groupIdx + '">';
             
             html += '<div style="margin: 12px 0 4px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; display: flex; justify-content: space-between; align-items: center;">';
             html += '<span>' + groupLabel.toUpperCase() + ' (<?php _e('need', 'amelia-cpt-sync'); ?> ' + qtyNeeded + ')</span>';
@@ -6128,10 +6181,12 @@ jQuery(document).ready(function($) {
                     booked: resource.booked_quantity || 0
                 };
                 var conflicts = resource.conflicts || [];
+                var isCurrentBookingResource = isInCurrentMode && selectedId && resource.id == selectedId;
                 
-                // Use buildResourceItem but resources are NOT clickable in composite mode
-                html += buildResourceItem(resource.id, resource.name, resource.status, quantityInfo, conflicts, false);
+                html += buildResourceItem(resource.id, resource.name, resource.status, quantityInfo, conflicts, isCurrentBookingResource);
             });
+            
+            html += '</div>'; // close composite-group-display
         });
         
         // Block alert if any group failed
@@ -6150,6 +6205,20 @@ jQuery(document).ready(function($) {
         }
         
         $container.append(html);
+        
+        // Post-render: Apply .selected class to orchestrator auto-selected resources
+        if (autoSelectedIds.length > 0) {
+            setTimeout(function() {
+                autoSelectedIds.forEach(function(resId) {
+                    $('.resource-item[data-resource-id="' + resId + '"]').addClass('selected');
+                });
+                
+                // Populate resourceState for booking flow
+                resourceState.selectedResources = autoSelectedIds;
+                
+                console.log('ART DEBUG: Composite auto-selected resources:', autoSelectedIds);
+            }, 50);
+        }
     }
     
     /**
@@ -6740,7 +6809,7 @@ jQuery(document).ready(function($) {
         console.log('ART DEBUG: After provider click, selectedProviderId =', selectedProviderId);
     });
     
-    // Handle resource selection (mirrors provider pattern)
+    // Handle resource selection (mode-aware: pool = single select, composite = per-group select)
     $(document).on('click', '.resource-item', function() {
         var item = $(this);
         var resourceId = item.data('resource-id');
@@ -6751,28 +6820,59 @@ jQuery(document).ready(function($) {
             return;
         }
         
+        var isCompositeMode = (resourceState.mode === 'composite');
+        
         console.log('ART DEBUG: Resource item clicked', {
             resourceId: resourceId,
+            mode: resourceState.mode,
             currentSelected: resourceState.selectedResourceId
         });
         
-        // Toggle selection (same pattern as provider)
-        if (resourceState.selectedResourceId == resourceId) {
-            // Deselect
-            console.log('ART DEBUG: Deselecting resource');
-            item.removeClass('selected');
-            resourceState.selectedResourceId = null;
-            $('#selected-resource-id').val('');
+        if (isCompositeMode) {
+            // COMPOSITE MODE: Select one per group (don't clear other groups)
+            var $group = item.closest('.composite-group-display');
+            
+            if (item.hasClass('selected')) {
+                // Deselect within this group
+                item.removeClass('selected');
+                console.log('ART DEBUG: Deselected resource #' + resourceId + ' from group');
+            } else {
+                // Deselect only within THIS group, then select clicked
+                $group.find('.resource-item').removeClass('selected');
+                item.addClass('selected');
+                console.log('ART DEBUG: Selected resource #' + resourceId + ' in group');
+            }
+            
+            // Update selectedResources array (one per group)
+            resourceState.selectedResources = [];
+            $('.composite-group-display').each(function() {
+                var $selectedInGroup = $(this).find('.resource-item.selected');
+                if ($selectedInGroup.length) {
+                    resourceState.selectedResources.push(parseInt($selectedInGroup.data('resource-id')));
+                }
+            });
+            
+            console.log('ART DEBUG: Composite selections:', resourceState.selectedResources);
+            
         } else {
-            // Select this one
-            console.log('ART DEBUG: Selecting resource', resourceId);
-            $('.resource-item').removeClass('selected');
-            item.addClass('selected');
-            resourceState.selectedResourceId = resourceId;
-            $('#selected-resource-id').val(resourceId);
+            // POOL / MIRRORED MODE: Single selection across all resources
+            if (resourceState.selectedResourceId == resourceId) {
+                // Deselect
+                console.log('ART DEBUG: Deselecting resource');
+                item.removeClass('selected');
+                resourceState.selectedResourceId = null;
+                $('#selected-resource-id').val('');
+            } else {
+                // Select this one (clear all others)
+                console.log('ART DEBUG: Selecting resource', resourceId);
+                $('.resource-item').removeClass('selected');
+                item.addClass('selected');
+                resourceState.selectedResourceId = resourceId;
+                $('#selected-resource-id').val(resourceId);
+            }
+            
+            console.log('ART DEBUG: After resource click, selectedResourceId =', resourceState.selectedResourceId);
         }
-        
-        console.log('ART DEBUG: After resource click, selectedResourceId =', resourceState.selectedResourceId);
     });
     
     // Update provider list when custom time changes
@@ -7769,7 +7869,12 @@ jQuery(document).ready(function($) {
         }
         
         if (resourceState.mode === 'composite') {
-            // Return orchestrator's auto-selected resources (one per satisfied group)
+            // Priority 1: User manually clicked resources (one per group)
+            if (resourceState.selectedResources && resourceState.selectedResources.length > 0) {
+                return resourceState.selectedResources;
+            }
+            
+            // Priority 2: Orchestrator's auto-selected resources (one per satisfied group)
             var selected = [];
             if (typeof lastOrchestratorResult !== 'undefined' && lastOrchestratorResult && 
                 lastOrchestratorResult.resources && lastOrchestratorResult.resources.groups) {
