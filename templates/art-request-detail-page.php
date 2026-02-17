@@ -6937,6 +6937,11 @@ jQuery(document).ready(function($) {
                 item.toggleClass('selected');
             }
             
+            // Trigger exploring mode if resource selection changed from current booking
+            if (artDetailData.hasActiveBooking && typeof bookingViewState !== 'undefined' && bookingViewState.mode === 'current') {
+                enterExploringMode();
+            }
+            
             return;
             
         } else {
@@ -7018,6 +7023,11 @@ jQuery(document).ready(function($) {
     $(document).on('change input', '.composite-qty-select', function(e) {
         e.stopPropagation();
         updateCompositeGroupTotal($(this));
+        
+        // Trigger exploring mode if qty changed from current booking
+        if (artDetailData.hasActiveBooking && typeof bookingViewState !== 'undefined' && bookingViewState.mode === 'current') {
+            enterExploringMode();
+        }
     });
     
     // Prevent qty input click from triggering card click
