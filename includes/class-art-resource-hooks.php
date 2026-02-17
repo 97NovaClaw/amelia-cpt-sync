@@ -284,6 +284,33 @@ class ART_Resource_Hooks {
                 $quantities = array($quantity_per_booking);
                 break;
                 
+            case 'composite':
+                // MULTI RESOURCE: Assign one resource per requirement group
+                $groups = $config->mode_settings['requirement_groups'] ?? array();
+                $selected = $booking_data['selected_resources'] ?? array();
+                
+                amelia_cpt_sync_debug_log('ART Resource Hooks: Composite mode - ' . count($groups) . ' requirement groups, ' . count($selected) . ' selected resources');
+                
+                // Match selected resources to groups (selected comes from orchestrator auto-selection)
+                foreach ($groups as $idx => $group) {
+                    $group_resource_id = isset($selected[$idx]) ? intval($selected[$idx]) : null;
+                    
+                    if (!$group_resource_id && !empty($group['resource_ids'])) {
+                        // Fallback: use first resource in group
+                        $group_resource_id = $group['resource_ids'][0];
+                        amelia_cpt_sync_debug_log("ART Resource Hooks: Composite fallback - Group \"{$group['label']}\" using first resource #{$group_resource_id}");
+                    }
+                    
+                    if ($group_resource_id) {
+                        $resource_ids[] = $group_resource_id;
+                        $quantities[] = $group['quantity_needed'] ?? 1;
+                        amelia_cpt_sync_debug_log("ART Resource Hooks: Composite - Group \"{$group['label']}\" → Resource #{$group_resource_id} (qty: " . ($group['quantity_needed'] ?? 1) . ")");
+                    }
+                }
+                
+                amelia_cpt_sync_debug_log('ART Resource Hooks: Composite mode - assigning ' . count($resource_ids) . ' resources from ' . count($groups) . ' groups');
+                break;
+                
             // Other modes will be handled in future phases
         }
         

@@ -6077,6 +6077,82 @@ jQuery(document).ready(function($) {
     }
     
     /**
+     * Render COMPOSITE (Multi Resource) mode - grouped requirements
+     */
+    function renderCompositeResources(data) {
+        var $container = $('#resource-status-list');
+        var groups = (data.resources && data.resources.groups) ? data.resources.groups : [];
+        var allSatisfied = data.resources ? data.resources.all_satisfied : false;
+        var anySoftBlock = data.resources ? data.resources.any_soft_block : false;
+        
+        if (groups.length === 0) {
+            $container.append('<div class="resource-placeholder"><?php _e('No requirement groups configured', 'amelia-cpt-sync'); ?></div>');
+            return;
+        }
+        
+        var html = '';
+        
+        // Overall header
+        var headerClass = allSatisfied ? 'available' : (anySoftBlock ? 'warning' : 'blocked');
+        var headerIcon = allSatisfied ? '✓' : (anySoftBlock ? '⚠️' : '✗');
+        var headerText = allSatisfied ? 
+            '<?php _e('ALL', 'amelia-cpt-sync'); ?> ' + groups.length + ' <?php _e('REQUIREMENTS MET', 'amelia-cpt-sync'); ?>' :
+            (anySoftBlock ? '<?php _e('MIGHT CONFLICT — FORCE BOOK AVAILABLE', 'amelia-cpt-sync'); ?>' : '<?php _e('REQUIREMENTS NOT MET', 'amelia-cpt-sync'); ?>');
+        
+        html += '<div class="resource-group-label ' + headerClass + '">';
+        html += headerIcon + ' ' + headerText;
+        html += '</div>';
+        
+        // Render each requirement group
+        groups.forEach(function(group, groupIdx) {
+            var groupSatisfied = group.satisfied;
+            var groupLabel = group.label || ('Group ' + (groupIdx + 1));
+            var qtyNeeded = group.quantity_needed || 1;
+            
+            // Group header
+            var statusText = groupSatisfied ? '✓ <?php _e('Satisfied', 'amelia-cpt-sync'); ?>' : 
+                            (group.block_type === 'soft' ? '⚠️ <?php _e('Tentative Conflict', 'amelia-cpt-sync'); ?>' : '✗ <?php _e('Unavailable', 'amelia-cpt-sync'); ?>');
+            var statusColor = groupSatisfied ? '#059669' : (group.block_type === 'soft' ? '#D97706' : '#DC2626');
+            
+            html += '<div style="margin: 12px 0 4px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; display: flex; justify-content: space-between; align-items: center;">';
+            html += '<span>' + groupLabel.toUpperCase() + ' (<?php _e('need', 'amelia-cpt-sync'); ?> ' + qtyNeeded + ')</span>';
+            html += '<span style="color: ' + statusColor + '; font-size: 10px;">' + statusText + '</span>';
+            html += '</div>';
+            
+            // Resource cards within group
+            var resources = group.resources || [];
+            resources.forEach(function(resource) {
+                var quantityInfo = {
+                    total: resource.total_quantity || 1,
+                    available: resource.available_quantity || 0,
+                    booked: resource.booked_quantity || 0
+                };
+                var conflicts = resource.conflicts || [];
+                
+                // Use buildResourceItem but resources are NOT clickable in composite mode
+                html += buildResourceItem(resource.id, resource.name, resource.status, quantityInfo, conflicts, false);
+            });
+        });
+        
+        // Block alert if any group failed
+        if (!allSatisfied) {
+            var failedGroups = groups.filter(function(g) { return !g.satisfied; });
+            var failedNames = failedGroups.map(function(g) { return g.label || 'Unnamed'; }).join(', ');
+            
+            html += '<div style="margin: 12px; padding: 12px; background: #FEF3C7; border: 2px solid #F59E0B; border-radius: 6px;">';
+            html += '<div style="color: #92400E; font-weight: 600; font-size: 12px; margin-bottom: 4px;">';
+            html += (anySoftBlock && !groups.some(function(g) { return g.block_type === 'hard'; })) ? 
+                    '⚠️ <?php _e('Tentative conflicts — force book available', 'amelia-cpt-sync'); ?>' : 
+                    '✗ <?php _e('Requirements not met', 'amelia-cpt-sync'); ?>';
+            html += '</div>';
+            html += '<div style="color: #78350F; font-size: 11px;"><?php _e('Blocked groups:', 'amelia-cpt-sync'); ?> ' + failedNames + '</div>';
+            html += '</div>';
+        }
+        
+        $container.append(html);
+    }
+    
+    /**
      * Render resource availability column (with quantity support)
      */
     function renderResourceColumn(data) {
@@ -6108,6 +6184,13 @@ jQuery(document).ready(function($) {
             // Prepend mode badge, then delegate to pool renderer
             $container.html(html);
             renderSharedPoolResources(data, true); // true = append mode (don't clear container)
+            return;
+        }
+        
+        // COMPOSITE (MULTI RESOURCE) MODE: Group-based rendering
+        if (data.resource_mode === 'composite') {
+            $container.html(html);
+            renderCompositeResources(data);
             return;
         }
         
@@ -7683,6 +7766,20 @@ jQuery(document).ready(function($) {
             
             // Otherwise, orchestrator will auto-select based on strategy
             return [];
+        }
+        
+        if (resourceState.mode === 'composite') {
+            // Return orchestrator's auto-selected resources (one per satisfied group)
+            var selected = [];
+            if (typeof lastOrchestratorResult !== 'undefined' && lastOrchestratorResult && 
+                lastOrchestratorResult.resources && lastOrchestratorResult.resources.groups) {
+                lastOrchestratorResult.resources.groups.forEach(function(group) {
+                    if (group.selected && group.selected.id) {
+                        selected.push(parseInt(group.selected.id));
+                    }
+                });
+            }
+            return selected;
         }
         
         return resourceState.selectedResources;

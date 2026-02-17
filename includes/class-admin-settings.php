@@ -807,8 +807,8 @@ class Amelia_CPT_Sync_Admin_Settings {
                     <option value="shared_pool" <?php selected($effective_mode, 'shared_pool'); ?>>
                         <?php _e('Resource Pool — Pick one available item from a group', 'amelia-cpt-sync'); ?>
                     </option>
-                    <option value="composite" disabled>
-                        <?php _e('Multi Resource — Needs several different items at once (Coming Soon)', 'amelia-cpt-sync'); ?>
+                    <option value="composite" <?php selected($effective_mode, 'composite'); ?>>
+                        <?php _e('Multi Resource — Needs several different items at once', 'amelia-cpt-sync'); ?>
                     </option>
                 </select>
             </div>
@@ -1733,6 +1733,193 @@ class Amelia_CPT_Sync_Admin_Settings {
             
             </div><!-- /.mode-section[data-mode="shared_pool"] -->
             
+            <!-- MODE: Multi Resource (Composite) -->
+            <div class="mode-section" data-mode="composite" style="display: none;">
+            <h4 style="margin: 10px 0 10px 0;">📦 <?php _e('Multi Resource Requirements', 'amelia-cpt-sync'); ?></h4>
+            
+            <?php
+            // Get current composite configuration
+            $composite_groups = $mode_settings['requirement_groups'] ?? array();
+            ?>
+            
+            <div class="resource-pool-config">
+                <p class="description">
+                    <?php _e('Define requirement groups. Each group specifies resources that can fill a requirement. A booking requires ALL groups to have availability.', 'amelia-cpt-sync'); ?>
+                </p>
+                
+                <div id="composite-groups-container">
+                    <?php if (!empty($composite_groups)): ?>
+                        <?php foreach ($composite_groups as $g_idx => $group): ?>
+                        <div class="composite-group" data-group-index="<?php echo $g_idx; ?>" style="border: 1px solid #E0E5F1; border-radius: 6px; padding: 16px; margin-bottom: 12px; background: #fff;">
+                            <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
+                                <div style="flex: 1;">
+                                    <label style="font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; display: block; margin-bottom: 4px;"><?php _e('Group Name', 'amelia-cpt-sync'); ?></label>
+                                    <input type="text" class="composite-group-label regular-text" 
+                                           name="resource_config[requirement_groups][<?php echo $g_idx; ?>][label]" 
+                                           value="<?php echo esc_attr($group['label'] ?? ''); ?>"
+                                           placeholder="<?php _e('e.g. Room, Vehicle, Equipment', 'amelia-cpt-sync'); ?>"
+                                           style="width: 100%; padding: 6px 10px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 13px;">
+                                </div>
+                                <div>
+                                    <label style="font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; display: block; margin-bottom: 4px;"><?php _e('Qty Needed', 'amelia-cpt-sync'); ?></label>
+                                    <input type="number" class="composite-group-qty" 
+                                           name="resource_config[requirement_groups][<?php echo $g_idx; ?>][quantity_needed]" 
+                                           value="<?php echo esc_attr($group['quantity_needed'] ?? 1); ?>"
+                                           min="1"
+                                           style="width: 60px; padding: 6px 10px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 13px; text-align: center;">
+                                </div>
+                                <div style="padding-top: 18px;">
+                                    <button type="button" class="composite-group-remove pool-repeater-remove" data-group-index="<?php echo $g_idx; ?>" title="<?php _e('Remove Group', 'amelia-cpt-sync'); ?>">
+                                        <span class="dashicons dashicons-trash"></span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <label style="font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; display: block; margin-bottom: 6px;"><?php _e('Resources that can fill this requirement:', 'amelia-cpt-sync'); ?></label>
+                            <div class="resource-pool-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #E0E5F1; border-radius: 6px; background: #fff;">
+                                <?php foreach ($all_resources_raw as $res): 
+                                    $is_in_group = in_array($res['id'], $group['resource_ids'] ?? array());
+                                ?>
+                                <div class="resource-pool-item">
+                                    <label>
+                                        <input type="checkbox" 
+                                               name="resource_config[requirement_groups][<?php echo $g_idx; ?>][resource_ids][]" 
+                                               value="<?php echo esc_attr($res['id']); ?>"
+                                               <?php checked($is_in_group); ?>
+                                               style="margin: 0;">
+                                        <span class="pool-item-name"><?php echo esc_html($res['name']); ?></span>
+                                        <span class="units-badge"><?php echo esc_html($res['quantity']); ?> <?php echo $res['quantity'] > 1 ? 'units' : 'unit'; ?></span>
+                                    </label>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <div id="composite-empty-state" style="padding: 20px; background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px; text-align: center; color: #64748B; margin-bottom: 12px;">
+                            <?php _e('No requirement groups configured yet. Click the button below to add one.', 'amelia-cpt-sync'); ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                
+                <button type="button" id="add-composite-group" class="button button-secondary" style="margin-top: 8px;">
+                    <span class="dashicons dashicons-plus-alt" style="margin-top: 3px;"></span>
+                    <?php _e('Add Requirement Group', 'amelia-cpt-sync'); ?>
+                </button>
+            </div>
+            
+            <!-- Composite Group Repeater JavaScript -->
+            <script>
+            jQuery(document).ready(function($) {
+                var compositeGroupManager = {
+                    nextGroupIndex: <?php echo count($composite_groups); ?>,
+                    
+                    // All resources as JSON for cloning checkbox lists into new groups
+                    allResources: <?php echo wp_json_encode(array_map(function($res) {
+                        return array(
+                            'id' => $res['id'],
+                            'name' => $res['name'],
+                            'quantity' => $res['quantity']
+                        );
+                    }, $all_resources_raw)); ?>,
+                    
+                    init: function() {
+                        var self = this;
+                        
+                        $('#add-composite-group').on('click', function() {
+                            self.addGroup();
+                        });
+                        
+                        $(document).on('click', '.composite-group-remove', function() {
+                            var idx = $(this).data('group-index');
+                            self.removeGroup(idx);
+                        });
+                    },
+                    
+                    addGroup: function() {
+                        var idx = this.nextGroupIndex++;
+                        
+                        // Hide empty state
+                        $('#composite-empty-state').hide();
+                        
+                        // Build checkbox list HTML
+                        var checkboxHtml = '';
+                        this.allResources.forEach(function(res) {
+                            checkboxHtml += '<div class="resource-pool-item">' +
+                                '<label>' +
+                                    '<input type="checkbox" ' +
+                                           'name="resource_config[requirement_groups][' + idx + '][resource_ids][]" ' +
+                                           'value="' + res.id + '" ' +
+                                           'style="margin: 0;"> ' +
+                                    '<span class="pool-item-name">' + res.name + '</span> ' +
+                                    '<span class="units-badge">' + res.quantity + ' ' + (res.quantity > 1 ? 'units' : 'unit') + '</span>' +
+                                '</label>' +
+                            '</div>';
+                        });
+                        
+                        var groupHtml = '<div class="composite-group" data-group-index="' + idx + '" style="border: 1px solid #E0E5F1; border-radius: 6px; padding: 16px; margin-bottom: 12px; background: #fff;">' +
+                            '<div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">' +
+                                '<div style="flex: 1;">' +
+                                    '<label style="font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; display: block; margin-bottom: 4px;"><?php _e('Group Name', 'amelia-cpt-sync'); ?></label>' +
+                                    '<input type="text" class="composite-group-label regular-text" ' +
+                                           'name="resource_config[requirement_groups][' + idx + '][label]" ' +
+                                           'value="" ' +
+                                           'placeholder="<?php _e('e.g. Room, Vehicle, Equipment', 'amelia-cpt-sync'); ?>" ' +
+                                           'style="width: 100%; padding: 6px 10px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 13px;">' +
+                                '</div>' +
+                                '<div>' +
+                                    '<label style="font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; display: block; margin-bottom: 4px;"><?php _e('Qty Needed', 'amelia-cpt-sync'); ?></label>' +
+                                    '<input type="number" class="composite-group-qty" ' +
+                                           'name="resource_config[requirement_groups][' + idx + '][quantity_needed]" ' +
+                                           'value="1" min="1" ' +
+                                           'style="width: 60px; padding: 6px 10px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 13px; text-align: center;">' +
+                                '</div>' +
+                                '<div style="padding-top: 18px;">' +
+                                    '<button type="button" class="composite-group-remove pool-repeater-remove" data-group-index="' + idx + '" title="<?php _e('Remove Group', 'amelia-cpt-sync'); ?>">' +
+                                        '<span class="dashicons dashicons-trash"></span>' +
+                                    '</button>' +
+                                '</div>' +
+                            '</div>' +
+                            '<label style="font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; display: block; margin-bottom: 6px;"><?php _e('Resources that can fill this requirement:', 'amelia-cpt-sync'); ?></label>' +
+                            '<div class="resource-pool-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #E0E5F1; border-radius: 6px; background: #fff;">' +
+                                checkboxHtml +
+                            '</div>' +
+                        '</div>';
+                        
+                        $('#composite-groups-container').append(groupHtml);
+                        
+                        console.log('[Composite Repeater] Added group #' + idx);
+                    },
+                    
+                    removeGroup: function(idx) {
+                        $('.composite-group[data-group-index="' + idx + '"]').fadeOut(200, function() {
+                            $(this).remove();
+                            
+                            // Show empty state if no groups left
+                            if ($('#composite-groups-container .composite-group').length === 0) {
+                                if ($('#composite-empty-state').length === 0) {
+                                    $('#composite-groups-container').html(
+                                        '<div id="composite-empty-state" style="padding: 20px; background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px; text-align: center; color: #64748B; margin-bottom: 12px;">' +
+                                        '<?php _e('No requirement groups configured yet. Click the button below to add one.', 'amelia-cpt-sync'); ?>' +
+                                        '</div>'
+                                    );
+                                } else {
+                                    $('#composite-empty-state').show();
+                                }
+                            }
+                        });
+                        
+                        console.log('[Composite Repeater] Removed group #' + idx);
+                    }
+                };
+                
+                compositeGroupManager.init();
+                window.compositeGroupManager = compositeGroupManager;
+            });
+            </script>
+            
+            </div><!-- /.mode-section[data-mode="composite"] -->
+            
             <!-- Mode Section Show/Hide + Transition Logic JavaScript -->
             <script>
             jQuery(document).ready(function($) {
@@ -1798,6 +1985,55 @@ class Amelia_CPT_Sync_Admin_Settings {
                         if (dedicatedId) {
                             $('input[name="resource_config[pool_resources][]"][value="' + dedicatedId + '"]').prop('checked', true);
                         }
+                        
+                    } else if (fromMode === 'mirrored' && toMode === 'composite') {
+                        // DEDICATED → MULTI RESOURCE: Seed first group with dedicated resource
+                        var dedicatedId = '<?php echo esc_js($mirrored_resource_id ?? ''); ?>';
+                        
+                        $banner.html(
+                            '<div style="padding: 12px; background: #DBEAFE; border: 1px solid #3B82F6; border-radius: 6px; margin-bottom: 12px; font-size: 13px; color: #1E40AF;">' +
+                                '<strong>ℹ️ <?php _e('Switching to Multi Resource', 'amelia-cpt-sync'); ?></strong><br>' +
+                                '<?php _e('Add requirement groups below. Your current dedicated resource can be added to a group.', 'amelia-cpt-sync'); ?>' +
+                            '</div>'
+                        ).show();
+                        
+                    } else if (fromMode === 'shared_pool' && toMode === 'composite') {
+                        // POOL → MULTI RESOURCE: Info banner
+                        $banner.html(
+                            '<div style="padding: 12px; background: #DBEAFE; border: 1px solid #3B82F6; border-radius: 6px; margin-bottom: 12px; font-size: 13px; color: #1E40AF;">' +
+                                '<strong>ℹ️ <?php _e('Switching to Multi Resource', 'amelia-cpt-sync'); ?></strong><br>' +
+                                '<?php _e('Add requirement groups below. Your pool resources can be organized into groups.', 'amelia-cpt-sync'); ?>' +
+                            '</div>'
+                        ).show();
+                        
+                    } else if (fromMode === 'composite' && toMode === 'mirrored') {
+                        // MULTI RESOURCE → DEDICATED: Show radio picker
+                        $banner.html(
+                            '<div style="padding: 12px; background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 6px; margin-bottom: 12px; font-size: 13px; color: #92400E;">' +
+                                '<strong>⚠️ <?php _e('Switching to Dedicated Resource', 'amelia-cpt-sync'); ?></strong><br>' +
+                                '<?php _e('Select which resource to keep. Other resources will be unlinked on save.', 'amelia-cpt-sync'); ?>' +
+                            '</div>'
+                        ).show();
+                        
+                        // Show the resource picker (same as pool→dedicated transition)
+                        $('#resource-default-state').hide();
+                        $('#resource-select-state').hide();
+                        $('#dedicated-resource-picker').show();
+                        
+                    } else if (fromMode === 'composite' && toMode === 'shared_pool') {
+                        // MULTI RESOURCE → POOL: Seed pool with all composite resources
+                        $banner.html(
+                            '<div style="padding: 12px; background: #DBEAFE; border: 1px solid #3B82F6; border-radius: 6px; margin-bottom: 12px; font-size: 13px; color: #1E40AF;">' +
+                                '<strong>ℹ️ <?php _e('Switching to Resource Pool', 'amelia-cpt-sync'); ?></strong><br>' +
+                                '<?php _e('Resources from your requirement groups have been added to the pool. Adjust as needed.', 'amelia-cpt-sync'); ?>' +
+                            '</div>'
+                        ).show();
+                        
+                        // Auto-check all resources that were in composite groups
+                        $('.composite-group input[type="checkbox"]:checked').each(function() {
+                            var resourceId = $(this).val();
+                            $('input[name="resource_config[pool_resources][]"][value="' + resourceId + '"]').prop('checked', true);
+                        });
                         
                     } else if (toMode === 'none') {
                         // ANY → NONE: Info banner
@@ -2465,6 +2701,119 @@ class Amelia_CPT_Sync_Admin_Settings {
                 ];
                 
                 amelia_cpt_sync_debug_log("  ✓ Pool configuration saved: " . count($pool_resource_ids) . " resources");
+                
+            } elseif ($selected_mode === 'composite') {
+                // COMPOSITE (MULTI RESOURCE) MODE HANDLER
+                amelia_cpt_sync_debug_log("Composite config for service #{$service_id}");
+                
+                $raw_groups = isset($resource_config['requirement_groups']) && is_array($resource_config['requirement_groups']) 
+                    ? $resource_config['requirement_groups'] 
+                    : array();
+                
+                // Clean and validate groups
+                $cleaned_groups = array();
+                $all_composite_resource_ids = array();
+                
+                foreach ($raw_groups as $group) {
+                    $resource_ids = isset($group['resource_ids']) && is_array($group['resource_ids']) 
+                        ? array_map('intval', $group['resource_ids']) 
+                        : array();
+                    
+                    if (empty($resource_ids)) {
+                        amelia_cpt_sync_debug_log("  ⏭️ Skipping group with no resources");
+                        continue;
+                    }
+                    
+                    $cleaned_group = array(
+                        'label' => sanitize_text_field($group['label'] ?? ''),
+                        'resource_ids' => $resource_ids,
+                        'quantity_needed' => max(1, absint($group['quantity_needed'] ?? 1)),
+                        'strategy' => 'first_available'
+                    );
+                    
+                    $cleaned_groups[] = $cleaned_group;
+                    $all_composite_resource_ids = array_merge($all_composite_resource_ids, $resource_ids);
+                    
+                    amelia_cpt_sync_debug_log("  → Group \"{$cleaned_group['label']}\": resources [" . implode(', ', $resource_ids) . "], qty_needed: {$cleaned_group['quantity_needed']}");
+                }
+                
+                $all_composite_resource_ids = array_unique($all_composite_resource_ids);
+                amelia_cpt_sync_debug_log("  → All unique resource IDs: [" . implode(', ', $all_composite_resource_ids) . "]");
+                
+                // Entity management: link ALL resources from ALL groups to service (direct DB, transaction pattern)
+                $existing_config_for_entity = $resource_manager->get_service_config($service_id);
+                $original_composite_ids = array();
+                if ($existing_config_for_entity && isset($existing_config_for_entity->mode_settings['requirement_groups'])) {
+                    foreach ($existing_config_for_entity->mode_settings['requirement_groups'] as $old_group) {
+                        $original_composite_ids = array_merge($original_composite_ids, ($old_group['resource_ids'] ?? array()));
+                    }
+                }
+                // Also include pool/mirrored resources that may have been linked before mode switch
+                if ($existing_config_for_entity) {
+                    $old_pool = $existing_config_for_entity->mode_settings['pool_resource_ids'] ?? array();
+                    $old_mirrored = $existing_config_for_entity->mode_settings['mirrored_resource_id'] ?? null;
+                    if (!empty($old_pool)) $original_composite_ids = array_merge($original_composite_ids, $old_pool);
+                    if ($old_mirrored) $original_composite_ids[] = $old_mirrored;
+                }
+                $original_composite_ids = array_unique(array_map('intval', $original_composite_ids));
+                
+                $to_add = array_diff($all_composite_resource_ids, $original_composite_ids);
+                $to_remove = array_diff($original_composite_ids, $all_composite_resource_ids);
+                
+                if (!empty($to_add) || !empty($to_remove)) {
+                    global $wpdb;
+                    $entities_table = $wpdb->prefix . 'amelia_resources_to_entities';
+                    
+                    $wpdb->query('START TRANSACTION');
+                    
+                    try {
+                        // Add new entity links
+                        foreach ($to_add as $rid) {
+                            $existing = $wpdb->get_var($wpdb->prepare(
+                                "SELECT id FROM {$entities_table} WHERE resourceId = %d AND entityId = %d AND entityType = 'service'",
+                                $rid, $service_id
+                            ));
+                            
+                            if (!$existing) {
+                                $wpdb->insert($entities_table, [
+                                    'resourceId' => intval($rid),
+                                    'entityId' => intval($service_id),
+                                    'entityType' => 'service'
+                                ], ['%d', '%d', '%s']);
+                                amelia_cpt_sync_debug_log("    ✓ Entity link added: Resource #{$rid} → Service #{$service_id}");
+                            }
+                        }
+                        
+                        // Remove stale entity links
+                        foreach ($to_remove as $rid) {
+                            $wpdb->delete($entities_table, [
+                                'resourceId' => intval($rid),
+                                'entityId' => intval($service_id),
+                                'entityType' => 'service'
+                            ], ['%d', '%d', '%s']);
+                            amelia_cpt_sync_debug_log("    ✓ Entity link removed: Resource #{$rid} → Service #{$service_id}");
+                        }
+                        
+                        $wpdb->query('COMMIT');
+                        amelia_cpt_sync_debug_log("  ✓ Composite entity management transaction committed");
+                        
+                    } catch (Exception $e) {
+                        $wpdb->query('ROLLBACK');
+                        amelia_cpt_sync_debug_log("  ✗ Composite entity transaction rolled back: " . $e->getMessage());
+                    }
+                    
+                    // Clear caches
+                    foreach (array_merge($to_add, $to_remove) as $rid) {
+                        delete_transient('art_resource_' . $rid);
+                    }
+                    delete_transient('art_all_resources');
+                }
+                
+                $mode_settings = array(
+                    'requirement_groups' => $cleaned_groups
+                );
+                
+                amelia_cpt_sync_debug_log("  ✓ Composite configuration saved: " . count($cleaned_groups) . " groups, " . count($all_composite_resource_ids) . " unique resources");
             }
             
             $resource_manager->save_service_config($service_id, array(

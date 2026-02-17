@@ -557,13 +557,201 @@ class ART_Booking_Orchestrator {
     }
     
     /**
-     * Mode 6: Composite - Placeholder for Phase 4
+     * Mode 6: Composite (Multi Resource) - Grouped Requirements
+     *
+     * Each requirement group defines a set of interchangeable resources and a quantity needed.
+     * ALL groups must be satisfied for a booking to succeed.
+     * Each group is essentially a mini-pool check.
+     *
+     * @param array $params Booking parameters
+     * @param object $config Resource configuration
+     * @param array $result Result array
+     * @return array Updated result
      */
     private function check_mode_composite($params, $config, $result) {
-        amelia_cpt_sync_debug_log('ART Orchestrator: Mode COMPOSITE - Not implemented yet (Phase 4)');
+        amelia_cpt_sync_debug_log('ART Orchestrator: Mode COMPOSITE - Checking requirement groups');
         
-        $result['resource_message'] = 'Composite mode coming in Phase 4';
-        $result['providers'] = array();
+        $requirement_groups = $config->mode_settings['requirement_groups'] ?? array();
+        
+        if (empty($requirement_groups)) {
+            amelia_cpt_sync_debug_log('ART Orchestrator: No requirement groups configured');
+            $result['resource_block'] = true;
+            $result['resource_message'] = 'No requirement groups configured for this service';
+            $result['early_return'] = true;
+            return $result;
+        }
+        
+        $group_count = count($requirement_groups);
+        amelia_cpt_sync_debug_log("  → {$group_count} requirement groups configured");
+        
+        $exclude_id = !empty($params['exclude_appointment_id']) ? $params['exclude_appointment_id'] : null;
+        
+        // Check each requirement group
+        $all_group_results = array();
+        $all_satisfied = true;
+        $any_hard_block = false;
+        $any_soft_block = false;
+        $first_block_message = null;
+        
+        foreach ($requirement_groups as $group_index => $group) {
+            $group_label = $group['label'] ?? ('Group ' . ($group_index + 1));
+            $group_resource_ids = $group['resource_ids'] ?? array();
+            $group_qty_needed = $group['quantity_needed'] ?? 1;
+            $group_strategy = $group['strategy'] ?? 'first_available';
+            
+            amelia_cpt_sync_debug_log("  → Group " . ($group_index + 1) . " \"{$group_label}\": checking " . count($group_resource_ids) . " resources, need {$group_qty_needed} unit(s)");
+            
+            if (empty($group_resource_ids)) {
+                amelia_cpt_sync_debug_log("    → Group \"{$group_label}\" has no resources configured - SKIPPED");
+                continue;
+            }
+            
+            // Check each resource in this group (mini-pool check)
+            $group_resources = array();
+            $group_satisfied = false;
+            $group_selected = null;
+            $group_block_type = 'hard'; // Assume worst, upgrade if better found
+            $group_has_soft = false;
+            
+            foreach ($group_resource_ids as $resource_id) {
+                $resource_check = $this->resource_manager->is_resource_available(
+                    $resource_id,
+                    $params['date'],
+                    $params['time'],
+                    $params['duration'],
+                    $exclude_id,
+                    $group_qty_needed
+                );
+                
+                $resource = $this->resource_manager->get_resource($resource_id);
+                $resource_name = is_wp_error($resource) ? 'Unknown Resource' : ($resource['name'] ?? 'Unknown Resource');
+                
+                // Determine status
+                $resource_status = 'unavailable';
+                if ($resource_check['available']) {
+                    $resource_status = 'available';
+                    
+                    // First available resource satisfies the group
+                    if (!$group_satisfied) {
+                        $group_satisfied = true;
+                        $group_selected = array(
+                            'id' => $resource_id,
+                            'name' => $resource_name,
+                            'available_quantity' => $resource_check['available_quantity']
+                        );
+                        amelia_cpt_sync_debug_log("    → Resource #{$resource_id} ({$resource_name}): available ({$resource_check['available_quantity']}/{$resource_check['total_quantity']} available)");
+                        amelia_cpt_sync_debug_log("    → Group \"{$group_label}\" SATISFIED via Resource #{$resource_id}");
+                    } else {
+                        amelia_cpt_sync_debug_log("    → Resource #{$resource_id} ({$resource_name}): available ({$resource_check['available_quantity']}/{$resource_check['total_quantity']}) - group already satisfied");
+                    }
+                } else {
+                    if ($resource_check['block_type'] === 'soft') {
+                        $resource_status = 'soft_block';
+                        $group_has_soft = true;
+                        amelia_cpt_sync_debug_log("    → Resource #{$resource_id} ({$resource_name}): SOFT BLOCK ({$resource_check['booked_quantity']}/{$resource_check['total_quantity']} booked, some tentative)");
+                    } else {
+                        amelia_cpt_sync_debug_log("    → Resource #{$resource_id} ({$resource_name}): HARD BLOCK ({$resource_check['hard_booked']}/{$resource_check['total_quantity']} confirmed)");
+                    }
+                }
+                
+                $group_resources[] = array(
+                    'id' => $resource_id,
+                    'name' => $resource_name,
+                    'status' => $resource_status,
+                    'message' => $resource_check['message'],
+                    'total_quantity' => $resource_check['total_quantity'],
+                    'booked_quantity' => $resource_check['booked_quantity'],
+                    'available_quantity' => $resource_check['available_quantity'],
+                    'conflicts' => $resource_check['conflicts']
+                );
+            }
+            
+            // Determine group block type
+            if ($group_satisfied) {
+                $group_block_type = 'none';
+            } elseif ($group_has_soft) {
+                $group_block_type = 'soft';
+                $any_soft_block = true;
+                $all_satisfied = false;
+                if (!$first_block_message) {
+                    $first_block_message = "Group \"{$group_label}\" blocked by tentative bookings";
+                }
+                amelia_cpt_sync_debug_log("    → Group \"{$group_label}\" NOT SATISFIED (soft block - tentative bookings)");
+            } else {
+                $group_block_type = 'hard';
+                $any_hard_block = true;
+                $all_satisfied = false;
+                if (!$first_block_message) {
+                    $first_block_message = "Group \"{$group_label}\" unavailable - all resources booked";
+                }
+                amelia_cpt_sync_debug_log("    → Group \"{$group_label}\" NOT SATISFIED (hard block - confirmed bookings)");
+            }
+            
+            $all_group_results[] = array(
+                'label' => $group_label,
+                'quantity_needed' => $group_qty_needed,
+                'satisfied' => $group_satisfied,
+                'block_type' => $group_block_type,
+                'selected' => $group_selected,
+                'resources' => $group_resources
+            );
+        }
+        
+        // Build resources result
+        $result['resources'] = array(
+            'config' => array('mode' => 'composite'),
+            'groups' => $all_group_results,
+            'all_satisfied' => $all_satisfied,
+            'any_soft_block' => $any_soft_block
+        );
+        
+        // Determine overall outcome
+        if ($any_hard_block) {
+            amelia_cpt_sync_debug_log("  ✗ HARD BLOCK: One or more requirement groups unavailable");
+            
+            $result['resource_block'] = true;
+            $result['resource_message'] = $first_block_message;
+            $result['providers'] = $this->get_all_providers_blocked($params['service_id'], 'Required resources unavailable');
+            $result['can_book'] = false;
+            $result['early_return'] = true;
+            
+            return $result;
+        }
+        
+        if ($any_soft_block) {
+            amelia_cpt_sync_debug_log("  ⚠️ SOFT BLOCK: Requirement group(s) blocked by tentative bookings");
+            amelia_cpt_sync_debug_log("ART Orchestrator: Setting requires_force=true");
+            
+            $result['resource_warning'] = true;
+            $result['resource_message'] = $first_block_message;
+            $result['requires_force'] = true;
+            // Proceed to provider check (can force-book)
+        }
+        
+        if ($all_satisfied) {
+            amelia_cpt_sync_debug_log("  ✓ ALL {$group_count} groups satisfied");
+        }
+        
+        amelia_cpt_sync_debug_log('ART Orchestrator: Proceeding to provider availability check');
+        
+        // Provider check (identical to other modes)
+        try {
+            $provider_result = $this->availability_engine->check_availability(
+                $params['date'],
+                $params['time'],
+                $params['service_id'],
+                $params['duration'],
+                $params['location_id'] ?? null,
+                $exclude_id
+            );
+            
+            amelia_cpt_sync_debug_log('ART Orchestrator: Provider check complete - ' . count($provider_result) . ' providers returned');
+            $result['providers'] = $provider_result;
+            
+        } catch (Exception $e) {
+            amelia_cpt_sync_debug_log('ART Orchestrator: Provider check FAILED - ' . $e->getMessage());
+            $result['providers'] = array();
+        }
         
         return $result;
     }

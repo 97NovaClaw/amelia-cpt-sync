@@ -392,6 +392,33 @@
                 
                 console.log('[Amelia CPT Sync] Pool config: ' + resourceConfig.pool_resources.length + ' existing + ' + newResourceCount + ' new, strategy: ' + resourceConfig.selection_strategy);
                 
+            } else if (selectedMode === 'composite') {
+                // MULTI RESOURCE: Collect requirement groups
+                var groups = [];
+                
+                $('.composite-group').each(function() {
+                    var $group = $(this);
+                    var label = $group.find('.composite-group-label').val();
+                    var qtyNeeded = parseInt($group.find('.composite-group-qty').val()) || 1;
+                    var resourceIds = [];
+                    
+                    $group.find('input[type="checkbox"]:checked').each(function() {
+                        resourceIds.push($(this).val());
+                    });
+                    
+                    if (resourceIds.length > 0) {
+                        groups.push({
+                            label: label || 'Group ' + (groups.length + 1),
+                            resource_ids: resourceIds,
+                            quantity_needed: qtyNeeded,
+                            strategy: 'first_available'
+                        });
+                    }
+                });
+                
+                resourceConfig.requirement_groups = groups;
+                console.log('[Amelia CPT Sync] Composite config: ' + groups.length + ' requirement groups');
+                
             } else {
                 // NONE or other mode: minimal config
                 console.log('[Amelia CPT Sync] Mode: ' + selectedMode + ' — no resource data to collect');
