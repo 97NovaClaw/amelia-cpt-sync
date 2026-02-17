@@ -606,53 +606,44 @@ class ART_Booking_Orchestrator {
                 continue;
             }
             
-            // Check each resource in this group (mini-pool check)
+            // Check each resource in this group and SUM available across all
             $group_resources = array();
             $group_satisfied = false;
             $group_selected = null;
-            $group_block_type = 'hard'; // Assume worst, upgrade if better found
+            $group_block_type = 'hard';
             $group_has_soft = false;
+            $group_total_available = 0; // Sum of available_quantity across all group resources
+            $group_total_soft_available = 0; // Units that could free up if tentative bookings cancel
             
             foreach ($group_resource_ids as $resource_id) {
+                // Check with qty_needed=1 to get per-resource availability (not group total)
                 $resource_check = $this->resource_manager->is_resource_available(
                     $resource_id,
                     $params['date'],
                     $params['time'],
                     $params['duration'],
                     $exclude_id,
-                    $group_qty_needed
+                    1  // Check each resource individually, sum is done at group level
                 );
                 
                 $resource = $this->resource_manager->get_resource($resource_id);
                 $resource_name = is_wp_error($resource) ? 'Unknown Resource' : ($resource['name'] ?? 'Unknown Resource');
                 
-                // Determine status
+                // Track available quantities for summing
+                $avail_qty = $resource_check['available_quantity'] ?? 0;
+                $group_total_available += $avail_qty;
+                $group_total_soft_available += ($resource_check['soft_booked'] ?? 0);
+                
+                // Determine per-resource status for UI display
                 $resource_status = 'unavailable';
-                if ($resource_check['available']) {
+                if ($avail_qty > 0) {
                     $resource_status = 'available';
-                    
-                    // First available resource satisfies the group
-                    if (!$group_satisfied) {
-                        $group_satisfied = true;
-                        $group_selected = array(
-                            'id' => $resource_id,
-                            'name' => $resource_name,
-                            'available_quantity' => $resource_check['available_quantity']
-                        );
-                        amelia_cpt_sync_debug_log("    → Resource #{$resource_id} ({$resource_name}): available ({$resource_check['available_quantity']}/{$resource_check['total_quantity']} available)");
-                        amelia_cpt_sync_debug_log("    → Group \"{$group_label}\" SATISFIED via Resource #{$resource_id}");
-                    } else {
-                        amelia_cpt_sync_debug_log("    → Resource #{$resource_id} ({$resource_name}): available ({$resource_check['available_quantity']}/{$resource_check['total_quantity']}) - group already satisfied");
-                    }
-                } else {
-                    if ($resource_check['block_type'] === 'soft') {
-                        $resource_status = 'soft_block';
-                        $group_has_soft = true;
-                        amelia_cpt_sync_debug_log("    → Resource #{$resource_id} ({$resource_name}): SOFT BLOCK ({$resource_check['booked_quantity']}/{$resource_check['total_quantity']} booked, some tentative)");
-                    } else {
-                        amelia_cpt_sync_debug_log("    → Resource #{$resource_id} ({$resource_name}): HARD BLOCK ({$resource_check['hard_booked']}/{$resource_check['total_quantity']} confirmed)");
-                    }
+                } elseif ($resource_check['block_type'] === 'soft') {
+                    $resource_status = 'soft_block';
+                    $group_has_soft = true;
                 }
+                
+                amelia_cpt_sync_debug_log("    → Resource #{$resource_id} ({$resource_name}): {$resource_status} ({$avail_qty}/{$resource_check['total_quantity']} available)");
                 
                 $group_resources[] = array(
                     'id' => $resource_id,
@@ -661,30 +652,51 @@ class ART_Booking_Orchestrator {
                     'message' => $resource_check['message'],
                     'total_quantity' => $resource_check['total_quantity'],
                     'booked_quantity' => $resource_check['booked_quantity'],
-                    'available_quantity' => $resource_check['available_quantity'],
+                    'available_quantity' => $avail_qty,
                     'conflicts' => $resource_check['conflicts']
                 );
             }
             
-            // Determine group block type
-            if ($group_satisfied) {
+            amelia_cpt_sync_debug_log("    → Group \"{$group_label}\" combined available: {$group_total_available}, needed: {$group_qty_needed}");
+            
+            // SUM-BASED satisfaction: group is satisfied if combined availability meets requirement
+            if ($group_total_available >= $group_qty_needed) {
+                $group_satisfied = true;
                 $group_block_type = 'none';
-            } elseif ($group_has_soft) {
+                
+                // Auto-select: greedily pick resources to fill qty_needed
+                $remaining_needed = $group_qty_needed;
+                $auto_selected = array();
+                foreach ($group_resources as $gr) {
+                    if ($remaining_needed <= 0) break;
+                    if ($gr['available_quantity'] > 0) {
+                        $take = min($gr['available_quantity'], $remaining_needed);
+                        $auto_selected[] = array('id' => $gr['id'], 'name' => $gr['name'], 'quantity' => $take);
+                        $remaining_needed -= $take;
+                    }
+                }
+                $group_selected = $auto_selected;
+                
+                amelia_cpt_sync_debug_log("    → Group \"{$group_label}\" SATISFIED (combined: {$group_total_available} >= {$group_qty_needed})");
+                
+            } elseif ($group_has_soft && ($group_total_available + $group_total_soft_available) >= $group_qty_needed) {
+                // Could be satisfied if tentative bookings free up
                 $group_block_type = 'soft';
                 $any_soft_block = true;
                 $all_satisfied = false;
                 if (!$first_block_message) {
-                    $first_block_message = "Group \"{$group_label}\" blocked by tentative bookings";
+                    $first_block_message = "Group \"{$group_label}\" blocked by tentative bookings (combined: {$group_total_available}/{$group_qty_needed})";
                 }
-                amelia_cpt_sync_debug_log("    → Group \"{$group_label}\" NOT SATISFIED (soft block - tentative bookings)");
+                amelia_cpt_sync_debug_log("    → Group \"{$group_label}\" SOFT BLOCK (combined: {$group_total_available}, could reach {$group_qty_needed} if tentative bookings cancel)");
+                
             } else {
                 $group_block_type = 'hard';
                 $any_hard_block = true;
                 $all_satisfied = false;
                 if (!$first_block_message) {
-                    $first_block_message = "Group \"{$group_label}\" unavailable - all resources booked";
+                    $first_block_message = "Group \"{$group_label}\" unavailable (combined: {$group_total_available}/{$group_qty_needed})";
                 }
-                amelia_cpt_sync_debug_log("    → Group \"{$group_label}\" NOT SATISFIED (hard block - confirmed bookings)");
+                amelia_cpt_sync_debug_log("    → Group \"{$group_label}\" HARD BLOCK (combined: {$group_total_available} < {$group_qty_needed})");
             }
             
             $all_group_results[] = array(

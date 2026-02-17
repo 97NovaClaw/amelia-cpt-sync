@@ -6172,7 +6172,7 @@ jQuery(document).ready(function($) {
             html += '<span style="color: ' + statusColor + '; font-size: 10px;">' + statusText + '</span>';
             html += '</div>';
             
-            // Resource cards within group
+            // Resource cards within group (with qty input for composite mode)
             var resources = group.resources || [];
             resources.forEach(function(resource) {
                 var quantityInfo = {
@@ -6183,8 +6183,14 @@ jQuery(document).ready(function($) {
                 var conflicts = resource.conflicts || [];
                 var isCurrentBookingResource = isInCurrentMode && selectedId && resource.id == selectedId;
                 
-                html += buildResourceItem(resource.id, resource.name, resource.status, quantityInfo, conflicts, isCurrentBookingResource);
+                // 7th argument = true: show composite qty input
+                html += buildResourceItem(resource.id, resource.name, resource.status, quantityInfo, conflicts, isCurrentBookingResource, true);
             });
+            
+            // Group total indicator (updated by JS on qty change)
+            html += '<div class="composite-group-total" data-group-index="' + groupIdx + '" data-qty-needed="' + qtyNeeded + '" style="margin: 4px 12px 8px; font-size: 11px; color: #64748B; text-align: right;">';
+            html += '<span class="group-total-count">0</span> of ' + qtyNeeded + ' selected';
+            html += '</div>';
             
             html += '</div>'; // close composite-group-display
         });
@@ -6639,12 +6645,27 @@ jQuery(document).ready(function($) {
             }
         }
         
-        return '<div class="' + cardClass + '" data-resource-id="' + id + '">' +
+        // Optional: Quantity input for composite mode (between info and checkmark)
+        var qtyInputHtml = '';
+        if (arguments.length > 6 && arguments[6] === true && status !== 'unavailable') {
+            // showCompositeQty flag passed as 7th argument
+            var maxQty = (quantityInfo && quantityInfo.available) ? quantityInfo.available : 1;
+            qtyInputHtml = '<div class="resource-qty-input" style="display: flex; align-items: center; gap: 4px; margin: 0 8px; flex-shrink: 0;">' +
+                '<input type="number" class="composite-qty-select" ' +
+                       'data-resource-id="' + id + '" ' +
+                       'data-max-qty="' + maxQty + '" ' +
+                       'min="0" max="' + maxQty + '" value="0" ' +
+                       'style="width: 48px; padding: 4px 6px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 12px; text-align: center;">' +
+            '</div>';
+        }
+        
+        return '<div class="' + cardClass + '" data-resource-id="' + id + '" data-available-qty="' + ((quantityInfo && quantityInfo.available) || 0) + '">' +
             '<div class="resource-info">' +
                 '<div class="resource-name">' + name + '</div>' +
                 '<div class="resource-status">' + displayStatus + '</div>' +
                 conflictHtml +
             '</div>' +
+            qtyInputHtml +
             '<div class="resource-check"><span class="dashicons dashicons-yes"></span></div>' +
         '</div>';
     }
@@ -6829,24 +6850,23 @@ jQuery(document).ready(function($) {
         });
         
         if (isCompositeMode) {
-            // COMPOSITE MODE: Multi-select toggle within each group, persists across groups
-            // Each click toggles that card on/off without affecting other cards
+            // COMPOSITE MODE: Click toggles card, qty input controls quantity
+            var $qtyInput = item.find('.composite-qty-select');
             
-            if (item.hasClass('selected')) {
-                item.removeClass('selected');
-                console.log('ART DEBUG: Composite deselected resource #' + resourceId);
+            if ($qtyInput.length) {
+                // Has qty input: toggle between 0 and 1 (user can adjust further)
+                var currentQty = parseInt($qtyInput.val()) || 0;
+                if (currentQty > 0) {
+                    $qtyInput.val(0).trigger('change');
+                } else {
+                    $qtyInput.val(1).trigger('change');
+                }
             } else {
-                item.addClass('selected');
-                console.log('ART DEBUG: Composite selected resource #' + resourceId);
+                // No qty input (unavailable): just toggle visual
+                item.toggleClass('selected');
             }
             
-            // Rebuild selectedResources: flat array of ALL selected resource IDs across all groups
-            resourceState.selectedResources = [];
-            $('.composite-group-display .resource-item.selected').each(function() {
-                resourceState.selectedResources.push(parseInt($(this).data('resource-id')));
-            });
-            
-            console.log('ART DEBUG: Composite selections (all groups):', resourceState.selectedResources);
+            return; // qty change handler below handles state update
             
         } else {
             // POOL / MIRRORED MODE: Single selection across all resources
@@ -6867,6 +6887,68 @@ jQuery(document).ready(function($) {
             
             console.log('ART DEBUG: After resource click, selectedResourceId =', resourceState.selectedResourceId);
         }
+    });
+    
+    // Composite mode: Quantity input change handler
+    $(document).on('change input', '.composite-qty-select', function(e) {
+        e.stopPropagation(); // Don't bubble to card click
+        
+        var $input = $(this);
+        var resourceId = parseInt($input.data('resource-id'));
+        var maxQty = parseInt($input.data('max-qty')) || 1;
+        var qty = parseInt($input.val()) || 0;
+        
+        // Clamp value
+        if (qty < 0) qty = 0;
+        if (qty > maxQty) qty = maxQty;
+        $input.val(qty);
+        
+        // Auto-toggle card selection based on qty
+        var $card = $input.closest('.resource-item');
+        if (qty > 0) {
+            $card.addClass('selected');
+        } else {
+            $card.removeClass('selected');
+        }
+        
+        // Update group total display
+        var $group = $input.closest('.composite-group-display');
+        var groupIdx = $group.data('group-index');
+        var groupTotal = 0;
+        $group.find('.composite-qty-select').each(function() {
+            groupTotal += parseInt($(this).val()) || 0;
+        });
+        
+        var $totalDisplay = $('.composite-group-total[data-group-index="' + groupIdx + '"]');
+        var qtyNeeded = parseInt($totalDisplay.data('qty-needed')) || 1;
+        $totalDisplay.find('.group-total-count').text(groupTotal);
+        
+        // Color the total: green if met, red if not
+        if (groupTotal >= qtyNeeded) {
+            $totalDisplay.css('color', '#059669');
+        } else {
+            $totalDisplay.css('color', '#DC2626');
+        }
+        
+        // Rebuild selectedResources: array of {resource_id, quantity} objects
+        resourceState.selectedResources = [];
+        $('.composite-group-display .composite-qty-select').each(function() {
+            var q = parseInt($(this).val()) || 0;
+            if (q > 0) {
+                resourceState.selectedResources.push({
+                    resource_id: parseInt($(this).data('resource-id')),
+                    quantity: q
+                });
+            }
+        });
+        
+        console.log('ART DEBUG: Composite qty change - resource #' + resourceId + ' = ' + qty + ', group total: ' + groupTotal + '/' + qtyNeeded);
+        console.log('ART DEBUG: Composite selections:', resourceState.selectedResources);
+    });
+    
+    // Prevent qty input click from triggering card click
+    $(document).on('click', '.composite-qty-select', function(e) {
+        e.stopPropagation();
     });
     
     // Update provider list when custom time changes
@@ -7863,18 +7945,29 @@ jQuery(document).ready(function($) {
         }
         
         if (resourceState.mode === 'composite') {
-            // Priority 1: User manually clicked resources (one per group)
+            // Priority 1: User set quantities via qty inputs
             if (resourceState.selectedResources && resourceState.selectedResources.length > 0) {
-                return resourceState.selectedResources;
+                // selectedResources is [{resource_id, quantity}, ...] from qty handler
+                // Return flat array of IDs for backward compat, but attach quantities
+                var result = [];
+                resourceState.selectedResources.forEach(function(sel) {
+                    if (typeof sel === 'object' && sel.resource_id) {
+                        result.push(sel);
+                    } else {
+                        // Legacy flat ID format
+                        result.push({ resource_id: parseInt(sel), quantity: 1 });
+                    }
+                });
+                return result;
             }
             
-            // Priority 2: Orchestrator's auto-selected resources (one per satisfied group)
+            // Priority 2: Orchestrator auto-selections (fallback)
             var selected = [];
             if (typeof lastOrchestratorResult !== 'undefined' && lastOrchestratorResult && 
                 lastOrchestratorResult.resources && lastOrchestratorResult.resources.groups) {
                 lastOrchestratorResult.resources.groups.forEach(function(group) {
                     if (group.selected && group.selected.id) {
-                        selected.push(parseInt(group.selected.id));
+                        selected.push({ resource_id: parseInt(group.selected.id), quantity: group.quantity_needed || 1 });
                     }
                 });
             }

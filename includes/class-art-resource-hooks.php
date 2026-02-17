@@ -285,30 +285,51 @@ class ART_Resource_Hooks {
                 break;
                 
             case 'composite':
-                // MULTI RESOURCE: Assign one resource per requirement group
+                // MULTI RESOURCE: Assign resources per requirement group (supports qty splitting)
                 $groups = $config->mode_settings['requirement_groups'] ?? array();
                 $selected = $booking_data['selected_resources'] ?? array();
                 
                 amelia_cpt_sync_debug_log('ART Resource Hooks: Composite mode - ' . count($groups) . ' requirement groups, ' . count($selected) . ' selected resources');
+                amelia_cpt_sync_debug_log('ART Resource Hooks: Selected resources data: ' . wp_json_encode($selected));
                 
-                // Match selected resources to groups (selected comes from orchestrator auto-selection)
-                foreach ($groups as $idx => $group) {
-                    $group_resource_id = isset($selected[$idx]) ? intval($selected[$idx]) : null;
-                    
-                    if (!$group_resource_id && !empty($group['resource_ids'])) {
-                        // Fallback: use first resource in group
-                        $group_resource_id = $group['resource_ids'][0];
-                        amelia_cpt_sync_debug_log("ART Resource Hooks: Composite fallback - Group \"{$group['label']}\" using first resource #{$group_resource_id}");
+                // Check if selected_resources contains {resource_id, quantity} objects (new format)
+                // or flat IDs (legacy format)
+                $has_qty_data = false;
+                if (!empty($selected) && is_array($selected)) {
+                    $first = reset($selected);
+                    $has_qty_data = is_array($first) && isset($first['resource_id']);
+                }
+                
+                if ($has_qty_data) {
+                    // NEW FORMAT: [{resource_id: 5, quantity: 1}, {resource_id: 15, quantity: 2}]
+                    foreach ($selected as $selection) {
+                        $rid = intval($selection['resource_id'] ?? 0);
+                        $qty = max(1, intval($selection['quantity'] ?? 1));
+                        if ($rid > 0) {
+                            $resource_ids[] = $rid;
+                            $quantities[] = $qty;
+                            amelia_cpt_sync_debug_log("ART Resource Hooks: Composite - Resource #{$rid} qty: {$qty}");
+                        }
                     }
-                    
-                    if ($group_resource_id) {
-                        $resource_ids[] = $group_resource_id;
-                        $quantities[] = $group['quantity_needed'] ?? 1;
-                        amelia_cpt_sync_debug_log("ART Resource Hooks: Composite - Group \"{$group['label']}\" → Resource #{$group_resource_id} (qty: " . ($group['quantity_needed'] ?? 1) . ")");
+                } else {
+                    // LEGACY FORMAT: Flat array of IDs, match to groups
+                    foreach ($groups as $idx => $group) {
+                        $group_resource_id = isset($selected[$idx]) ? intval($selected[$idx]) : null;
+                        
+                        if (!$group_resource_id && !empty($group['resource_ids'])) {
+                            $group_resource_id = $group['resource_ids'][0];
+                            amelia_cpt_sync_debug_log("ART Resource Hooks: Composite fallback - Group \"{$group['label']}\" using first resource #{$group_resource_id}");
+                        }
+                        
+                        if ($group_resource_id) {
+                            $resource_ids[] = $group_resource_id;
+                            $quantities[] = $group['quantity_needed'] ?? 1;
+                            amelia_cpt_sync_debug_log("ART Resource Hooks: Composite legacy - Group \"{$group['label']}\" → Resource #{$group_resource_id} (qty: " . ($group['quantity_needed'] ?? 1) . ")");
+                        }
                     }
                 }
                 
-                amelia_cpt_sync_debug_log('ART Resource Hooks: Composite mode - assigning ' . count($resource_ids) . ' resources from ' . count($groups) . ' groups');
+                amelia_cpt_sync_debug_log('ART Resource Hooks: Composite mode - assigning ' . count($resource_ids) . ' resources: [' . implode(', ', $resource_ids) . '] with quantities: [' . implode(', ', $quantities) . ']');
                 break;
                 
             // Other modes will be handled in future phases
