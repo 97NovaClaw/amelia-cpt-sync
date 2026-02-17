@@ -5961,6 +5961,12 @@ jQuery(document).ready(function($) {
         // Store result for later re-rendering
         lastOrchestratorResult = data;
         
+        // CRITICAL: Sync resourceState.mode from orchestrator response
+        // This ensures click handlers know the correct mode (composite vs pool vs mirrored)
+        if (data.resource_mode) {
+            resourceState.mode = data.resource_mode;
+        }
+        
         // Update grid mode class
         $('.art-picker-container')
             .removeClass('mode-none mode-mirrored mode-shared-pool mode-quantity-pool mode-provider-bound mode-location-bound mode-composite mode-hybrid')
@@ -6216,7 +6222,8 @@ jQuery(document).ready(function($) {
                     booked: resource.booked_quantity || 0
                 };
                 var conflicts = resource.conflicts || [];
-                var isCurrentBookingResource = isInCurrentMode && selectedId && resource.id == selectedId;
+                // Check if this resource is assigned in the current booking
+                var isCurrentBookingResource = isInCurrentMode && activeResourceQtyMap.hasOwnProperty(resource.id);
                 
                 // 7th argument = true: show composite qty input
                 html += buildResourceItem(resource.id, resource.name, resource.status, quantityInfo, conflicts, isCurrentBookingResource, true);
