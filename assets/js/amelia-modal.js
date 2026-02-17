@@ -315,18 +315,42 @@
             
             console.log('[Amelia CPT Sync] Selected resource mode: ' + selectedMode);
             
-            if (selectedMode === 'mirrored' && window.resourceModalState) {
-                // DEDICATED RESOURCE: Collect from state machine
-                var stateData = window.resourceModalState.getData();
-                resourceConfig.action = stateData.action;
-                resourceConfig.resource_id = stateData.resource_id;
-                resourceConfig.resource_name = stateData.resource_name;
-                resourceConfig.resource_quantity = stateData.resource_quantity;
-                resourceConfig.original_resource_id = stateData.original_resource_id;
-                resourceConfig.cleanup_orphan = stateData.cleanup_orphan;
-                resourceConfig.quantity_required = 1;
+            if (selectedMode === 'mirrored') {
+                // DEDICATED RESOURCE: Check if we're in a transition (Pool→Dedicated)
+                var transitionRadio = $('input[name="resource_config[transition_resource_id]"]:checked');
                 
-                console.log('[Amelia CPT Sync] Mirrored config: action=' + stateData.action + ', resource=' + stateData.resource_id);
+                if (transitionRadio.length) {
+                    // Transition mode: user selected a resource from the radio picker
+                    resourceConfig.action = 'switch';
+                    resourceConfig.resource_id = transitionRadio.val();
+                    resourceConfig.resource_name = transitionRadio.data('name');
+                    resourceConfig.resource_quantity = parseInt(transitionRadio.data('quantity')) || 1;
+                    resourceConfig.quantity_required = 1;
+                    
+                    console.log('[Amelia CPT Sync] Transition Pool→Dedicated: resource #' + resourceConfig.resource_id);
+                    
+                } else if (window.resourceModalState) {
+                    // Normal mirrored mode: collect from state machine
+                    var stateData = window.resourceModalState.getData();
+                    resourceConfig.action = stateData.action;
+                    resourceConfig.resource_id = stateData.resource_id;
+                    resourceConfig.resource_name = stateData.resource_name;
+                    resourceConfig.resource_quantity = stateData.resource_quantity;
+                    resourceConfig.original_resource_id = stateData.original_resource_id;
+                    resourceConfig.cleanup_orphan = stateData.cleanup_orphan;
+                    resourceConfig.quantity_required = 1;
+                    
+                    console.log('[Amelia CPT Sync] Mirrored config: action=' + stateData.action + ', resource=' + stateData.resource_id);
+                    
+                } else {
+                    // Mirrored mode but no state machine (e.g., fresh service with no prior config)
+                    resourceConfig.action = 'create';
+                    resourceConfig.resource_name = $('#resource_name').val() || '';
+                    resourceConfig.resource_quantity = parseInt($('#resource_quantity').val()) || 1;
+                    resourceConfig.quantity_required = 1;
+                    
+                    console.log('[Amelia CPT Sync] Mirrored fallback: create new resource');
+                }
                 
             } else if (selectedMode === 'shared_pool') {
                 // RESOURCE POOL: Collect checkboxes + repeater

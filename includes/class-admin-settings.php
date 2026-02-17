@@ -813,6 +813,9 @@ class Amelia_CPT_Sync_Admin_Settings {
                 </select>
             </div>
             
+            <!-- Transition Banner (populated by JavaScript on mode change) -->
+            <div id="mode-transition-banner" style="display: none;"></div>
+            
             <!-- MODE: None -->
             <div class="mode-section" data-mode="none" style="display: none;">
                 <div style="padding: 20px; background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px; text-align: center; color: #64748B;">
@@ -834,80 +837,124 @@ class Amelia_CPT_Sync_Admin_Settings {
                 <!-- DEFAULT STATE: Shows current linked resource -->
                 <div id="resource-default-state">
                     <?php if ($linked_resource): ?>
-                    <!-- Current Resource Hero Card (Appendix K.4.1) -->
-                    <div class="resource-current-card">
-                        <div class="resource-icon">🚗</div>
-                        <div class="resource-info">
-                            <div class="resource-name"><?php echo esc_html($linked_resource['name']); ?></div>
-                            <div class="resource-meta">
-                                <?php echo esc_html($linked_resource['quantity']); ?> <?php echo $linked_resource['quantity'] > 1 ? __('units', 'amelia-cpt-sync') : __('unit', 'amelia-cpt-sync'); ?> <?php _e('available', 'amelia-cpt-sync'); ?>
-                                • <?php _e('Linked to: This service only', 'amelia-cpt-sync'); ?>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Edit Resource Form -->
+                    <!-- Current Resource - Repeater-Style Table -->
                     <div class="resource-edit-section">
-                        <h4><?php _e('Edit Resource', 'amelia-cpt-sync'); ?></h4>
-                        
-                        <div class="form-group" style="margin-bottom: 16px;">
-                            <label for="resource_name" style="display: block; margin-bottom: 4px; font-weight: 500;"><?php _e('Name', 'amelia-cpt-sync'); ?></label>
-                            <input type="text" 
-                                   id="resource_name" 
-                                   name="resource_config[resource_name]"
-                                   class="regular-text"
-                                   value="<?php echo esc_attr($linked_resource['name']); ?>"
-                                   style="width: 100%;">
-                            <p class="description" style="margin: 4px 0 0 0;"><?php _e('Changes apply to this resource in Amelia', 'amelia-cpt-sync'); ?></p>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="resource_quantity" style="display: block; margin-bottom: 4px; font-weight: 500;"><?php _e('Quantity Available', 'amelia-cpt-sync'); ?></label>
-                            <input type="number" 
-                                   id="resource_quantity" 
-                                   name="resource_config[resource_quantity]"
-                                   class="small-text"
-                                   min="1"
-                                   value="<?php echo esc_attr($linked_resource['quantity']); ?>">
-                            <span style="margin-left: 8px; color: #64748B;"><?php _e('units', 'amelia-cpt-sync'); ?></span>
-                            <p class="description" style="margin: 4px 0 0 0;"><?php _e('Total units available for booking', 'amelia-cpt-sync'); ?></p>
-                        </div>
+                        <h4><?php _e('Linked Resource', 'amelia-cpt-sync'); ?></h4>
+                        <table class="pool-resource-repeater-table" style="width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #E0E5F1; border-radius: 6px; overflow: hidden;">
+                            <thead>
+                                <tr style="background: #F8FAFC; border-bottom: 2px solid #E0E5F1;">
+                                    <th style="padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 65%;">
+                                        <?php _e('Name', 'amelia-cpt-sync'); ?>
+                                    </th>
+                                    <th style="padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 35%;">
+                                        <?php _e('Quantity', 'amelia-cpt-sync'); ?>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="padding: 10px 12px;">
+                                        <input type="text" 
+                                               id="resource_name" 
+                                               name="resource_config[resource_name]"
+                                               value="<?php echo esc_attr($linked_resource['name']); ?>"
+                                               style="width: 100%; padding: 6px 10px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 13px;">
+                                    </td>
+                                    <td style="padding: 10px 12px;">
+                                        <input type="number" 
+                                               id="resource_quantity" 
+                                               name="resource_config[resource_quantity]"
+                                               min="1"
+                                               value="<?php echo esc_attr($linked_resource['quantity']); ?>"
+                                               style="width: 60px; padding: 6px 10px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 13px; text-align: center;">
+                                        <span style="margin-left: 4px; color: #64748B; font-size: 12px;"><?php _e('units', 'amelia-cpt-sync'); ?></span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                     
                     <?php else: ?>
-                    <!-- No Resource State (Appendix K.4.3) -->
-                    <div class="resource-empty-card">
-                        <div class="empty-icon">📦</div>
-                        <div class="resource-name"><?php _e('No resource linked yet', 'amelia-cpt-sync'); ?></div>
-                        <div class="resource-meta"><?php _e('A resource will be created when you save', 'amelia-cpt-sync'); ?></div>
-                    </div>
-                    
-                    <!-- New Resource Form -->
+                    <!-- No Resource State - Repeater-Style New Row -->
                     <div class="resource-edit-section">
                         <h4><?php _e('New Resource', 'amelia-cpt-sync'); ?></h4>
-                        
-                        <div class="form-group" style="margin-bottom: 16px;">
-                            <label for="resource_name" style="display: block; margin-bottom: 4px; font-weight: 500;"><?php _e('Name', 'amelia-cpt-sync'); ?></label>
-                            <input type="text" 
-                                   id="resource_name" 
-                                   name="resource_config[resource_name]"
-                                   class="regular-text"
-                                   value="<?php echo esc_attr($service_name . ' (Resource)'); ?>"
-                                   style="width: 100%;">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="resource_quantity" style="display: block; margin-bottom: 4px; font-weight: 500;"><?php _e('Quantity', 'amelia-cpt-sync'); ?></label>
-                            <input type="number" 
-                                   id="resource_quantity" 
-                                   name="resource_config[resource_quantity]"
-                                   class="small-text"
-                                   min="1"
-                                   value="1">
-                            <span style="margin-left: 8px; color: #64748B;"><?php _e('units', 'amelia-cpt-sync'); ?></span>
-                        </div>
+                        <p class="description" style="margin-bottom: 8px;"><?php _e('A new resource will be created when you save.', 'amelia-cpt-sync'); ?></p>
+                        <table class="pool-resource-repeater-table" style="width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #E0E5F1; border-radius: 6px; overflow: hidden;">
+                            <thead>
+                                <tr style="background: #F8FAFC; border-bottom: 2px solid #E0E5F1;">
+                                    <th style="padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 65%;">
+                                        <?php _e('Name', 'amelia-cpt-sync'); ?>
+                                    </th>
+                                    <th style="padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 35%;">
+                                        <?php _e('Quantity', 'amelia-cpt-sync'); ?>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="padding: 10px 12px;">
+                                        <input type="text" 
+                                               id="resource_name" 
+                                               name="resource_config[resource_name]"
+                                               value="<?php echo esc_attr($service_name . ' (Resource)'); ?>"
+                                               style="width: 100%; padding: 6px 10px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 13px;">
+                                    </td>
+                                    <td style="padding: 10px 12px;">
+                                        <input type="number" 
+                                               id="resource_quantity" 
+                                               name="resource_config[resource_quantity]"
+                                               min="1"
+                                               value="1"
+                                               style="width: 60px; padding: 6px 10px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 13px; text-align: center;">
+                                        <span style="margin-left: 4px; color: #64748B; font-size: 12px;"><?php _e('units', 'amelia-cpt-sync'); ?></span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                     <?php endif; ?>
+                    
+                    <!-- Transition: Select from all resources (shown when switching from Pool→Dedicated) -->
+                    <div id="dedicated-resource-picker" style="display: none; margin-top: 16px;">
+                        <div class="resource-edit-section">
+                            <h4><?php _e('Select Dedicated Resource', 'amelia-cpt-sync'); ?></h4>
+                            <p class="description" style="margin-bottom: 8px;"><?php _e('Choose which resource to keep as the dedicated item for this service.', 'amelia-cpt-sync'); ?></p>
+                            <div class="resource-pool-list" style="max-height: 250px; overflow-y: auto; border: 1px solid #E0E5F1; border-radius: 6px; background: #fff;">
+                                <?php foreach ($all_resources_raw as $res): ?>
+                                <div class="resource-pool-item">
+                                    <label>
+                                        <input type="radio" 
+                                               name="resource_config[transition_resource_id]" 
+                                               value="<?php echo esc_attr($res['id']); ?>"
+                                               data-name="<?php echo esc_attr($res['name']); ?>"
+                                               data-quantity="<?php echo esc_attr($res['quantity']); ?>"
+                                               style="margin: 0;">
+                                        <span class="pool-item-name"><?php echo esc_html($res['name']); ?></span>
+                                        <span class="units-badge"><?php echo esc_html($res['quantity']); ?> <?php echo $res['quantity'] > 1 ? 'units' : 'unit'; ?></span>
+                                        <?php 
+                                        // Show linked services
+                                        $radio_linked = array();
+                                        if (!empty($res['entities'])) {
+                                            foreach ($res['entities'] as $entity) {
+                                                $etype = $entity['entity_type'] ?? $entity['entityType'];
+                                                $eid = $entity['entity_id'] ?? $entity['entityId'];
+                                                if ($etype === 'service' && $eid != $service_id) {
+                                                    $sdata = $this->get_amelia_service_by_id($eid);
+                                                    if ($sdata) $radio_linked[] = $sdata['name'];
+                                                }
+                                            }
+                                        }
+                                        if (!empty($radio_linked)): ?>
+                                            <span class="linked-badge" title="Also used by: <?php echo esc_attr(implode(', ', $radio_linked)); ?>">
+                                                🔗 <?php echo count($radio_linked); ?> service<?php echo count($radio_linked) > 1 ? 's' : ''; ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </label>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
                     
                     <!-- Switch Resource Button -->
                     <button type="button" 
@@ -1686,19 +1733,113 @@ class Amelia_CPT_Sync_Admin_Settings {
             
             </div><!-- /.mode-section[data-mode="shared_pool"] -->
             
-            <!-- Mode Section Show/Hide JavaScript -->
+            <!-- Mode Section Show/Hide + Transition Logic JavaScript -->
             <script>
             jQuery(document).ready(function($) {
-                // Show/hide mode sections based on dropdown
+                // Track the mode that was active when modal opened
+                var originalMode = '<?php echo esc_js($effective_mode); ?>';
+                
+                // Show/hide mode sections and handle transitions
                 function updateModeSections() {
-                    var mode = $('#art-resource-mode').val();
+                    var selectedMode = $('#art-resource-mode').val();
+                    var isTransition = (selectedMode !== originalMode && originalMode !== 'none');
+                    
+                    // Show the correct mode section
                     $('.mode-section').hide();
-                    $('.mode-section[data-mode="' + mode + '"]').show();
+                    $('.mode-section[data-mode="' + selectedMode + '"]').show();
+                    
+                    // Reset transition UI
+                    $('#mode-transition-banner').hide().empty();
+                    $('#dedicated-resource-picker').hide();
+                    
+                    // Handle transitions between modes
+                    if (isTransition) {
+                        handleModeTransition(originalMode, selectedMode);
+                    }
                 }
                 
-                $('#art-resource-mode').on('change', updateModeSections);
+                function handleModeTransition(fromMode, toMode) {
+                    var $banner = $('#mode-transition-banner');
+                    
+                    if (fromMode === 'shared_pool' && toMode === 'mirrored') {
+                        // POOL → DEDICATED: Show radio picker, hide normal mirrored UI
+                        $banner.html(
+                            '<div style="padding: 12px; background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 6px; margin-bottom: 12px; font-size: 13px; color: #92400E;">' +
+                                '<strong>⚠️ <?php _e('Switching from Resource Pool to Dedicated Resource', 'amelia-cpt-sync'); ?></strong><br>' +
+                                '<?php _e('Select which resource to keep. The others will be unlinked from this service on save. (They will still exist in Amelia.)', 'amelia-cpt-sync'); ?>' +
+                            '</div>'
+                        ).show();
+                        
+                        // Hide the normal mirrored edit/new state
+                        $('#resource-default-state').hide();
+                        $('#resource-select-state').hide();
+                        
+                        // Show the resource picker radio list
+                        $('#dedicated-resource-picker').show();
+                        
+                        // Pre-select pool resources if they exist (from checkboxes)
+                        var firstPoolResource = $('input[name="resource_config[pool_resources][]"]:checked').first().val();
+                        if (firstPoolResource) {
+                            $('input[name="resource_config[transition_resource_id]"][value="' + firstPoolResource + '"]').prop('checked', true);
+                        }
+                        
+                    } else if (fromMode === 'mirrored' && toMode === 'shared_pool') {
+                        // DEDICATED → POOL: Auto-check the dedicated resource in pool list
+                        var dedicatedId = '<?php echo esc_js($mirrored_resource_id ?? ''); ?>';
+                        
+                        $banner.html(
+                            '<div style="padding: 12px; background: #DBEAFE; border: 1px solid #3B82F6; border-radius: 6px; margin-bottom: 12px; font-size: 13px; color: #1E40AF;">' +
+                                '<strong>ℹ️ <?php _e('Switching from Dedicated Resource to Resource Pool', 'amelia-cpt-sync'); ?></strong><br>' +
+                                '<?php _e('Your current dedicated resource will be added to the pool. You can select additional resources below.', 'amelia-cpt-sync'); ?>' +
+                            '</div>'
+                        ).show();
+                        
+                        // Auto-check the dedicated resource in pool checkboxes
+                        if (dedicatedId) {
+                            $('input[name="resource_config[pool_resources][]"][value="' + dedicatedId + '"]').prop('checked', true);
+                        }
+                        
+                    } else if (toMode === 'none') {
+                        // ANY → NONE: Info banner
+                        $banner.html(
+                            '<div style="padding: 12px; background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 6px; margin-bottom: 12px; font-size: 13px; color: #475569;">' +
+                                '<strong>ℹ️ <?php _e('Removing Resource Tracking', 'amelia-cpt-sync'); ?></strong><br>' +
+                                '<?php _e('Resources will be unlinked from this service on save. Existing resources will not be deleted from Amelia.', 'amelia-cpt-sync'); ?>' +
+                            '</div>'
+                        ).show();
+                    }
+                }
                 
-                // Initialize on load
+                // When radio is selected in transition picker, update the mirrored form fields
+                $(document).on('change', 'input[name="resource_config[transition_resource_id]"]', function() {
+                    var $selected = $(this);
+                    var resName = $selected.data('name');
+                    var resQty = $selected.data('quantity');
+                    var resId = $selected.val();
+                    
+                    // Update the mirrored form fields so save handler picks them up
+                    $('#resource_name').val(resName);
+                    $('#resource_quantity').val(resQty);
+                    $('#selected_resource_id').val(resId);
+                    $('#resource_action').val('switch');
+                    
+                    console.log('[Mode Transition] Selected resource #' + resId + ': ' + resName + ' (' + resQty + ' units)');
+                });
+                
+                // When user switches back to original mode, restore normal UI
+                $('#art-resource-mode').on('change', function() {
+                    var selectedMode = $(this).val();
+                    
+                    // Restore mirrored default state visibility when not transitioning
+                    if (selectedMode === 'mirrored' && selectedMode === originalMode) {
+                        $('#resource-default-state').show();
+                        $('#dedicated-resource-picker').hide();
+                    }
+                    
+                    updateModeSections();
+                });
+                
+                // Initialize on load (no transition on first render)
                 updateModeSections();
             });
             </script>
