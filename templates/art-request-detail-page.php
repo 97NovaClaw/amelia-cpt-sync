@@ -6829,30 +6829,24 @@ jQuery(document).ready(function($) {
         });
         
         if (isCompositeMode) {
-            // COMPOSITE MODE: Select one per group (don't clear other groups)
-            var $group = item.closest('.composite-group-display');
+            // COMPOSITE MODE: Multi-select toggle within each group, persists across groups
+            // Each click toggles that card on/off without affecting other cards
             
             if (item.hasClass('selected')) {
-                // Deselect within this group
                 item.removeClass('selected');
-                console.log('ART DEBUG: Deselected resource #' + resourceId + ' from group');
+                console.log('ART DEBUG: Composite deselected resource #' + resourceId);
             } else {
-                // Deselect only within THIS group, then select clicked
-                $group.find('.resource-item').removeClass('selected');
                 item.addClass('selected');
-                console.log('ART DEBUG: Selected resource #' + resourceId + ' in group');
+                console.log('ART DEBUG: Composite selected resource #' + resourceId);
             }
             
-            // Update selectedResources array (one per group)
+            // Rebuild selectedResources: flat array of ALL selected resource IDs across all groups
             resourceState.selectedResources = [];
-            $('.composite-group-display').each(function() {
-                var $selectedInGroup = $(this).find('.resource-item.selected');
-                if ($selectedInGroup.length) {
-                    resourceState.selectedResources.push(parseInt($selectedInGroup.data('resource-id')));
-                }
+            $('.composite-group-display .resource-item.selected').each(function() {
+                resourceState.selectedResources.push(parseInt($(this).data('resource-id')));
             });
             
-            console.log('ART DEBUG: Composite selections:', resourceState.selectedResources);
+            console.log('ART DEBUG: Composite selections (all groups):', resourceState.selectedResources);
             
         } else {
             // POOL / MIRRORED MODE: Single selection across all resources
