@@ -341,12 +341,13 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                             $active_booking->service_id = $appointment_full->serviceId;
                             $active_booking->category_id = $appointment_full->category_id;
                             
-                            // All assigned resources (for composite mode)
+                            // All assigned resources (for composite mode - includes quantity_used)
                             $active_booking->all_resources = array();
                             foreach ($assigned_resources_all as $ar) {
                                 $active_booking->all_resources[] = array(
                                     'id' => intval($ar->resource_id),
-                                    'name' => $ar->resource_name
+                                    'name' => $ar->resource_name,
+                                    'quantity_used' => intval($ar->quantity_used)
                                 );
                             }
                             
@@ -5237,11 +5238,17 @@ jQuery(document).ready(function($) {
                         };
                     }
                     
-                    // Update plural activeResources (for composite mode)
+                    // Update plural activeResources (for composite mode — includes quantity)
                     artDetailData.activeResources = [];
-                    selectedResourceIds.forEach(function(resId) {
+                    selectedResourceIds.forEach(function(sel) {
+                        var resId = (typeof sel === 'object') ? sel.resource_id : sel;
+                        var resQty = (typeof sel === 'object') ? sel.quantity : 1;
                         var resName = $('.resource-item[data-resource-id="' + resId + '"]').find('.resource-name').text();
-                        artDetailData.activeResources.push({ id: resId, name: resName || 'Resource #' + resId });
+                        artDetailData.activeResources.push({ 
+                            id: parseInt(resId), 
+                            name: resName || 'Resource #' + resId,
+                            quantity_used: resQty
+                        });
                     });
                     
                     console.log('ART DEBUG: Updated activeResources:', artDetailData.activeResources);
@@ -6131,16 +6138,24 @@ jQuery(document).ready(function($) {
         html += headerIcon + ' ' + headerText;
         html += '</div>';
         
-        // Track auto-selected resource IDs for post-render highlighting
-        var autoSelectedIds = [];
+        // Track auto-selected resources for post-render qty/highlight setup
+        // Each entry: {resource_id, quantity}
+        var autoSelections = [];
         
         // Check if viewing current booking with active resources
         var isInCurrentMode = (typeof bookingViewState !== 'undefined' && bookingViewState.mode === 'current');
-        var activeResources = (artDetailData.activeResources || []);  // Array for composite mode
-        // Fallback: single activeResource for backward compat
+        var activeResources = (artDetailData.activeResources || []);
         if (activeResources.length === 0 && artDetailData.activeResource) {
             activeResources = [artDetailData.activeResource];
         }
+        
+        // Build a lookup of active resource quantities (from saved booking)
+        var activeResourceQtyMap = {};
+        activeResources.forEach(function(ar) {
+            var rid = ar.id || ar;
+            var qty = ar.quantity_used || ar.quantity || 1;
+            activeResourceQtyMap[rid] = qty;
+        });
         
         // Render each requirement group
         groups.forEach(function(group, groupIdx) {
@@ -6148,17 +6163,37 @@ jQuery(document).ready(function($) {
             var groupLabel = group.label || ('Group ' + (groupIdx + 1));
             var qtyNeeded = group.quantity_needed || 1;
             
-            // Determine the selected resource for this group
-            var selectedId = null;
-            if (isInCurrentMode && activeResources.length > groupIdx) {
-                // Current booking mode: use active resource for this group
-                selectedId = activeResources[groupIdx].id || activeResources[groupIdx];
-            } else if (group.selected && group.selected.id) {
-                // Exploring mode: use orchestrator auto-selection
-                selectedId = group.selected.id;
+            // Determine initial selections for this group
+            // In current-booking mode: use saved assignment data (with quantities)
+            // In exploring mode: use orchestrator auto-selection
+            if (isInCurrentMode) {
+                // Find active resources that belong to this group
+                var groupResIds = (group.resources || []).map(function(r) { return r.id; });
+                activeResources.forEach(function(ar) {
+                    var rid = ar.id || ar;
+                    if (groupResIds.indexOf(rid) !== -1 || groupResIds.indexOf(parseInt(rid)) !== -1) {
+                        autoSelections.push({
+                            resource_id: parseInt(rid),
+                            quantity: ar.quantity_used || ar.quantity || 1
+                        });
+                    }
+                });
+            } else if (group.selected) {
+                // Orchestrator auto-selection (could be array of {id, name, quantity} or single object)
+                if (Array.isArray(group.selected)) {
+                    group.selected.forEach(function(sel) {
+                        autoSelections.push({
+                            resource_id: parseInt(sel.id),
+                            quantity: sel.quantity || 1
+                        });
+                    });
+                } else if (group.selected.id) {
+                    autoSelections.push({
+                        resource_id: parseInt(group.selected.id),
+                        quantity: qtyNeeded
+                    });
+                }
             }
-            
-            if (selectedId) autoSelectedIds.push(parseInt(selectedId));
             
             // Group header
             var statusText = groupSatisfied ? '✓ <?php _e('Satisfied', 'amelia-cpt-sync'); ?>' : 
@@ -6212,17 +6247,22 @@ jQuery(document).ready(function($) {
         
         $container.append(html);
         
-        // Post-render: Apply .selected class to orchestrator auto-selected resources
-        if (autoSelectedIds.length > 0) {
+        // Post-render: Set qty inputs and apply selections from saved/orchestrator data
+        if (autoSelections.length > 0) {
             setTimeout(function() {
-                autoSelectedIds.forEach(function(resId) {
-                    $('.resource-item[data-resource-id="' + resId + '"]').addClass('selected');
+                autoSelections.forEach(function(sel) {
+                    var $input = $('.composite-qty-select[data-resource-id="' + sel.resource_id + '"]');
+                    if ($input.length) {
+                        var maxQty = parseInt($input.data('max-qty')) || 1;
+                        var qty = Math.min(sel.quantity, maxQty);
+                        $input.val(qty).trigger('change');
+                    } else {
+                        // No qty input (unavailable resource) — just highlight
+                        $('.resource-item[data-resource-id="' + sel.resource_id + '"]').addClass('selected');
+                    }
                 });
                 
-                // Populate resourceState for booking flow
-                resourceState.selectedResources = autoSelectedIds;
-                
-                console.log('ART DEBUG: Composite auto-selected resources:', autoSelectedIds);
+                console.log('ART DEBUG: Composite auto-selections applied:', autoSelections);
             }, 50);
         }
     }
@@ -6650,12 +6690,17 @@ jQuery(document).ready(function($) {
         if (arguments.length > 6 && arguments[6] === true && status !== 'unavailable') {
             // showCompositeQty flag passed as 7th argument
             var maxQty = (quantityInfo && quantityInfo.available) ? quantityInfo.available : 1;
+            var isReadonly = (maxQty <= 1);
+            var readonlyAttr = isReadonly ? 'readonly' : '';
+            var readonlyStyle = isReadonly ? 'background: #F1F5F9; color: #64748B; cursor: default;' : '';
+            
             qtyInputHtml = '<div class="resource-qty-input" style="display: flex; align-items: center; gap: 4px; margin: 0 8px; flex-shrink: 0;">' +
                 '<input type="number" class="composite-qty-select" ' +
                        'data-resource-id="' + id + '" ' +
                        'data-max-qty="' + maxQty + '" ' +
                        'min="0" max="' + maxQty + '" value="0" ' +
-                       'style="width: 48px; padding: 4px 6px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 12px; text-align: center;">' +
+                       readonlyAttr + ' ' +
+                       'style="width: 48px; padding: 4px 6px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 12px; text-align: center; ' + readonlyStyle + '">' +
             '</div>';
         }
         
