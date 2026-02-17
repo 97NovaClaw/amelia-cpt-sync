@@ -180,7 +180,75 @@ class Amelia_CPT_Sync_ART_Booking_Manager {
             );
         }
         
+        // Check resources (v2.37.0 - composite mode support)
+        $new_resources = $new['selected_resources'] ?? array();
+        if (!empty($new_resources)) {
+            $existing_resources = $this->get_existing_resource_assignments($existing['appointment_id']);
+            
+            if ($this->resources_differ($existing_resources, $new_resources)) {
+                $changes[] = array(
+                    'field' => 'resources',
+                    'from' => $existing_resources,
+                    'to' => $new_resources
+                );
+                amelia_cpt_sync_debug_log('ART Booking Manager: Resource change detected', array(
+                    'existing' => $existing_resources,
+                    'new' => $new_resources
+                ));
+            }
+        }
+        
         return $changes;
+    }
+    
+    /**
+     * Get current resource assignments for an appointment
+     */
+    private function get_existing_resource_assignments($appointment_id) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'art_resource_assignments';
+        
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT amelia_resource_id as resource_id, quantity_used as quantity 
+             FROM $table 
+             WHERE amelia_appointment_id = %d AND status = 'active'
+             ORDER BY id ASC",
+            $appointment_id
+        ), ARRAY_A);
+        
+        $result = array();
+        foreach ($rows as $row) {
+            $result[] = array(
+                'resource_id' => intval($row['resource_id']),
+                'quantity' => intval($row['quantity'])
+            );
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Check if two resource selection arrays differ
+     */
+    private function resources_differ($existing, $new) {
+        // Normalize both to sorted arrays of "id:qty" strings for easy comparison
+        $existing_keys = array();
+        foreach ($existing as $r) {
+            $rid = $r['resource_id'] ?? $r['id'] ?? 0;
+            $qty = $r['quantity'] ?? $r['quantity_used'] ?? 1;
+            $existing_keys[] = $rid . ':' . $qty;
+        }
+        sort($existing_keys);
+        
+        $new_keys = array();
+        foreach ($new as $r) {
+            $rid = $r['resource_id'] ?? $r['id'] ?? 0;
+            $qty = $r['quantity'] ?? 1;
+            $new_keys[] = $rid . ':' . $qty;
+        }
+        sort($new_keys);
+        
+        return $existing_keys !== $new_keys;
     }
     
     /**
@@ -209,6 +277,7 @@ class Amelia_CPT_Sync_ART_Booking_Manager {
         $has_service_change = false;
         $has_duration_change = false;
         $has_status_change = false;
+        $has_resource_change = false;
         
         foreach ($changes as $change) {
             switch ($change['field']) {
@@ -227,10 +296,13 @@ class Amelia_CPT_Sync_ART_Booking_Manager {
                 case 'status':
                     $has_status_change = true;
                     break;
+                case 'resources':
+                    $has_resource_change = true;
+                    break;
             }
         }
         
-        $has_details_change = $has_datetime_change || $has_provider_change || $has_service_change || $has_duration_change;
+        $has_details_change = $has_datetime_change || $has_provider_change || $has_service_change || $has_duration_change || $has_resource_change;
         
         // Service/duration change = must create new booking (different appointment type)
         if ($has_service_change || $has_duration_change) {

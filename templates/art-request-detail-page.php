@@ -5179,7 +5179,7 @@ jQuery(document).ready(function($) {
             location_id: $('#pillar-location').val() || null,
             persons: $('#pillar-persons').val() || 1,
             selected_customer_id: selectedCustomerId, // Include fuzzy match selection
-            selected_resources: getSelectedResources() // Include manual resource selection
+            selected_resources: JSON.stringify(getSelectedResources()) // JSON-encode for composite {resource_id, quantity} objects
         }, function(response) {
             btn.prop('disabled', false);
             btn.html(originalText);
@@ -5980,6 +5980,18 @@ jQuery(document).ready(function($) {
             showResourceBlockedProviders(data.resource_message);
         } else {
             renderAvailabilityEngineResults(data.providers, data.error, data.message);
+        }
+        
+        // Re-apply provider highlight after render (prevents flicker from multiple orchestrator calls)
+        if (selectedProviderId) {
+            setTimeout(function() {
+                var $providerCard = $('.provider-item[data-provider-id="' + selectedProviderId + '"]');
+                if ($providerCard.length && !$providerCard.hasClass('selected')) {
+                    $providerCard.addClass('selected');
+                    $('#picker-confirm-section').show();
+                    $('#btn-use-custom-time').prop('disabled', false);
+                }
+            }, 60);
         }
     }
     

@@ -1733,6 +1733,38 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
     }
     
     /**
+     * Parse selected_resources from JSON string
+     * Handles both composite [{resource_id, quantity}] and flat [id, id] formats
+     */
+    private function parse_selected_resources($raw) {
+        if (empty($raw)) return array();
+        
+        // Decode JSON string
+        $decoded = json_decode(stripslashes($raw), true);
+        if (!is_array($decoded)) return array();
+        
+        // Normalize: ensure each entry has resource_id and quantity
+        $result = array();
+        foreach ($decoded as $item) {
+            if (is_array($item) && isset($item['resource_id'])) {
+                // Composite format: {resource_id: 5, quantity: 2}
+                $result[] = array(
+                    'resource_id' => absint($item['resource_id']),
+                    'quantity' => max(1, absint($item['quantity'] ?? 1))
+                );
+            } elseif (is_numeric($item)) {
+                // Flat format: just an ID
+                $result[] = array(
+                    'resource_id' => absint($item),
+                    'quantity' => 1
+                );
+            }
+        }
+        
+        return $result;
+    }
+    
+    /**
      * AJAX: Unified booking management endpoint (Quick Win)
      * 
      * Handles all booking operations through centralized decision engine
@@ -1755,9 +1787,7 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             'desired_status' => sanitize_key($_POST['desired_status'] ?? 'confirmed'),
             'location_id' => !empty($_POST['location_id']) ? absint($_POST['location_id']) : null,
             'persons' => absint($_POST['persons'] ?? 1),
-            'selected_resources' => isset($_POST['selected_resources']) 
-                ? array_map('absint', (array)$_POST['selected_resources']) 
-                : array()
+            'selected_resources' => $this->parse_selected_resources($_POST['selected_resources'] ?? '[]')
         ));
         
         if (is_wp_error($result)) {

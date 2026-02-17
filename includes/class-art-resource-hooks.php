@@ -359,7 +359,52 @@ class ART_Resource_Hooks {
     public function handle_booking_updated($request_id, $appointment_id, $booking_data) {
         amelia_cpt_sync_debug_log('ART Resource Hooks: Booking updated for request #' . $request_id);
         
-        // For now, just log - resource reassignment logic can be added later if needed
+        $service_id = $booking_data['service_id'] ?? null;
+        $selected_resources = $booking_data['selected_resources'] ?? array();
+        
+        if (!$service_id || empty($selected_resources)) {
+            amelia_cpt_sync_debug_log('ART Resource Hooks: No resources to update (service_id: ' . $service_id . ', selected: ' . count($selected_resources) . ')');
+            return;
+        }
+        
+        // Step 1: Release old assignments
+        amelia_cpt_sync_debug_log('ART Resource Hooks: Releasing old resource assignments for request #' . $request_id);
+        $this->resource_manager->release_resources($request_id);
+        
+        // Step 2: Assign new resources (same logic as handle_booking_created)
+        $config = $this->resource_manager->get_service_config($service_id);
+        $resource_ids = array();
+        $quantities = array();
+        
+        // Check if selected_resources contains {resource_id, quantity} objects
+        $has_qty_data = false;
+        if (!empty($selected_resources)) {
+            $first = reset($selected_resources);
+            $has_qty_data = is_array($first) && isset($first['resource_id']);
+        }
+        
+        if ($has_qty_data) {
+            // Composite format: [{resource_id: 5, quantity: 2}, ...]
+            foreach ($selected_resources as $sel) {
+                $rid = absint($sel['resource_id'] ?? 0);
+                $qty = max(1, absint($sel['quantity'] ?? 1));
+                if ($rid > 0) {
+                    $resource_ids[] = $rid;
+                    $quantities[] = $qty;
+                }
+            }
+            amelia_cpt_sync_debug_log('ART Resource Hooks: Re-assigning ' . count($resource_ids) . ' resources (composite format)');
+        } else {
+            // Flat format or mode-specific — fall through to handle_booking_created logic
+            amelia_cpt_sync_debug_log('ART Resource Hooks: Falling back to handle_booking_created logic for re-assignment');
+            $this->handle_booking_created($request_id, $appointment_id, $booking_data);
+            return;
+        }
+        
+        if (!empty($resource_ids)) {
+            $this->resource_manager->assign_resources($request_id, $appointment_id, $resource_ids, $quantities);
+            amelia_cpt_sync_debug_log('ART Resource Hooks: Re-assigned ' . count($resource_ids) . ' resources: [' . implode(', ', $resource_ids) . '] with quantities: [' . implode(', ', $quantities) . ']');
+        }
     }
     
     /**
