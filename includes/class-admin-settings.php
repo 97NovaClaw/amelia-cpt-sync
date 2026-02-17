@@ -914,48 +914,6 @@ class Amelia_CPT_Sync_Admin_Settings {
                     </div>
                     <?php endif; ?>
                     
-                    <!-- Transition: Select from all resources (shown when switching from Pool→Dedicated) -->
-                    <div id="dedicated-resource-picker" style="display: none; margin-top: 16px;">
-                        <div class="resource-edit-section">
-                            <h4><?php _e('Select Dedicated Resource', 'amelia-cpt-sync'); ?></h4>
-                            <p class="description" style="margin-bottom: 8px;"><?php _e('Choose which resource to keep as the dedicated item for this service.', 'amelia-cpt-sync'); ?></p>
-                            <div class="resource-pool-list" style="max-height: 250px; overflow-y: auto; border: 1px solid #E0E5F1; border-radius: 6px; background: #fff;">
-                                <?php foreach ($all_resources_raw as $res): ?>
-                                <div class="resource-pool-item">
-                                    <label>
-                                        <input type="radio" 
-                                               name="resource_config[transition_resource_id]" 
-                                               value="<?php echo esc_attr($res['id']); ?>"
-                                               data-name="<?php echo esc_attr($res['name']); ?>"
-                                               data-quantity="<?php echo esc_attr($res['quantity']); ?>"
-                                               style="margin: 0;">
-                                        <span class="pool-item-name"><?php echo esc_html($res['name']); ?></span>
-                                        <span class="units-badge"><?php echo esc_html($res['quantity']); ?> <?php echo $res['quantity'] > 1 ? 'units' : 'unit'; ?></span>
-                                        <?php 
-                                        // Show linked services
-                                        $radio_linked = array();
-                                        if (!empty($res['entities'])) {
-                                            foreach ($res['entities'] as $entity) {
-                                                $etype = $entity['entity_type'] ?? $entity['entityType'];
-                                                $eid = $entity['entity_id'] ?? $entity['entityId'];
-                                                if ($etype === 'service' && $eid != $service_id) {
-                                                    $sdata = $this->get_amelia_service_by_id($eid);
-                                                    if ($sdata) $radio_linked[] = $sdata['name'];
-                                                }
-                                            }
-                                        }
-                                        if (!empty($radio_linked)): ?>
-                                            <span class="linked-badge" title="Also used by: <?php echo esc_attr(implode(', ', $radio_linked)); ?>">
-                                                🔗 <?php echo count($radio_linked); ?> service<?php echo count($radio_linked) > 1 ? 's' : ''; ?>
-                                            </span>
-                                        <?php endif; ?>
-                                    </label>
-                                </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                    
                     <!-- Switch Resource Button -->
                     <button type="button" 
                             id="resource-switch-trigger" 
@@ -963,6 +921,48 @@ class Amelia_CPT_Sync_Admin_Settings {
                         <span class="dashicons dashicons-update"></span>
                         <?php _e('Switch to different resource', 'amelia-cpt-sync'); ?>
                     </button>
+                </div>
+                
+                <!-- Transition: Select from all resources (OUTSIDE resource-default-state so it's visible when parent is hidden) -->
+                <div id="dedicated-resource-picker" style="display: none; margin-top: 16px;">
+                    <div class="resource-edit-section">
+                        <h4><?php _e('Select Dedicated Resource', 'amelia-cpt-sync'); ?></h4>
+                        <p class="description" style="margin-bottom: 8px;"><?php _e('Choose which resource to keep as the dedicated item for this service.', 'amelia-cpt-sync'); ?></p>
+                        <div class="resource-pool-list" style="max-height: 250px; overflow-y: auto; border: 1px solid #E0E5F1; border-radius: 6px; background: #fff;">
+                            <?php foreach ($all_resources_raw as $res): ?>
+                            <div class="resource-pool-item">
+                                <label>
+                                    <input type="radio" 
+                                           name="resource_config[transition_resource_id]" 
+                                           value="<?php echo esc_attr($res['id']); ?>"
+                                           data-name="<?php echo esc_attr($res['name']); ?>"
+                                           data-quantity="<?php echo esc_attr($res['quantity']); ?>"
+                                           style="margin: 0;">
+                                    <span class="pool-item-name"><?php echo esc_html($res['name']); ?></span>
+                                    <span class="units-badge"><?php echo esc_html($res['quantity']); ?> <?php echo $res['quantity'] > 1 ? 'units' : 'unit'; ?></span>
+                                    <?php 
+                                    // Show linked services
+                                    $radio_linked = array();
+                                    if (!empty($res['entities'])) {
+                                        foreach ($res['entities'] as $entity) {
+                                            $etype = $entity['entity_type'] ?? $entity['entityType'];
+                                            $eid = $entity['entity_id'] ?? $entity['entityId'];
+                                            if ($etype === 'service' && $eid != $service_id) {
+                                                $sdata = $this->get_amelia_service_by_id($eid);
+                                                if ($sdata) $radio_linked[] = $sdata['name'];
+                                            }
+                                        }
+                                    }
+                                    if (!empty($radio_linked)): ?>
+                                        <span class="linked-badge" title="Also used by: <?php echo esc_attr(implode(', ', $radio_linked)); ?>">
+                                            🔗 <?php echo count($radio_linked); ?> service<?php echo count($radio_linked) > 1 ? 's' : ''; ?>
+                                        </span>
+                                    <?php endif; ?>
+                                </label>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- SELECT STATE: Shows resource picker (Appendix K.4.2) -->
