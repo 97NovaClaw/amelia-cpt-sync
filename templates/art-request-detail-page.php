@@ -6255,10 +6255,24 @@ jQuery(document).ready(function($) {
                     if ($input.length) {
                         var maxQty = parseInt($input.data('max-qty')) || 1;
                         var qty = Math.min(sel.quantity, maxQty);
-                        $input.val(qty).trigger('change');
+                        // Directly set value and visual state
+                        $input.val(qty);
+                        var $card = $input.closest('.resource-item');
+                        if (qty > 0) {
+                            $card.addClass('selected');
+                        }
                     } else {
                         // No qty input (unavailable resource) — just highlight
-                        $('.resource-item[data-resource-id="' + sel.resource_id + '"]').addClass('selected');
+                        var $card = $('.resource-item[data-resource-id="' + sel.resource_id + '"]');
+                        $card.addClass('selected');
+                    }
+                });
+                
+                // Update all group totals
+                $('.composite-group-display').each(function() {
+                    var $firstInput = $(this).find('.composite-qty-select').first();
+                    if ($firstInput.length) {
+                        updateCompositeGroupTotal($firstInput);
                     }
                 });
                 
@@ -6895,23 +6909,28 @@ jQuery(document).ready(function($) {
         });
         
         if (isCompositeMode) {
-            // COMPOSITE MODE: Click toggles card, qty input controls quantity
+            // COMPOSITE MODE: Click toggles card and qty
             var $qtyInput = item.find('.composite-qty-select');
             
             if ($qtyInput.length) {
-                // Has qty input: toggle between 0 and 1 (user can adjust further)
                 var currentQty = parseInt($qtyInput.val()) || 0;
                 if (currentQty > 0) {
-                    $qtyInput.val(0).trigger('change');
+                    // Deselect: set to 0
+                    $qtyInput.val(0);
+                    item.removeClass('selected');
                 } else {
-                    $qtyInput.val(1).trigger('change');
+                    // Select: set to 1
+                    $qtyInput.val(1);
+                    item.addClass('selected');
                 }
+                // Update group total and state
+                updateCompositeGroupTotal($qtyInput);
             } else {
                 // No qty input (unavailable): just toggle visual
                 item.toggleClass('selected');
             }
             
-            return; // qty change handler below handles state update
+            return;
             
         } else {
             // POOL / MIRRORED MODE: Single selection across all resources
@@ -6934,11 +6953,10 @@ jQuery(document).ready(function($) {
         }
     });
     
-    // Composite mode: Quantity input change handler
-    $(document).on('change input', '.composite-qty-select', function(e) {
-        e.stopPropagation(); // Don't bubble to card click
+    // Shared function: update composite group totals + visual state + resourceState
+    function updateCompositeGroupTotal($input) {
+        if (!$input || !$input.length) return;
         
-        var $input = $(this);
         var resourceId = parseInt($input.data('resource-id'));
         var maxQty = parseInt($input.data('max-qty')) || 1;
         var qty = parseInt($input.val()) || 0;
@@ -6958,21 +6976,22 @@ jQuery(document).ready(function($) {
         
         // Update group total display
         var $group = $input.closest('.composite-group-display');
-        var groupIdx = $group.data('group-index');
-        var groupTotal = 0;
-        $group.find('.composite-qty-select').each(function() {
-            groupTotal += parseInt($(this).val()) || 0;
-        });
-        
-        var $totalDisplay = $('.composite-group-total[data-group-index="' + groupIdx + '"]');
-        var qtyNeeded = parseInt($totalDisplay.data('qty-needed')) || 1;
-        $totalDisplay.find('.group-total-count').text(groupTotal);
-        
-        // Color the total: green if met, red if not
-        if (groupTotal >= qtyNeeded) {
-            $totalDisplay.css('color', '#059669');
-        } else {
-            $totalDisplay.css('color', '#DC2626');
+        if ($group.length) {
+            var groupIdx = $group.data('group-index');
+            var groupTotal = 0;
+            $group.find('.composite-qty-select').each(function() {
+                groupTotal += parseInt($(this).val()) || 0;
+            });
+            
+            var $totalDisplay = $('.composite-group-total[data-group-index="' + groupIdx + '"]');
+            var qtyNeeded = parseInt($totalDisplay.data('qty-needed')) || 1;
+            $totalDisplay.find('.group-total-count').text(groupTotal);
+            
+            if (groupTotal >= qtyNeeded) {
+                $totalDisplay.css('color', '#059669');
+            } else {
+                $totalDisplay.css('color', '#DC2626');
+            }
         }
         
         // Rebuild selectedResources: array of {resource_id, quantity} objects
@@ -6986,9 +7005,12 @@ jQuery(document).ready(function($) {
                 });
             }
         });
-        
-        console.log('ART DEBUG: Composite qty change - resource #' + resourceId + ' = ' + qty + ', group total: ' + groupTotal + '/' + qtyNeeded);
-        console.log('ART DEBUG: Composite selections:', resourceState.selectedResources);
+    }
+    
+    // Composite mode: Quantity input change/input handler (for manual typing)
+    $(document).on('change input', '.composite-qty-select', function(e) {
+        e.stopPropagation();
+        updateCompositeGroupTotal($(this));
     });
     
     // Prevent qty input click from triggering card click
