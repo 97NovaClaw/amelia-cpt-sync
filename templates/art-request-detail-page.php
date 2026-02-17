@@ -6499,13 +6499,25 @@ jQuery(document).ready(function($) {
         
         providerList.html(html);
         
-        // No need to visually select the provider - "Currently Selected Provider" header makes it clear
-        // Just set the selectedProviderId variable so buttons work
+        // Set provider selection from existing booking + apply visual highlight
         if (artDetailData.hasActiveBooking && artDetailData.existingBookedProviderId && !hasAutoSelectedProvider) {
             hasAutoSelectedProvider = true;
             selectedProviderId = artDetailData.existingBookedProviderId;
             
-            console.log('ART DEBUG: Set selectedProviderId from existing booking (no visual selection needed):', selectedProviderId);
+            // Apply blue highlight to the currently selected provider card
+            setTimeout(function() {
+                var $providerCard = $('.provider-item[data-provider-id="' + selectedProviderId + '"]');
+                if ($providerCard.length) {
+                    $providerCard.addClass('selected');
+                    
+                    // Also set hidden input and show confirm section
+                    $('#selected-provider-id').val(selectedProviderId);
+                    $('#picker-confirm-section').show();
+                    $('#btn-use-custom-time').prop('disabled', false);
+                }
+            }, 50);
+            
+            console.log('ART DEBUG: Set selectedProviderId from existing booking with visual selection:', selectedProviderId);
         }
     }
     
