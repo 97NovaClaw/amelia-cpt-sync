@@ -323,21 +323,53 @@
                     is_new_service: window.resourceModalState.isNewService ? '1' : '0'
                 };
             } else {
-                // Shared Pool mode: Collect pool resources
-                var poolCheckboxes = $('input[name="resource_config[pool_resources][]"]:checked');
-                if (poolCheckboxes.length) {
+                // Check if we're in Shared Pool mode (section exists in DOM)
+                var isPoolMode = $('.resource-pool-config').length > 0;
+                
+                if (isPoolMode) {
+                    // Shared Pool mode: Collect pool resources from checkboxes
                     resourceConfig.pool_resources = [];
-                    poolCheckboxes.each(function() {
+                    $('input[name="resource_config[pool_resources][]"]:checked').each(function() {
                         resourceConfig.pool_resources.push($(this).val());
                     });
                     
+                    // Always collect pool settings
                     resourceConfig.selection_strategy = $('#selection_strategy').val() || 'first_available';
                     resourceConfig.quantity_per_booking = $('#quantity_per_booking').val() || 1;
                     resourceConfig.is_new_service = window.isNewServiceFlag ? '1' : '0';
                     
-                    console.log('[Amelia CPT Sync] Pool config: ' + resourceConfig.pool_resources.length + ' resources, strategy: ' + resourceConfig.selection_strategy);
+                    // NEW: Collect repeater data (new resources to create)
+                    var newPoolResources = {};
+                    var newResourceCount = 0;
+                    
+                    $('#pool-resource-repeater-body tr').each(function() {
+                        var $row = $(this);
+                        var rowId = $row.data('row-id');
+                        var nameInput = $row.find('input[name*="[name]"]');
+                        var quantityInput = $row.find('input[name*="[quantity]"]');
+                        
+                        if (nameInput.length && rowId) {
+                            var name = nameInput.val();
+                            var quantity = quantityInput.val();
+                            
+                            if (name && name.trim() !== '') {
+                                newPoolResources[rowId] = {
+                                    name: name.trim(),
+                                    quantity: parseInt(quantity) || 1
+                                };
+                                newResourceCount++;
+                            }
+                        }
+                    });
+                    
+                    if (newResourceCount > 0) {
+                        resourceConfig.new_pool_resources = newPoolResources;
+                        console.log('[Amelia CPT Sync] New pool resources to create: ' + newResourceCount);
+                    }
+                    
+                    console.log('[Amelia CPT Sync] Pool config: ' + resourceConfig.pool_resources.length + ' existing + ' + newResourceCount + ' new, strategy: ' + resourceConfig.selection_strategy);
                 } else {
-                    // Fallback for other modes
+                    // Fallback for other modes (no pool section, no state machine)
                     var resourceSelect = $('#resource_select');
                     if (resourceSelect.length) {
                         resourceConfig.resource_id = resourceSelect.val();
