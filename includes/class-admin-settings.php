@@ -1328,8 +1328,61 @@ class Amelia_CPT_Sync_Admin_Settings {
                     </div>
                 </div>
                 
+                <!-- CREATE NEW RESOURCES Section -->
+                <div class="resource-pool-create-section" style="margin-top: 24px;">
+                    <div class="section-divider" style="display: flex; align-items: center; margin: 20px 0; color: #64748B; font-size: 12px; font-weight: 600; text-transform: uppercase;">
+                        <span style="flex: 1; height: 1px; background: #E0E5F1;"></span>
+                        <span style="padding: 0 12px;"><?php _e('Create New Resources', 'amelia-cpt-sync'); ?></span>
+                        <span style="flex: 1; height: 1px; background: #E0E5F1;"></span>
+                    </div>
+                    
+                    <button type="button" 
+                            id="add-new-pool-resource-trigger" 
+                            class="button button-secondary"
+                            style="margin-bottom: 12px;">
+                        <span class="dashicons dashicons-plus-alt" style="margin-top: 3px;"></span>
+                        <?php _e('Add New Resource to Pool', 'amelia-cpt-sync'); ?>
+                    </button>
+                    
+                    <!-- Repeater Table (hidden initially) -->
+                    <div id="pool-resource-repeater" style="display: none; margin-top: 12px;">
+                        <table class="pool-resource-repeater-table" style="width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #E0E5F1; border-radius: 6px; overflow: hidden;">
+                            <thead>
+                                <tr style="background: #F8FAFC; border-bottom: 2px solid #E0E5F1;">
+                                    <th style="padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 60%;">
+                                        <?php _e('Name', 'amelia-cpt-sync'); ?>
+                                    </th>
+                                    <th style="padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 25%;">
+                                        <?php _e('Quantity', 'amelia-cpt-sync'); ?>
+                                    </th>
+                                    <th style="padding: 10px 12px; text-align: center; font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 15%;">
+                                        <?php _e('Action', 'amelia-cpt-sync'); ?>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="pool-resource-repeater-body">
+                                <!-- Rows will be added here via JavaScript -->
+                            </tbody>
+                        </table>
+                        
+                        <button type="button" 
+                                id="add-another-pool-resource" 
+                                class="button button-link"
+                                style="margin-top: 8px; color: #1A84EE;">
+                            <span class="dashicons dashicons-plus-alt" style="margin-top: 3px;"></span>
+                            <?php _e('Add Another Resource', 'amelia-cpt-sync'); ?>
+                        </button>
+                    </div>
+                </div>
+                
                 <!-- Selection Strategy -->
-                <div class="form-row" style="margin-top: 20px;">
+                <div class="section-divider" style="display: flex; align-items: center; margin: 20px 0; color: #64748B; font-size: 12px; font-weight: 600; text-transform: uppercase;">
+                    <span style="flex: 1; height: 1px; background: #E0E5F1;"></span>
+                    <span style="padding: 0 12px;"><?php _e('Pool Settings', 'amelia-cpt-sync'); ?></span>
+                    <span style="flex: 1; height: 1px; background: #E0E5F1;"></span>
+                </div>
+                
+                <div class="form-row" style="margin-top: 16px;">
                     <label for="selection_strategy" style="font-weight: 600;">
                         <?php _e('Selection Strategy:', 'amelia-cpt-sync'); ?>
                     </label>
@@ -1444,7 +1497,161 @@ class Amelia_CPT_Sync_Admin_Settings {
                 border-radius: 10px;
                 cursor: help;
             }
+            
+            /* Repeater Table Styles (matches pool-list styling) */
+            .pool-resource-repeater-table {
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            }
+            
+            .pool-resource-repeater-table tbody tr {
+                border-bottom: 1px solid #F1F5F9;
+                transition: background 0.2s;
+            }
+            
+            .pool-resource-repeater-table tbody tr:hover {
+                background: #F8FAFC;
+            }
+            
+            .pool-resource-repeater-table tbody tr:last-child {
+                border-bottom: none;
+            }
+            
+            .pool-resource-repeater-table td {
+                padding: 10px 12px;
+            }
+            
+            .pool-resource-repeater-table input[type="text"] {
+                width: 100%;
+                padding: 6px 10px;
+                border: 1px solid #E0E5F1;
+                border-radius: 4px;
+                font-size: 13px;
+            }
+            
+            .pool-resource-repeater-table input[type="number"] {
+                width: 60px;
+                padding: 6px 10px;
+                border: 1px solid #E0E5F1;
+                border-radius: 4px;
+                font-size: 13px;
+                text-align: center;
+            }
+            
+            .pool-repeater-remove {
+                background: none;
+                border: none;
+                color: #DC2626;
+                cursor: pointer;
+                padding: 4px 8px;
+                border-radius: 4px;
+                transition: all 0.2s;
+                font-size: 16px;
+            }
+            
+            .pool-repeater-remove:hover {
+                background: #FEE2E2;
+                color: #991B1B;
+            }
+            
+            .section-divider {
+                margin: 24px 0 16px 0;
+            }
             </style>
+            
+            <!-- JavaScript for Pool Resource Repeater -->
+            <script>
+            jQuery(document).ready(function($) {
+                var poolRepeaterState = {
+                    rows: [],
+                    nextId: 1,
+                    serviceName: '<?php echo esc_js($service_name); ?>',
+                    
+                    init: function() {
+                        this.bindEvents();
+                    },
+                    
+                    bindEvents: function() {
+                        var self = this;
+                        
+                        // Show repeater on first click
+                        $('#add-new-pool-resource-trigger').on('click', function() {
+                            $('#pool-resource-repeater').show();
+                            self.addRow();
+                            $(this).hide(); // Hide trigger, show "Add Another" instead
+                        });
+                        
+                        // Add another row
+                        $('#add-another-pool-resource').on('click', function() {
+                            self.addRow();
+                        });
+                        
+                        // Remove row (delegated event)
+                        $(document).on('click', '.pool-repeater-remove', function() {
+                            var rowId = $(this).data('row-id');
+                            self.removeRow(rowId);
+                        });
+                    },
+                    
+                    addRow: function() {
+                        var rowId = this.nextId++;
+                        var defaultName = this.serviceName + ' Resource #' + rowId;
+                        
+                        var rowHtml = '<tr data-row-id="' + rowId + '">' +
+                            '<td>' +
+                                '<input type="text" ' +
+                                       'name="resource_config[new_pool_resources][' + rowId + '][name]" ' +
+                                       'value="' + defaultName + '" ' +
+                                       'placeholder="Resource name" ' +
+                                       'required>' +
+                            '</td>' +
+                            '<td>' +
+                                '<input type="number" ' +
+                                       'name="resource_config[new_pool_resources][' + rowId + '][quantity]" ' +
+                                       'value="1" ' +
+                                       'min="1" ' +
+                                       'required>' +
+                            '</td>' +
+                            '<td style="text-align: center;">' +
+                                '<button type="button" ' +
+                                        'class="pool-repeater-remove" ' +
+                                        'data-row-id="' + rowId + '" ' +
+                                        'title="<?php _e('Remove', 'amelia-cpt-sync'); ?>">' +
+                                    '<span class="dashicons dashicons-trash"></span>' +
+                                '</button>' +
+                            '</td>' +
+                        '</tr>';
+                        
+                        $('#pool-resource-repeater-body').append(rowHtml);
+                        this.rows.push(rowId);
+                        
+                        console.log('[Pool Repeater] Added row #' + rowId);
+                    },
+                    
+                    removeRow: function(rowId) {
+                        $('tr[data-row-id="' + rowId + '"]').fadeOut(200, function() {
+                            $(this).remove();
+                            
+                            // Hide repeater if no rows left
+                            if ($('#pool-resource-repeater-body tr').length === 0) {
+                                $('#pool-resource-repeater').hide();
+                                $('#add-new-pool-resource-trigger').show();
+                            }
+                        });
+                        
+                        this.rows = this.rows.filter(function(id) { return id !== rowId; });
+                        
+                        console.log('[Pool Repeater] Removed row #' + rowId);
+                    }
+                };
+                
+                // Initialize repeater
+                poolRepeaterState.init();
+                
+                // Expose to global scope
+                window.poolRepeaterState = poolRepeaterState;
+            });
+            </script>
+            
             <?php endif; ?>
             
             <?php if (!empty($definitions)): ?>
@@ -1800,6 +2007,51 @@ class Amelia_CPT_Sync_Admin_Settings {
                 $quantity_per_booking = absint($resource_config['quantity_per_booking'] ?? 1);
                 
                 amelia_cpt_sync_debug_log("Shared Pool config for service #{$service_id}: " . count($pool_resource_ids) . " resources, strategy: {$selection_strategy}");
+                
+                // NEW: Handle created resources from repeater (Lesson #2 - Use API for creation)
+                $new_pool_resources = isset($resource_config['new_pool_resources']) && is_array($resource_config['new_pool_resources']) 
+                    ? $resource_config['new_pool_resources'] 
+                    : array();
+                
+                if (!empty($new_pool_resources)) {
+                    amelia_cpt_sync_debug_log("  → Creating " . count($new_pool_resources) . " new pool resources");
+                    
+                    $resource_api = new ART_Resource_API();
+                    
+                    foreach ($new_pool_resources as $row_id => $new_res) {
+                        // Skip empty rows
+                        if (empty($new_res['name'])) {
+                            amelia_cpt_sync_debug_log("    ⏭️ Skipping empty row #{$row_id}");
+                            continue;
+                        }
+                        
+                        $new_name = sanitize_text_field($new_res['name']);
+                        $new_quantity = max(1, absint($new_res['quantity'] ?? 1));
+                        
+                        amelia_cpt_sync_debug_log("    → Creating: '{$new_name}' (qty: {$new_quantity})");
+                        
+                        // STEP 1: Create via API (same pattern as Mirrored mode!)
+                        // API automatically creates entity link when 'entities' is provided
+                        $created = $resource_api->create_resource(array(
+                            'name' => $new_name,
+                            'quantity' => $new_quantity,
+                            'status' => 'visible',
+                            'entities' => array(
+                                array('entityId' => $service_id, 'entityType' => 'service')
+                            )
+                        ));
+                        
+                        if (!is_wp_error($created)) {
+                            // Add newly created resource to pool list
+                            $pool_resource_ids[] = $created['id'];
+                            amelia_cpt_sync_debug_log("    ✓ Created Resource #{$created['id']}: {$new_name}");
+                        } else {
+                            amelia_cpt_sync_debug_log("    ✗ ERROR creating resource: " . $created->get_error_message());
+                        }
+                    }
+                    
+                    amelia_cpt_sync_debug_log("  ✓ Pool now has " . count($pool_resource_ids) . " total resources (including newly created)");
+                }
                 
                 // Get existing pool configuration for comparison
                 $existing_config = $resource_manager->get_service_config($service_id);
