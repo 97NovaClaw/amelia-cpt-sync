@@ -715,9 +715,10 @@ class Amelia_CPT_Sync_Admin_Settings {
         $definitions = $manager->get_field_definitions();
         $values = $manager->get_service_field_values($service_id);
         
-        // Get GLOBAL resource settings
+        // Get GLOBAL resource settings (used as default for new services)
         $global_settings = get_option('art_resource_settings', array());
         $global_mode = $global_settings['default_mode'] ?? 'none';
+        $resource_enabled = !empty($global_settings['enabled']);
         
         // Get per-service configuration for quantity and linked resource
         $resource_manager = new ART_Resource_Manager();
@@ -726,7 +727,12 @@ class Amelia_CPT_Sync_Admin_Settings {
         $quantity_required = $mode_settings['quantity_required'] ?? 1;
         $mirrored_resource_id = $mode_settings['mirrored_resource_id'] ?? null;
         
-        // Get linked resource details
+        // PER-SERVICE MODE: Read from saved config, fall back to global default
+        $effective_mode = ($resource_config && $resource_config->resource_mode) 
+            ? $resource_config->resource_mode 
+            : $global_mode;
+        
+        // Get linked resource details (for mirrored mode)
         $linked_resource = null;
         if ($mirrored_resource_id) {
             $linked_resource = $resource_manager->get_resource($mirrored_resource_id);
@@ -738,38 +744,36 @@ class Amelia_CPT_Sync_Admin_Settings {
         // Get all resources linked to this service from Amelia
         $all_service_resources = $resource_manager->get_all_service_resources($service_id);
         
-        // Fetch ALL resources for dropdown (if mirrored mode)
-        $all_resources = array();
-        if ($global_mode === 'mirrored') {
-            $data_manager = ART_Amelia_Data_Manager::get_instance();
-            $all_resources_raw = $data_manager->get_all_resources();
+        // Fetch ALL resources (needed for both mirrored dropdown and pool checkboxes)
+        $data_manager = ART_Amelia_Data_Manager::get_instance();
+        $all_resources_raw = $data_manager->get_all_resources();
+        
+        // Mirrored mode needs filtered list (1:1 enforcement)
+        $mirrored_resources = array();
+        foreach ($all_resources_raw as $resource) {
+            $resource_entities = $resource['entities'] ?? [];
+            $has_other_service = false;
             
-            // MIRRORED MODE: Filter to only show unlinked resources (enforce 1:1)
-            // Exclude resources that are already linked to OTHER services
-            foreach ($all_resources_raw as $resource) {
-                $resource_entities = $resource['entities'] ?? [];
-                $has_other_service = false;
+            foreach ($resource_entities as $entity) {
+                $entity_type = $entity['entity_type'] ?? $entity['entityType'] ?? null;
+                $entity_id = $entity['entity_id'] ?? $entity['entityId'] ?? null;
                 
-                // Check if this resource is linked to a DIFFERENT service
-                foreach ($resource_entities as $entity) {
-                    $entity_type = $entity['entity_type'] ?? $entity['entityType'] ?? null;
-                    $entity_id = $entity['entity_id'] ?? $entity['entityId'] ?? null;
-                    
-                    if ($entity_type === 'service' && $entity_id != $service_id) {
-                        $has_other_service = true;
-                        break;
-                    }
+                if ($entity_type === 'service' && $entity_id != $service_id) {
+                    $has_other_service = true;
+                    break;
                 }
-                
-                // Only include if: no service links OR only linked to THIS service
-                if (!$has_other_service) {
-                    $all_resources[] = $resource;
-                }
+            }
+            
+            if (!$has_other_service) {
+                $mirrored_resources[] = $resource;
             }
         }
         
-        // Show modal if custom fields exist OR resource mode needs config
-        $has_content = !empty($definitions) || $global_mode !== 'none';
+        // Pool mode uses all resources (sharing allowed)
+        $all_resources = $all_resources_raw;
+        
+        // Show modal if custom fields exist OR resource management is enabled
+        $has_content = !empty($definitions) || $resource_enabled;
         
         if (!$has_content) {
             wp_send_json_error(array(
@@ -785,10 +789,41 @@ class Amelia_CPT_Sync_Admin_Settings {
             <p><strong>Service:</strong> <?php echo esc_html($service_name); ?> (ID: <?php echo esc_html($service_id); ?>)</p>
             <p class="description">Fill in the custom details for this service. These will be synced to your CPT.</p>
             
-            <!-- RESOURCE CONFIGURATION SECTION (Mode-Specific) -->
-            <!-- Design per Appendix K.4 -->
-            <?php if ($global_mode === 'mirrored'): ?>
-            <h4 style="margin: 20px 0 10px 0;">🔗 <?php _e('Resource Configuration', 'amelia-cpt-sync'); ?></h4>
+            <!-- RESOURCE CONFIGURATION SECTION (Per-Service Mode) -->
+            <?php if ($resource_enabled): ?>
+            
+            <!-- Mode Selector Dropdown -->
+            <div class="resource-mode-selector" style="margin: 20px 0 16px 0;">
+                <label for="art-resource-mode" style="display: block; font-weight: 600; margin-bottom: 6px;">
+                    <?php _e('Resource Mode:', 'amelia-cpt-sync'); ?>
+                </label>
+                <select id="art-resource-mode" name="resource_config[mode]" class="regular-text" style="width: 100%; max-width: 400px;">
+                    <option value="none" <?php selected($effective_mode, 'none'); ?>>
+                        <?php _e('No Resources — This service doesn\'t need any tracked items', 'amelia-cpt-sync'); ?>
+                    </option>
+                    <option value="mirrored" <?php selected($effective_mode, 'mirrored'); ?>>
+                        <?php _e('Dedicated Resource — This service always uses one specific item', 'amelia-cpt-sync'); ?>
+                    </option>
+                    <option value="shared_pool" <?php selected($effective_mode, 'shared_pool'); ?>>
+                        <?php _e('Resource Pool — Pick one available item from a group', 'amelia-cpt-sync'); ?>
+                    </option>
+                    <option value="composite" disabled>
+                        <?php _e('Multi Resource — Needs several different items at once (Coming Soon)', 'amelia-cpt-sync'); ?>
+                    </option>
+                </select>
+            </div>
+            
+            <!-- MODE: None -->
+            <div class="mode-section" data-mode="none" style="display: none;">
+                <div style="padding: 20px; background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px; text-align: center; color: #64748B;">
+                    <span class="dashicons dashicons-info" style="font-size: 24px; margin-bottom: 8px; display: block;"></span>
+                    <?php _e('No resource tracking for this service. Availability will be checked by provider schedule only.', 'amelia-cpt-sync'); ?>
+                </div>
+            </div>
+            
+            <!-- MODE: Dedicated Resource (Mirrored) -->
+            <div class="mode-section" data-mode="mirrored" style="display: none;">
+            <h4 style="margin: 10px 0 10px 0;">🔗 <?php _e('Dedicated Resource', 'amelia-cpt-sync'); ?></h4>
             
             <div id="resource-modal-container" 
                  data-service-id="<?php echo esc_attr($service_id); ?>"
@@ -903,7 +938,7 @@ class Amelia_CPT_Sync_Admin_Settings {
                                 style="width: 100%;">
                             <option value=""><?php _e('— Choose Resource —', 'amelia-cpt-sync'); ?></option>
                             <optgroup label="<?php _e('EXISTING RESOURCES', 'amelia-cpt-sync'); ?>">
-                                <?php foreach ($all_resources as $res): ?>
+                                <?php foreach ($mirrored_resources as $res): ?>
                                     <?php if ($res['id'] != $mirrored_resource_id): // Don't show current ?>
                                         <option value="<?php echo esc_attr($res['id']); ?>" 
                                                 data-name="<?php echo esc_attr($res['name']); ?>"
@@ -1256,20 +1291,17 @@ class Amelia_CPT_Sync_Admin_Settings {
             });
             </script>
             
-            <?php endif; ?>
+            </div><!-- /.mode-section[data-mode="mirrored"] -->
             
-            <?php if ($global_mode === 'shared_pool'): ?>
-            <h4 style="margin: 20px 0 10px 0;">🏊 <?php _e('Resource Pool Configuration', 'amelia-cpt-sync'); ?></h4>
+            <!-- MODE: Resource Pool (Shared Pool) -->
+            <div class="mode-section" data-mode="shared_pool" style="display: none;">
+            <h4 style="margin: 10px 0 10px 0;">🏊 <?php _e('Resource Pool', 'amelia-cpt-sync'); ?></h4>
             
             <?php
             // Get current pool configuration
             $pool_resource_ids = $mode_settings['pool_resource_ids'] ?? array();
             $selection_strategy = $mode_settings['selection_strategy'] ?? 'first_available';
             $quantity_per_booking = $mode_settings['quantity_per_booking'] ?? 1;
-            
-            // Fetch ALL resources (don't filter - sharing is allowed!)
-            $data_manager = ART_Amelia_Data_Manager::get_instance();
-            $all_resources = $data_manager->get_all_resources();
             ?>
             
             <div class="resource-pool-config">
@@ -1652,7 +1684,26 @@ class Amelia_CPT_Sync_Admin_Settings {
             });
             </script>
             
-            <?php endif; ?>
+            </div><!-- /.mode-section[data-mode="shared_pool"] -->
+            
+            <!-- Mode Section Show/Hide JavaScript -->
+            <script>
+            jQuery(document).ready(function($) {
+                // Show/hide mode sections based on dropdown
+                function updateModeSections() {
+                    var mode = $('#art-resource-mode').val();
+                    $('.mode-section').hide();
+                    $('.mode-section[data-mode="' + mode + '"]').show();
+                }
+                
+                $('#art-resource-mode').on('change', updateModeSections);
+                
+                // Initialize on load
+                updateModeSections();
+            });
+            </script>
+            
+            <?php endif; ?><!-- /if resource_enabled -->
             
             <?php if (!empty($definitions)): ?>
             <!-- CUSTOM FIELDS SECTION -->
@@ -1715,17 +1766,82 @@ class Amelia_CPT_Sync_Admin_Settings {
         $manager = new Amelia_CPT_Sync_Custom_Fields_Manager();
         $result = $manager->save_service_field_values($service_id, $values);
         
-        // Save resource configuration using GLOBAL mode
-        $global_settings = get_option('art_resource_settings', array());
-        $global_mode = $global_settings['default_mode'] ?? 'none';
+        // Save resource configuration using PER-SERVICE mode (v2.34.0)
+        $selected_mode = sanitize_text_field($resource_config['mode'] ?? '');
+        if (empty($selected_mode)) {
+            // Fall back to global default if mode not sent from modal
+            $global_settings = get_option('art_resource_settings', array());
+            $selected_mode = $global_settings['default_mode'] ?? 'none';
+        }
         
-        if ($global_mode !== 'none' && !empty($resource_config)) {
-            amelia_cpt_sync_debug_log("Saving resource configuration for service {$service_id} (Global Mode: {$global_mode})", $resource_config);
+        if (!empty($resource_config) && isset($resource_config['mode'])) {
+            amelia_cpt_sync_debug_log("Saving resource configuration for service {$service_id} (Per-Service Mode: {$selected_mode})", $resource_config);
+            
+            // If mode is 'none', just save the mode and skip resource logic
+            if ($selected_mode === 'none') {
+                $resource_manager = new ART_Resource_Manager();
+                $resource_manager->save_service_config($service_id, array(
+                    'resource_mode' => 'none',
+                    'mode_settings' => array(),
+                    'conflict_handling' => 'strict'
+                ));
+                amelia_cpt_sync_debug_log("  → Mode set to 'none' — no resource configuration needed");
+            } else {
             
             $resource_manager = new ART_Resource_Manager();
             $mode_settings = array();
             
-            if ($global_mode === 'mirrored') {
+            // Detect mode transition for cleanup
+            $existing_config = $resource_manager->get_service_config($service_id);
+            $old_mode = ($existing_config && $existing_config->resource_mode) ? $existing_config->resource_mode : 'none';
+            $old_mode_settings = ($existing_config && $existing_config->mode_settings) ? $existing_config->mode_settings : array();
+            
+            if ($old_mode !== $selected_mode && $old_mode !== 'none') {
+                amelia_cpt_sync_debug_log("Mode transition: {$old_mode} → {$selected_mode} for service #{$service_id}");
+                
+                // Handle mode transitions
+                if ($old_mode === 'mirrored' && $selected_mode === 'shared_pool') {
+                    // Mirrored → Pool: Seed pool with dedicated resource
+                    $old_resource_id = $old_mode_settings['mirrored_resource_id'] ?? null;
+                    if ($old_resource_id) {
+                        // Pre-fill pool with the existing dedicated resource
+                        $pool_resources_from_post = isset($resource_config['pool_resources']) && is_array($resource_config['pool_resources']) 
+                            ? array_map('intval', $resource_config['pool_resources']) 
+                            : array();
+                        if (!in_array($old_resource_id, $pool_resources_from_post)) {
+                            $pool_resources_from_post[] = intval($old_resource_id);
+                            $resource_config['pool_resources'] = $pool_resources_from_post;
+                        }
+                        amelia_cpt_sync_debug_log("  → Seeded pool with mirrored resource #{$old_resource_id}");
+                    }
+                } elseif ($old_mode === 'shared_pool' && $selected_mode === 'mirrored') {
+                    // Pool → Mirrored: Keep first pool resource as dedicated
+                    $old_pool_ids = $old_mode_settings['pool_resource_ids'] ?? array();
+                    if (!empty($old_pool_ids) && empty($resource_config['resource_id'])) {
+                        $resource_config['resource_id'] = $old_pool_ids[0];
+                        $resource_config['action'] = 'switch';
+                        amelia_cpt_sync_debug_log("  → Set mirrored resource to first pool resource #{$old_pool_ids[0]}");
+                        
+                        // Unlink other pool resources from this service
+                        if (count($old_pool_ids) > 1) {
+                            global $wpdb;
+                            $entities_table = $wpdb->prefix . 'amelia_resources_to_entities';
+                            foreach (array_slice($old_pool_ids, 1) as $unlink_rid) {
+                                $wpdb->delete($entities_table, [
+                                    'resourceId' => intval($unlink_rid),
+                                    'entityId' => intval($service_id),
+                                    'entityType' => 'service'
+                                ], ['%d', '%d', '%s']);
+                                amelia_cpt_sync_debug_log("  → Unlinked pool resource #{$unlink_rid} from service");
+                                delete_transient('art_resource_' . $unlink_rid);
+                            }
+                            delete_transient('art_all_resources');
+                        }
+                    }
+                }
+            }
+            
+            if ($selected_mode === 'mirrored') {
                 $mode_settings['quantity_required'] = isset($resource_config['quantity_required']) ? absint($resource_config['quantity_required']) : 1;
                 $mode_settings['sync_name'] = $global_settings['mirrored']['sync_name'] ?? true;
                 
@@ -1996,7 +2112,7 @@ class Amelia_CPT_Sync_Admin_Settings {
                     delete_transient('art_resource_' . $original_resource_id);
                 }
                 
-            } elseif ($global_mode === 'shared_pool') {
+            } elseif ($selected_mode === 'shared_pool') {
                 // SHARED POOL MODE HANDLER
                 // Following lessons from Appendix L.1-L.7
                 
@@ -2211,10 +2327,11 @@ class Amelia_CPT_Sync_Admin_Settings {
             }
             
             $resource_manager->save_service_config($service_id, array(
-                'resource_mode' => $global_mode,  // Use GLOBAL mode, not from modal
+                'resource_mode' => $selected_mode,  // Per-service mode from modal dropdown
                 'mode_settings' => $mode_settings,
                 'conflict_handling' => 'strict'
             ));
+            } // end else (mode !== 'none')
         }
         
         if ($result) {

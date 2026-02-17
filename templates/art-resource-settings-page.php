@@ -63,24 +63,21 @@ $settings = get_option('art_resource_settings', array(
                     <td>
                         <select id="default-mode" name="art_resource_settings[default_mode]" class="regular-text">
                             <option value="none" <?php selected($settings['default_mode'], 'none'); ?>>
-                                <?php _e('None - Manual configuration required', 'amelia-cpt-sync'); ?>
+                                <?php _e('No Resources — Manual configuration per service', 'amelia-cpt-sync'); ?>
                             </option>
                             <option value="mirrored" <?php selected($settings['default_mode'], 'mirrored'); ?>>
-                                <?php _e('🔗 Mirrored - Auto-create 1:1 resource per service', 'amelia-cpt-sync'); ?>
+                                <?php _e('🔗 Dedicated Resource — One specific item per service', 'amelia-cpt-sync'); ?>
                             </option>
                             <option value="shared_pool" <?php selected($settings['default_mode'], 'shared_pool'); ?>>
-                                <?php _e('🏊 Shared Pool - Services share resource pool', 'amelia-cpt-sync'); ?>
-                            </option>
-                            <option value="ask" <?php selected($settings['default_mode'], 'ask'); ?>>
-                                <?php _e('Ask - Prompt when creating services', 'amelia-cpt-sync'); ?>
+                                <?php _e('🏊 Resource Pool — Pick one available item from a group', 'amelia-cpt-sync'); ?>
                             </option>
                         </select>
                         <p class="description">
-                            <?php _e('Choose the default resource mode for ALL services:', 'amelia-cpt-sync'); ?>
+                            <?php _e('New services will use this mode by default. Each service can override its mode in the service edit modal.', 'amelia-cpt-sync'); ?>
                         </p>
                         <ul style="margin-top: 8px; margin-left: 20px; font-size: 13px; color: #64748B;">
-                            <li><strong>🔗 Mirrored:</strong> Each service has its own dedicated resource (1:1 relationship)</li>
-                            <li><strong>🏊 Shared Pool:</strong> Multiple services share a pool of resources (e.g., 3 massage services share 5 rooms)</li>
+                            <li><strong>🔗 Dedicated Resource:</strong> <?php _e('Each service always uses one specific item (e.g., a named vehicle, a specific room)', 'amelia-cpt-sync'); ?></li>
+                            <li><strong>🏊 Resource Pool:</strong> <?php _e('Pick one available item from a group (e.g., any van from the fleet, any open room)', 'amelia-cpt-sync'); ?></li>
                         </ul>
                     </td>
                 </tr>

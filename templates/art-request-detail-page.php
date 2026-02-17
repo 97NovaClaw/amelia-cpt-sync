@@ -5951,7 +5951,7 @@ jQuery(document).ready(function($) {
     /**
      * Render SHARED POOL resources (simplified - uses buildResourceItem)
      */
-    function renderSharedPoolResources(data) {
+    function renderSharedPoolResources(data, appendMode) {
         var $container = $('#resource-status-list');
         var pool = data.resources.pool || [];
         var selected = data.resources.selected;
@@ -5959,7 +5959,11 @@ jQuery(document).ready(function($) {
         var availableCount = data.resources.available_count || 0;
         
         if (pool.length === 0) {
-            $container.html('<div class="resource-placeholder"><?php _e('No resources in pool', 'amelia-cpt-sync'); ?></div>');
+            if (!appendMode) {
+                $container.html('<div class="resource-placeholder"><?php _e('No resources in pool', 'amelia-cpt-sync'); ?></div>');
+            } else {
+                $container.append('<div class="resource-placeholder"><?php _e('No resources in pool', 'amelia-cpt-sync'); ?></div>');
+            }
             return;
         }
         
@@ -6052,7 +6056,12 @@ jQuery(document).ready(function($) {
             html += '</div>';
         }
         
-        $container.html(html);
+        // Use append when mode badge was already written to container
+        if (appendMode) {
+            $container.append(html);
+        } else {
+            $container.html(html);
+        }
         
         // Auto-select the currently assigned resource (after DOM update)
         if (currentlyAssignedResource) {
@@ -6080,9 +6089,25 @@ jQuery(document).ready(function($) {
         
         var html = '';
         
+        // MODE BADGE: Show which resource mode this service uses (v2.34.0)
+        var modeLabels = {
+            'mirrored': { icon: '🔗', label: '<?php _e('Dedicated Resource', 'amelia-cpt-sync'); ?>' },
+            'shared_pool': { icon: '🏊', label: '<?php _e('Resource Pool', 'amelia-cpt-sync'); ?>' },
+            'composite': { icon: '📦', label: '<?php _e('Multi Resource', 'amelia-cpt-sync'); ?>' }
+        };
+        
+        if (data.resource_mode && modeLabels[data.resource_mode]) {
+            var modeInfo = modeLabels[data.resource_mode];
+            html += '<div class="resource-mode-indicator" style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; padding: 4px 12px; margin-bottom: 4px;">';
+            html += modeInfo.icon + ' ' + modeInfo.label;
+            html += '</div>';
+        }
+        
         // SHARED POOL MODE: Different rendering
         if (data.resource_mode === 'shared_pool') {
-            renderSharedPoolResources(data);
+            // Prepend mode badge, then delegate to pool renderer
+            $container.html(html);
+            renderSharedPoolResources(data, true); // true = append mode (don't clear container)
             return;
         }
         
@@ -7476,13 +7501,30 @@ jQuery(document).ready(function($) {
     };
     
     /**
-     * Load resource config when service changes
+     * Load resource config when service changes (v2.34.0 - mode-aware reset)
      */
     $('#pillar-service').on('change', function() {
         var serviceId = $(this).val();
         
+        // IMMEDIATELY reset resource state to prevent stale data
+        resourceState.mode = 'none';
+        resourceState.config = null;
+        resourceState.selectedResourceId = null;
+        resourceState.selectedResources = [];
+        resourceState.currentStatus = null;
+        
+        // Clear resource UI
+        $('#resource-status-list').html(
+            '<div class="resource-placeholder">' +
+                '<span class="dashicons dashicons-info" style="color: #94A3B8;"></span> ' +
+                '<?php _e('Check availability to see resources', 'amelia-cpt-sync'); ?>' +
+            '</div>'
+        );
+        
+        // Clear selected resource hidden input
+        $('#selected-resource-id').val('');
+        
         if (!serviceId) {
-            resourceState.mode = 'none';
             updatePickerModeClass('none');
             return;
         }
@@ -7496,7 +7538,6 @@ jQuery(document).ready(function($) {
                 resourceState.config = response.data.config;
                 resourceState.mode = response.data.config.resource_mode || 'none';
             } else {
-                // No config - default to none
                 resourceState.mode = 'none';
             }
             
@@ -7608,13 +7649,9 @@ jQuery(document).ready(function($) {
     function getModeBadgeText(mode) {
         var badges = {
             'none': '',
-            'mirrored': '1:1 Auto',
-            'shared_pool': 'Shared',
-            'quantity_pool': 'Quantity',
-            'provider_bound': 'Per Provider',
-            'location_bound': 'Per Location',
-            'composite': 'Multiple',
-            'hybrid': 'Custom'
+            'mirrored': 'Dedicated Resource',
+            'shared_pool': 'Resource Pool',
+            'composite': 'Multi Resource'
         };
         return badges[mode] || mode;
     }

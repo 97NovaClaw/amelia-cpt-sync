@@ -308,76 +308,69 @@
                 }
             });
             
-            // Gather resource config using state machine (Appendix K.9, K.10)
-            if (window.resourceModalState) {
-                // Get data from state machine (includes orphan cleanup flags)
+            // Gather resource config based on MODE DROPDOWN (v2.34.0 per-service mode)
+            var selectedMode = $('#art-resource-mode').val() || 'none';
+            resourceConfig.mode = selectedMode;
+            resourceConfig.is_new_service = window.isNewServiceFlag ? '1' : (window.resourceModalState && window.resourceModalState.isNewService ? '1' : '0');
+            
+            console.log('[Amelia CPT Sync] Selected resource mode: ' + selectedMode);
+            
+            if (selectedMode === 'mirrored' && window.resourceModalState) {
+                // DEDICATED RESOURCE: Collect from state machine
                 var stateData = window.resourceModalState.getData();
-                resourceConfig = {
-                    action: stateData.action,
-                    resource_id: stateData.resource_id,
-                    resource_name: stateData.resource_name,
-                    resource_quantity: stateData.resource_quantity,
-                    original_resource_id: stateData.original_resource_id,
-                    cleanup_orphan: stateData.cleanup_orphan,
-                    quantity_required: 1,  // Legacy field, defaults to 1
-                    is_new_service: window.resourceModalState.isNewService ? '1' : '0'
-                };
-            } else {
-                // Check if we're in Shared Pool mode (section exists in DOM)
-                var isPoolMode = $('.resource-pool-config').length > 0;
+                resourceConfig.action = stateData.action;
+                resourceConfig.resource_id = stateData.resource_id;
+                resourceConfig.resource_name = stateData.resource_name;
+                resourceConfig.resource_quantity = stateData.resource_quantity;
+                resourceConfig.original_resource_id = stateData.original_resource_id;
+                resourceConfig.cleanup_orphan = stateData.cleanup_orphan;
+                resourceConfig.quantity_required = 1;
                 
-                if (isPoolMode) {
-                    // Shared Pool mode: Collect pool resources from checkboxes
-                    resourceConfig.pool_resources = [];
-                    $('input[name="resource_config[pool_resources][]"]:checked').each(function() {
-                        resourceConfig.pool_resources.push($(this).val());
-                    });
+                console.log('[Amelia CPT Sync] Mirrored config: action=' + stateData.action + ', resource=' + stateData.resource_id);
+                
+            } else if (selectedMode === 'shared_pool') {
+                // RESOURCE POOL: Collect checkboxes + repeater
+                resourceConfig.pool_resources = [];
+                $('input[name="resource_config[pool_resources][]"]:checked').each(function() {
+                    resourceConfig.pool_resources.push($(this).val());
+                });
+                
+                resourceConfig.selection_strategy = $('#selection_strategy').val() || 'first_available';
+                resourceConfig.quantity_per_booking = $('#quantity_per_booking').val() || 1;
+                
+                // Collect repeater data (new resources to create)
+                var newPoolResources = {};
+                var newResourceCount = 0;
+                
+                $('#pool-resource-repeater-body tr').each(function() {
+                    var $row = $(this);
+                    var rowId = $row.data('row-id');
+                    var nameInput = $row.find('input[name*="[name]"]');
+                    var quantityInput = $row.find('input[name*="[quantity]"]');
                     
-                    // Always collect pool settings
-                    resourceConfig.selection_strategy = $('#selection_strategy').val() || 'first_available';
-                    resourceConfig.quantity_per_booking = $('#quantity_per_booking').val() || 1;
-                    resourceConfig.is_new_service = window.isNewServiceFlag ? '1' : '0';
-                    
-                    // NEW: Collect repeater data (new resources to create)
-                    var newPoolResources = {};
-                    var newResourceCount = 0;
-                    
-                    $('#pool-resource-repeater-body tr').each(function() {
-                        var $row = $(this);
-                        var rowId = $row.data('row-id');
-                        var nameInput = $row.find('input[name*="[name]"]');
-                        var quantityInput = $row.find('input[name*="[quantity]"]');
+                    if (nameInput.length && rowId) {
+                        var name = nameInput.val();
+                        var quantity = quantityInput.val();
                         
-                        if (nameInput.length && rowId) {
-                            var name = nameInput.val();
-                            var quantity = quantityInput.val();
-                            
-                            if (name && name.trim() !== '') {
-                                newPoolResources[rowId] = {
-                                    name: name.trim(),
-                                    quantity: parseInt(quantity) || 1
-                                };
-                                newResourceCount++;
-                            }
+                        if (name && name.trim() !== '') {
+                            newPoolResources[rowId] = {
+                                name: name.trim(),
+                                quantity: parseInt(quantity) || 1
+                            };
+                            newResourceCount++;
                         }
-                    });
-                    
-                    if (newResourceCount > 0) {
-                        resourceConfig.new_pool_resources = newPoolResources;
-                        console.log('[Amelia CPT Sync] New pool resources to create: ' + newResourceCount);
                     }
-                    
-                    console.log('[Amelia CPT Sync] Pool config: ' + resourceConfig.pool_resources.length + ' existing + ' + newResourceCount + ' new, strategy: ' + resourceConfig.selection_strategy);
-                } else {
-                    // Fallback for other modes (no pool section, no state machine)
-                    var resourceSelect = $('#resource_select');
-                    if (resourceSelect.length) {
-                        resourceConfig.resource_id = resourceSelect.val();
-                        resourceConfig.resource_name = $('#resource_name').val();
-                        resourceConfig.resource_quantity = $('#resource_quantity').val();
-                    }
-                    resourceConfig.quantity_required = 1;
+                });
+                
+                if (newResourceCount > 0) {
+                    resourceConfig.new_pool_resources = newPoolResources;
                 }
+                
+                console.log('[Amelia CPT Sync] Pool config: ' + resourceConfig.pool_resources.length + ' existing + ' + newResourceCount + ' new, strategy: ' + resourceConfig.selection_strategy);
+                
+            } else {
+                // NONE or other mode: minimal config
+                console.log('[Amelia CPT Sync] Mode: ' + selectedMode + ' — no resource data to collect');
             }
             
             console.log('[Amelia CPT Sync] Saving custom field values:', customFields);
