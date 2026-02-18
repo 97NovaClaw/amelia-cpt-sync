@@ -1776,7 +1776,11 @@ class Amelia_CPT_Sync_Admin_Settings {
                             </div>
                             
                             <label style="font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; display: block; margin-bottom: 6px;"><?php _e('Resources that can fill this requirement:', 'amelia-cpt-sync'); ?></label>
-                            <div class="resource-pool-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #E0E5F1; border-radius: 6px; background: #fff;">
+                            <div style="border: 1px solid #E0E5F1; border-radius: 6px; overflow: hidden; background: #fff;">
+                                <div style="position: sticky; top: 0; z-index: 1; background: #fff; border-bottom: 1px solid #E0E5F1;">
+                                    <input type="text" class="composite-resource-search" placeholder="<?php _e('Search resources...', 'amelia-cpt-sync'); ?>" style="width: 100%; padding: 8px 10px; border: none; outline: none; font-size: 12px; color: #475569; box-sizing: border-box;">
+                                </div>
+                                <div class="resource-pool-list" style="max-height: 180px; overflow-y: auto;">
                                 <?php foreach ($all_resources_raw as $res): 
                                     $is_in_group = in_array($res['id'], $group['resource_ids'] ?? array());
                                 ?>
@@ -1792,6 +1796,7 @@ class Amelia_CPT_Sync_Admin_Settings {
                                     </label>
                                 </div>
                                 <?php endforeach; ?>
+                                </div>
                             </div>
                             
                             <!-- Per-group: Create New Resource -->
@@ -1881,6 +1886,21 @@ class Amelia_CPT_Sync_Admin_Settings {
                             var rowId = $(this).data('row-id');
                             self.removeNewResourceRow(groupIdx, rowId);
                         });
+                        
+                        // Per-group: Instant search filter
+                        $(document).on('input', '.composite-resource-search', function() {
+                            var searchTerm = $(this).val().toLowerCase().trim();
+                            var $list = $(this).closest('.composite-group').find('.resource-pool-list');
+                            
+                            $list.find('.resource-pool-item').each(function() {
+                                var resourceName = $(this).find('.pool-item-name').text().toLowerCase();
+                                if (searchTerm === '' || resourceName.indexOf(searchTerm) !== -1) {
+                                    $(this).show();
+                                } else {
+                                    $(this).hide();
+                                }
+                            });
+                        });
                     },
                     
                     addGroup: function() {
@@ -1928,8 +1948,13 @@ class Amelia_CPT_Sync_Admin_Settings {
                                 '</div>' +
                             '</div>' +
                             '<label style="font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; display: block; margin-bottom: 6px;"><?php _e('Resources that can fill this requirement:', 'amelia-cpt-sync'); ?></label>' +
-                            '<div class="resource-pool-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #E0E5F1; border-radius: 6px; background: #fff;">' +
-                                checkboxHtml +
+                            '<div style="border: 1px solid #E0E5F1; border-radius: 6px; overflow: hidden; background: #fff;">' +
+                                '<div style="position: sticky; top: 0; z-index: 1; background: #fff; border-bottom: 1px solid #E0E5F1;">' +
+                                    '<input type="text" class="composite-resource-search" placeholder="<?php _e('Search resources...', 'amelia-cpt-sync'); ?>" style="width: 100%; padding: 8px 10px; border: none; outline: none; font-size: 12px; color: #475569; box-sizing: border-box;">' +
+                                '</div>' +
+                                '<div class="resource-pool-list" style="max-height: 180px; overflow-y: auto;">' +
+                                    checkboxHtml +
+                                '</div>' +
                             '</div>' +
                             // Per-group: Create New Resource button + repeater
                             '<button type="button" class="composite-create-resource-trigger button button-link" data-group-index="' + idx + '" style="margin-top: 8px; color: #1A84EE; font-size: 12px;">' +
