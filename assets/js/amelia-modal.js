@@ -316,6 +316,23 @@
             console.log('[Amelia CPT Sync] Selected resource mode: ' + selectedMode);
             
             if (selectedMode === 'mirrored') {
+                // Check if user is creating a new resource via the dedicated picker form
+                var $dedicatedNewForm = $('#dedicated-new-resource-form');
+                if ($dedicatedNewForm.is(':visible')) {
+                    var newName = $('#dedicated_new_resource_name').val();
+                    var newQty = parseInt($('#dedicated_new_resource_qty').val()) || 1;
+                    if (newName && newName.trim() !== '') {
+                        resourceConfig.action = 'create';
+                        resourceConfig.resource_name = newName.trim();
+                        resourceConfig.resource_quantity = newQty;
+                        resourceConfig.quantity_required = 1;
+                        console.log('[Amelia CPT Sync] Dedicated: creating new resource "' + newName + '" (qty: ' + newQty + ')');
+                        // Skip transition radio / state machine — create takes priority
+                    }
+                }
+                
+                // Only proceed to other mirrored collection if not already creating
+                if (!resourceConfig.action) {
                 // DEDICATED RESOURCE: Check if we're in a transition (Pool→Dedicated)
                 var transitionRadio = $('input[name="resource_config[transition_resource_id]"]:checked');
                 
@@ -351,6 +368,7 @@
                     
                     console.log('[Amelia CPT Sync] Mirrored fallback: create new resource');
                 }
+                } // end if (!resourceConfig.action) — skip if already creating from dedicated form
                 
             } else if (selectedMode === 'shared_pool') {
                 // RESOURCE POOL: Collect checkboxes + repeater

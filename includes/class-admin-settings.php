@@ -928,7 +928,11 @@ class Amelia_CPT_Sync_Admin_Settings {
                     <div class="resource-edit-section">
                         <h4><?php _e('Select Dedicated Resource', 'amelia-cpt-sync'); ?></h4>
                         <p class="description" style="margin-bottom: 8px;"><?php _e('Choose which resource to keep as the dedicated item for this service.', 'amelia-cpt-sync'); ?></p>
-                        <div class="resource-pool-list" style="max-height: 250px; overflow-y: auto; border: 1px solid #E0E5F1; border-radius: 6px; background: #fff;">
+                        <div style="border: 1px solid #E0E5F1; border-radius: 6px; overflow: hidden; background: #fff;">
+                            <div style="position: sticky; top: 0; z-index: 1; background: #fff; border-bottom: 1px solid #E0E5F1;">
+                                <input type="text" class="resource-search-filter" placeholder="<?php _e('Search resources...', 'amelia-cpt-sync'); ?>" style="width: 100%; padding: 8px 10px; border: none; outline: none; font-size: 12px; color: #475569; box-sizing: border-box;">
+                            </div>
+                            <div class="resource-pool-list" style="max-height: 230px; overflow-y: auto;">
                             <?php foreach ($all_resources_raw as $res): ?>
                             <div class="resource-pool-item">
                                 <label>
@@ -961,6 +965,38 @@ class Amelia_CPT_Sync_Admin_Settings {
                                 </label>
                             </div>
                             <?php endforeach; ?>
+                            </div>
+                        </div>
+                        
+                        <!-- Create New Resource (single, for dedicated mode) -->
+                        <button type="button" id="dedicated-create-resource-trigger" class="button button-link" style="margin-top: 8px; color: #1A84EE; font-size: 12px;">
+                            <span class="dashicons dashicons-plus-alt" style="font-size: 14px; margin-top: 2px;"></span>
+                            <?php _e('Create New Resource', 'amelia-cpt-sync'); ?>
+                        </button>
+                        <div id="dedicated-new-resource-form" style="display: none; margin-top: 8px;">
+                            <table class="pool-resource-repeater-table" style="width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #E0E5F1; border-radius: 6px; overflow: hidden;">
+                                <thead>
+                                    <tr style="background: #F8FAFC; border-bottom: 2px solid #E0E5F1;">
+                                        <th style="padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 65%;"><?php _e('Name', 'amelia-cpt-sync'); ?></th>
+                                        <th style="padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 35%;"><?php _e('Qty', 'amelia-cpt-sync'); ?></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td style="padding: 8px 10px;">
+                                            <input type="text" id="dedicated_new_resource_name" 
+                                                   value="<?php echo esc_attr($service_name . ' (Resource)'); ?>"
+                                                   style="width: 100%; padding: 4px 8px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 12px;">
+                                        </td>
+                                        <td style="padding: 8px 10px;">
+                                            <input type="number" id="dedicated_new_resource_qty" 
+                                                   value="1" min="1"
+                                                   style="width: 50px; padding: 4px 8px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 12px; text-align: center;">
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <p class="description" style="margin: 4px 0 0 0; font-size: 11px;"><?php _e('This resource will be created and selected on save.', 'amelia-cpt-sync'); ?></p>
                         </div>
                     </div>
                 </div>
@@ -1362,7 +1398,11 @@ class Amelia_CPT_Sync_Admin_Settings {
                         <?php _e('Pool Resources:', 'amelia-cpt-sync'); ?>
                     </label>
                     
-                    <div class="resource-pool-list">
+                    <div style="border: 1px solid #E0E5F1; border-radius: 6px; overflow: hidden; background: #fff;">
+                        <div style="position: sticky; top: 0; z-index: 1; background: #fff; border-bottom: 1px solid #E0E5F1;">
+                            <input type="text" class="resource-search-filter" placeholder="<?php _e('Search resources...', 'amelia-cpt-sync'); ?>" style="width: 100%; padding: 8px 10px; border: none; outline: none; font-size: 12px; color: #475569; box-sizing: border-box;">
+                        </div>
+                        <div class="resource-pool-list" style="max-height: 200px; overflow-y: auto;">
                         <?php if (!empty($all_resources)): ?>
                             <?php foreach ($all_resources as $res): ?>
                                 <?php 
@@ -1404,16 +1444,9 @@ class Amelia_CPT_Sync_Admin_Settings {
                         <?php else: ?>
                             <p class="description"><?php _e('No resources available. Create resources in Amelia first.', 'amelia-cpt-sync'); ?></p>
                         <?php endif; ?>
+                        </div>
                     </div>
                 </div>
-                
-                <!-- CREATE NEW RESOURCES Section -->
-                <div class="resource-pool-create-section" style="margin-top: 24px;">
-                    <div class="section-divider" style="display: flex; align-items: center; margin: 20px 0; color: #64748B; font-size: 12px; font-weight: 600; text-transform: uppercase;">
-                        <span style="flex: 1; height: 1px; background: #E0E5F1;"></span>
-                        <span style="padding: 0 12px;"><?php _e('Create New Resources', 'amelia-cpt-sync'); ?></span>
-                        <span style="flex: 1; height: 1px; background: #E0E5F1;"></span>
-                    </div>
                     
                     <button type="button" 
                             id="add-new-pool-resource-trigger" 
@@ -2212,6 +2245,30 @@ class Amelia_CPT_Sync_Admin_Settings {
                 
                 // Initialize on load (no transition on first render)
                 updateModeSections();
+                
+                // Global search filter for resource lists (pool + dedicated modes)
+                $(document).on('input', '.resource-search-filter', function() {
+                    var searchTerm = $(this).val().toLowerCase().trim();
+                    var $list = $(this).closest('div').siblings('.resource-pool-list');
+                    if (!$list.length) {
+                        $list = $(this).parent().siblings('.resource-pool-list');
+                    }
+                    
+                    $list.find('.resource-pool-item').each(function() {
+                        var resourceName = $(this).find('.pool-item-name').text().toLowerCase();
+                        if (searchTerm === '' || resourceName.indexOf(searchTerm) !== -1) {
+                            $(this).show();
+                        } else {
+                            $(this).hide();
+                        }
+                    });
+                });
+                
+                // Dedicated mode: Show create form on button click
+                $('#dedicated-create-resource-trigger').on('click', function() {
+                    $(this).hide();
+                    $('#dedicated-new-resource-form').show();
+                });
             });
             </script>
             
