@@ -6314,16 +6314,12 @@ jQuery(document).ready(function($) {
                 }
             }
             
-            // Group header
-            var statusText = groupSatisfied ? '✓ <?php _e('Satisfied', 'amelia-cpt-sync'); ?>' : 
-                            (group.block_type === 'soft' ? '⚠️ <?php _e('Tentative Conflict', 'amelia-cpt-sync'); ?>' : '✗ <?php _e('Unavailable', 'amelia-cpt-sync'); ?>');
-            var statusColor = groupSatisfied ? '#059669' : (group.block_type === 'soft' ? '#D97706' : '#DC2626');
-            
+            // Group header with integrated counter (replaces separate bottom counter)
             html += '<div class="composite-group-display" data-group-index="' + groupIdx + '">';
             
-            html += '<div style="margin: 12px 0 4px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; display: flex; justify-content: space-between; align-items: center;">';
+            html += '<div class="composite-group-header" data-group-index="' + groupIdx + '" data-qty-needed="' + qtyNeeded + '" style="margin: 8px 0 4px 0; padding: 8px 12px; background: #F1F5F9; border-radius: 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; display: flex; justify-content: space-between; align-items: center;">';
             html += '<span>' + groupLabel.toUpperCase() + ' (<?php _e('need', 'amelia-cpt-sync'); ?> ' + qtyNeeded + ')</span>';
-            html += '<span style="color: ' + statusColor + '; font-size: 10px;">' + statusText + '</span>';
+            html += '<span class="group-header-counter" style="font-size: 10px; font-weight: 600;"><span class="group-total-count">0</span> of ' + qtyNeeded + ' <?php _e('selected', 'amelia-cpt-sync'); ?></span>';
             html += '</div>';
             
             // Resource cards within group (with qty input for composite mode)
@@ -6342,10 +6338,7 @@ jQuery(document).ready(function($) {
                 html += buildResourceItem(resource.id, resource.name, resource.status, quantityInfo, conflicts, isCurrentBookingResource, true);
             });
             
-            // Group total indicator (updated by JS on qty change)
-            html += '<div class="composite-group-total" data-group-index="' + groupIdx + '" data-qty-needed="' + qtyNeeded + '" style="margin: 4px 12px 8px; font-size: 11px; color: #64748B; text-align: right;">';
-            html += '<span class="group-total-count">0</span> of ' + qtyNeeded + ' selected';
-            html += '</div>';
+            // (Group counter is now in the header row above)
             
             html += '</div>'; // close composite-group-display
         });
@@ -7120,14 +7113,20 @@ jQuery(document).ready(function($) {
                 groupTotal += parseInt($(this).val()) || 0;
             });
             
-            var $totalDisplay = $('.composite-group-total[data-group-index="' + groupIdx + '"]');
-            var qtyNeeded = parseInt($totalDisplay.data('qty-needed')) || 1;
-            $totalDisplay.find('.group-total-count').text(groupTotal);
+            // Update counter in the header row
+            var $headerDisplay = $('.composite-group-header[data-group-index="' + groupIdx + '"]');
+            var qtyNeeded = parseInt($headerDisplay.data('qty-needed')) || 1;
+            var $counter = $headerDisplay.find('.group-total-count');
+            $counter.text(groupTotal);
             
-            if (groupTotal >= qtyNeeded) {
-                $totalDisplay.css('color', '#059669');
+            // Color: red = under, green = exact, orange = over-resourced
+            var $counterSpan = $headerDisplay.find('.group-header-counter');
+            if (groupTotal < qtyNeeded) {
+                $counterSpan.css('color', '#DC2626'); // Red: under-resourced
+            } else if (groupTotal === qtyNeeded) {
+                $counterSpan.css('color', '#059669'); // Green: exact match
             } else {
-                $totalDisplay.css('color', '#DC2626');
+                $counterSpan.css('color', '#D97706'); // Orange: over-resourced
             }
         }
         
