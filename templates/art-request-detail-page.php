@@ -3583,6 +3583,9 @@ jQuery(document).ready(function($) {
                     );
                 }
                 
+                // Apply saved booking state over orchestrator greedy picks
+                applySavedBookingState();
+                
                 console.log('ART: Reset complete, mode set to current');
             }, 300);
         }, 10000);  // 10 second timeout
@@ -5133,6 +5136,11 @@ jQuery(document).ready(function($) {
                         );
                     }
                     
+                    // FINAL PASS: Apply saved booking state over orchestrator greedy picks
+                    // This runs LAST, after all renders complete, and overrides auto-selections
+                    // with the actual saved resource assignments from the database
+                    applySavedBookingState();
+                    
                     console.log('ART: Auto-population complete, mode set to current');
                 }, 500);  // Wait for orchestrator to complete
             }, 10000);  // 10 second timeout
@@ -5950,6 +5958,82 @@ jQuery(document).ready(function($) {
                 resourceList.html('<div class="resource-placeholder"><?php _e('Network error', 'amelia-cpt-sync'); ?></div>');
             }
         });
+    }
+    
+    /**
+     * Apply saved booking state to the DOM (FINAL PASS)
+     * 
+     * Runs ONCE after all orchestrator renders complete.
+     * Overrides orchestrator greedy auto-selections with actual saved assignments.
+     * Handles: resource qty inputs, resource highlights, provider highlight, confirm section.
+     */
+    function applySavedBookingState() {
+        if (!artDetailData.hasActiveBooking) return;
+        
+        var activeResources = artDetailData.activeResources || [];
+        var activeProviderId = artDetailData.existingBookedProviderId;
+        
+        console.log('ART: Applying saved booking state', {
+            resources: activeResources,
+            providerId: activeProviderId,
+            mode: resourceState.mode
+        });
+        
+        // === RESOURCES: Override qty inputs and highlights with saved data ===
+        if (activeResources.length > 0 && resourceState.mode === 'composite') {
+            // First, clear all current selections (undo greedy picks)
+            $('.composite-qty-select').val(0);
+            $('.composite-group-display .resource-item').removeClass('selected');
+            
+            // Apply saved assignments
+            activeResources.forEach(function(ar) {
+                var rid = ar.id || ar;
+                var qty = ar.quantity_used || ar.quantity || 1;
+                
+                var $input = $('.composite-qty-select[data-resource-id="' + rid + '"]');
+                if ($input.length) {
+                    var maxQty = parseInt($input.data('max-qty')) || 1;
+                    $input.val(Math.min(qty, maxQty));
+                    $input.closest('.resource-item').addClass('selected');
+                } else {
+                    // No qty input (unavailable or qty=1 readonly) — just highlight
+                    $('.resource-item[data-resource-id="' + rid + '"]').addClass('selected');
+                }
+            });
+            
+            // Update all group totals
+            $('.composite-group-display').each(function() {
+                var $firstInput = $(this).find('.composite-qty-select').first();
+                if ($firstInput.length && typeof updateCompositeGroupTotal === 'function') {
+                    updateCompositeGroupTotal($firstInput);
+                }
+            });
+            
+            // Update resourceState with saved data
+            resourceState.selectedResources = activeResources.map(function(ar) {
+                return {
+                    resource_id: parseInt(ar.id || ar),
+                    quantity: ar.quantity_used || ar.quantity || 1
+                };
+            });
+            
+            console.log('ART: Saved resource state applied:', resourceState.selectedResources);
+        }
+        
+        // === PROVIDER: Ensure highlight persists ===
+        if (activeProviderId) {
+            selectedProviderId = activeProviderId;
+            $('.provider-item').removeClass('selected');
+            var $providerCard = $('.provider-item[data-provider-id="' + activeProviderId + '"]');
+            if ($providerCard.length) {
+                $providerCard.addClass('selected');
+            }
+            
+            // Ensure confirm section is visible
+            $('#selected-provider-id').val(activeProviderId);
+            $('#picker-confirm-section').show();
+            $('#btn-use-custom-time').prop('disabled', false);
+        }
     }
     
     /**
