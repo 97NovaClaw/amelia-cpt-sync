@@ -1793,6 +1793,29 @@ class Amelia_CPT_Sync_Admin_Settings {
                                 </div>
                                 <?php endforeach; ?>
                             </div>
+                            
+                            <!-- Per-group: Create New Resource -->
+                            <button type="button" class="composite-create-resource-trigger button button-link" data-group-index="<?php echo $g_idx; ?>" style="margin-top: 8px; color: #1A84EE; font-size: 12px;">
+                                <span class="dashicons dashicons-plus-alt" style="font-size: 14px; margin-top: 2px;"></span>
+                                <?php _e('Create New Resource', 'amelia-cpt-sync'); ?>
+                            </button>
+                            <div class="composite-new-resource-repeater" data-group-index="<?php echo $g_idx; ?>" style="display: none; margin-top: 8px;">
+                                <table class="pool-resource-repeater-table" style="width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #E0E5F1; border-radius: 6px; overflow: hidden;">
+                                    <thead>
+                                        <tr style="background: #F8FAFC; border-bottom: 2px solid #E0E5F1;">
+                                            <th style="padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 55%;"><?php _e('Name', 'amelia-cpt-sync'); ?></th>
+                                            <th style="padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 25%;"><?php _e('Qty', 'amelia-cpt-sync'); ?></th>
+                                            <th style="padding: 8px 10px; text-align: center; font-size: 10px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 20%;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="composite-new-resource-body" data-group-index="<?php echo $g_idx; ?>">
+                                    </tbody>
+                                </table>
+                                <button type="button" class="composite-add-another-resource button button-link" data-group-index="<?php echo $g_idx; ?>" style="margin-top: 4px; color: #1A84EE; font-size: 11px;">
+                                    <span class="dashicons dashicons-plus-alt" style="font-size: 12px; margin-top: 3px;"></span>
+                                    <?php _e('Add Another', 'amelia-cpt-sync'); ?>
+                                </button>
+                            </div>
                         </div>
                         <?php endforeach; ?>
                     <?php else: ?>
@@ -1823,6 +1846,8 @@ class Amelia_CPT_Sync_Admin_Settings {
                         );
                     }, $all_resources_raw)); ?>,
                     
+                    nextRowId: 1,  // For new resource rows within groups
+                    
                     init: function() {
                         var self = this;
                         
@@ -1833,6 +1858,28 @@ class Amelia_CPT_Sync_Admin_Settings {
                         $(document).on('click', '.composite-group-remove', function() {
                             var idx = $(this).data('group-index');
                             self.removeGroup(idx);
+                        });
+                        
+                        // Per-group: Create New Resource trigger
+                        $(document).on('click', '.composite-create-resource-trigger', function() {
+                            var groupIdx = $(this).data('group-index');
+                            $(this).hide();
+                            var $repeater = $('.composite-new-resource-repeater[data-group-index="' + groupIdx + '"]');
+                            $repeater.show();
+                            self.addNewResourceRow(groupIdx);
+                        });
+                        
+                        // Per-group: Add Another
+                        $(document).on('click', '.composite-add-another-resource', function() {
+                            var groupIdx = $(this).data('group-index');
+                            self.addNewResourceRow(groupIdx);
+                        });
+                        
+                        // Per-group: Remove new resource row
+                        $(document).on('click', '.composite-new-res-remove', function() {
+                            var groupIdx = $(this).data('group-index');
+                            var rowId = $(this).data('row-id');
+                            self.removeNewResourceRow(groupIdx, rowId);
                         });
                     },
                     
@@ -1884,6 +1931,25 @@ class Amelia_CPT_Sync_Admin_Settings {
                             '<div class="resource-pool-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #E0E5F1; border-radius: 6px; background: #fff;">' +
                                 checkboxHtml +
                             '</div>' +
+                            // Per-group: Create New Resource button + repeater
+                            '<button type="button" class="composite-create-resource-trigger button button-link" data-group-index="' + idx + '" style="margin-top: 8px; color: #1A84EE; font-size: 12px;">' +
+                                '<span class="dashicons dashicons-plus-alt" style="font-size: 14px; margin-top: 2px;"></span> ' +
+                                '<?php _e('Create New Resource', 'amelia-cpt-sync'); ?>' +
+                            '</button>' +
+                            '<div class="composite-new-resource-repeater" data-group-index="' + idx + '" style="display: none; margin-top: 8px;">' +
+                                '<table class="pool-resource-repeater-table" style="width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #E0E5F1; border-radius: 6px; overflow: hidden;">' +
+                                    '<thead><tr style="background: #F8FAFC; border-bottom: 2px solid #E0E5F1;">' +
+                                        '<th style="padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 55%;"><?php _e('Name', 'amelia-cpt-sync'); ?></th>' +
+                                        '<th style="padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 25%;"><?php _e('Qty', 'amelia-cpt-sync'); ?></th>' +
+                                        '<th style="padding: 8px 10px; text-align: center; font-size: 10px; font-weight: 600; color: #64748B; text-transform: uppercase; width: 20%;"></th>' +
+                                    '</tr></thead>' +
+                                    '<tbody class="composite-new-resource-body" data-group-index="' + idx + '"></tbody>' +
+                                '</table>' +
+                                '<button type="button" class="composite-add-another-resource button button-link" data-group-index="' + idx + '" style="margin-top: 4px; color: #1A84EE; font-size: 11px;">' +
+                                    '<span class="dashicons dashicons-plus-alt" style="font-size: 12px; margin-top: 3px;"></span> ' +
+                                    '<?php _e('Add Another', 'amelia-cpt-sync'); ?>' +
+                                '</button>' +
+                            '</div>' +
                         '</div>';
                         
                         $('#composite-groups-container').append(groupHtml);
@@ -1910,6 +1976,50 @@ class Amelia_CPT_Sync_Admin_Settings {
                         });
                         
                         console.log('[Composite Repeater] Removed group #' + idx);
+                    },
+                    
+                    addNewResourceRow: function(groupIdx) {
+                        var rowId = this.nextRowId++;
+                        var defaultName = this.serviceName + ' Resource #' + rowId;
+                        
+                        var rowHtml = '<tr data-group-index="' + groupIdx + '" data-row-id="' + rowId + '">' +
+                            '<td style="padding: 8px 10px;">' +
+                                '<input type="text" ' +
+                                       'name="resource_config[new_composite_resources][' + groupIdx + '][' + rowId + '][name]" ' +
+                                       'value="' + defaultName + '" ' +
+                                       'placeholder="Resource name" ' +
+                                       'style="width: 100%; padding: 4px 8px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 12px;">' +
+                            '</td>' +
+                            '<td style="padding: 8px 10px;">' +
+                                '<input type="number" ' +
+                                       'name="resource_config[new_composite_resources][' + groupIdx + '][' + rowId + '][quantity]" ' +
+                                       'value="1" min="1" ' +
+                                       'style="width: 50px; padding: 4px 8px; border: 1px solid #E0E5F1; border-radius: 4px; font-size: 12px; text-align: center;">' +
+                            '</td>' +
+                            '<td style="padding: 8px 10px; text-align: center;">' +
+                                '<button type="button" class="composite-new-res-remove pool-repeater-remove" ' +
+                                        'data-group-index="' + groupIdx + '" data-row-id="' + rowId + '" ' +
+                                        'title="<?php _e('Remove', 'amelia-cpt-sync'); ?>">' +
+                                    '<span class="dashicons dashicons-trash"></span>' +
+                                '</button>' +
+                            '</td>' +
+                        '</tr>';
+                        
+                        $('.composite-new-resource-body[data-group-index="' + groupIdx + '"]').append(rowHtml);
+                        console.log('[Composite Repeater] Added new resource row #' + rowId + ' to group #' + groupIdx);
+                    },
+                    
+                    removeNewResourceRow: function(groupIdx, rowId) {
+                        $('tr[data-group-index="' + groupIdx + '"][data-row-id="' + rowId + '"]').fadeOut(200, function() {
+                            $(this).remove();
+                            
+                            // Hide repeater if no rows left in this group
+                            if ($('.composite-new-resource-body[data-group-index="' + groupIdx + '"] tr').length === 0) {
+                                $('.composite-new-resource-repeater[data-group-index="' + groupIdx + '"]').hide();
+                                $('.composite-create-resource-trigger[data-group-index="' + groupIdx + '"]').show();
+                            }
+                        });
+                        console.log('[Composite Repeater] Removed new resource row #' + rowId + ' from group #' + groupIdx);
                     }
                 };
                 
@@ -2709,6 +2819,54 @@ class Amelia_CPT_Sync_Admin_Settings {
                 $raw_groups = isset($resource_config['requirement_groups']) && is_array($resource_config['requirement_groups']) 
                     ? $resource_config['requirement_groups'] 
                     : array();
+                
+                // NEW: Create resources from per-group repeaters (same API pattern as pool mode)
+                $new_composite_resources = isset($resource_config['new_composite_resources']) && is_array($resource_config['new_composite_resources'])
+                    ? $resource_config['new_composite_resources']
+                    : array();
+                
+                if (!empty($new_composite_resources)) {
+                    amelia_cpt_sync_debug_log("  → Creating new composite resources from repeaters");
+                    $resource_api_for_composite = new ART_Resource_API();
+                    
+                    foreach ($new_composite_resources as $group_idx => $rows) {
+                        if (!is_array($rows)) continue;
+                        
+                        foreach ($rows as $row_id => $new_res) {
+                            if (empty($new_res['name'])) continue;
+                            
+                            $new_name = sanitize_text_field($new_res['name']);
+                            $new_quantity = max(1, absint($new_res['quantity'] ?? 1));
+                            
+                            amelia_cpt_sync_debug_log("    → Creating: '{$new_name}' (qty: {$new_quantity}) for group #{$group_idx}");
+                            
+                            // Create via API (auto-links entity via entities payload)
+                            $created = $resource_api_for_composite->create_resource(array(
+                                'name' => $new_name,
+                                'quantity' => $new_quantity,
+                                'status' => 'visible',
+                                'entities' => array(
+                                    array('entityId' => $service_id, 'entityType' => 'service')
+                                )
+                            ));
+                            
+                            if (!is_wp_error($created)) {
+                                // Inject into the matching group's resource_ids
+                                if (isset($raw_groups[$group_idx])) {
+                                    if (!isset($raw_groups[$group_idx]['resource_ids']) || !is_array($raw_groups[$group_idx]['resource_ids'])) {
+                                        $raw_groups[$group_idx]['resource_ids'] = array();
+                                    }
+                                    $raw_groups[$group_idx]['resource_ids'][] = strval($created['id']);
+                                    amelia_cpt_sync_debug_log("    ✓ Created Resource #{$created['id']}: {$new_name} → injected into group #{$group_idx}");
+                                } else {
+                                    amelia_cpt_sync_debug_log("    ⚠️ Created Resource #{$created['id']} but group #{$group_idx} doesn't exist in submitted data");
+                                }
+                            } else {
+                                amelia_cpt_sync_debug_log("    ✗ ERROR creating resource: " . $created->get_error_message());
+                            }
+                        }
+                    }
+                }
                 
                 // Clean and validate groups
                 $cleaned_groups = array();

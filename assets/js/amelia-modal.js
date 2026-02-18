@@ -417,7 +417,41 @@
                 });
                 
                 resourceConfig.requirement_groups = groups;
-                console.log('[Amelia CPT Sync] Composite config: ' + groups.length + ' requirement groups');
+                
+                // Collect new resources to create (per-group repeater)
+                var newCompositeResources = {};
+                var newCompositeCount = 0;
+                
+                $('.composite-new-resource-body tr').each(function() {
+                    var $row = $(this);
+                    var groupIdx = $row.data('group-index');
+                    var rowId = $row.data('row-id');
+                    var nameInput = $row.find('input[name*="[name]"]');
+                    var quantityInput = $row.find('input[name*="[quantity]"]');
+                    
+                    if (nameInput.length && rowId) {
+                        var name = nameInput.val();
+                        var quantity = quantityInput.val();
+                        
+                        if (name && name.trim() !== '') {
+                            if (!newCompositeResources[groupIdx]) {
+                                newCompositeResources[groupIdx] = {};
+                            }
+                            newCompositeResources[groupIdx][rowId] = {
+                                name: name.trim(),
+                                quantity: parseInt(quantity) || 1
+                            };
+                            newCompositeCount++;
+                        }
+                    }
+                });
+                
+                if (newCompositeCount > 0) {
+                    resourceConfig.new_composite_resources = newCompositeResources;
+                    console.log('[Amelia CPT Sync] New composite resources to create: ' + newCompositeCount);
+                }
+                
+                console.log('[Amelia CPT Sync] Composite config: ' + groups.length + ' requirement groups' + (newCompositeCount > 0 ? ' + ' + newCompositeCount + ' new resources' : ''));
                 
             } else {
                 // NONE or other mode: minimal config
