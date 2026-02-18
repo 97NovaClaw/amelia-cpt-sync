@@ -5262,11 +5262,28 @@ jQuery(document).ready(function($) {
                     console.log('ART DEBUG: Updated activeResources:', artDetailData.activeResources);
                 }
                 
+                // Set mode back to 'current' after successful save
+                // This prevents the post-save orchestrator call from using greedy auto-selection
+                bookingViewState.mode = 'current';
+                bookingViewState.isAutoPopulating = false;
+                updateModeIndicator();
+                $('#btn-reset-to-current').fadeOut();
+                
+                // Update bookingViewState originals so hasBookingChanges() returns false
+                bookingViewState.originalDate = artDetailData.existingBookedDate;
+                bookingViewState.originalTime = artDetailData.existingBookedTime;
+                bookingViewState.originalServiceId = artDetailData.activeServiceId;
+                
                 // Refresh provider list to show new "Currently Selected Provider"
                 if (typeof updateProviderList === 'function') {
                     hasAutoSelectedProvider = false; // Reset flag so it can re-auto-select
                     updateProviderList();
                 }
+                
+                // After provider list re-renders, apply saved state to lock in selections
+                setTimeout(function() {
+                    applySavedBookingState();
+                }, 200);
                 
                 // Refresh notes to show booking event
                 if (typeof artRefreshNotes === 'function') {
