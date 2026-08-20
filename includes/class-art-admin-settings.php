@@ -1787,7 +1787,8 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
             'desired_status' => sanitize_key($_POST['desired_status'] ?? 'confirmed'),
             'location_id' => !empty($_POST['location_id']) ? absint($_POST['location_id']) : null,
             'persons' => absint($_POST['persons'] ?? 1),
-            'selected_resources' => $this->parse_selected_resources($_POST['selected_resources'] ?? '[]')
+            'selected_resources' => $this->parse_selected_resources($_POST['selected_resources'] ?? '[]'),
+            'resources_explicit' => !empty($_POST['resources_explicit'])
         ));
         
         if (is_wp_error($result)) {

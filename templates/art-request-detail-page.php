@@ -5187,7 +5187,8 @@ jQuery(document).ready(function($) {
             location_id: $('#pillar-location').val() || null,
             persons: $('#pillar-persons').val() || 1,
             selected_customer_id: selectedCustomerId, // Include fuzzy match selection
-            selected_resources: JSON.stringify(getSelectedResources()) // JSON-encode for composite {resource_id, quantity} objects
+            selected_resources: JSON.stringify(getSelectedResources()), // JSON-encode for composite {resource_id, quantity} objects
+            resources_explicit: resourceState.userTouchedResources ? 1 : 0 // User manually changed selections (enables deselect-all)
         }, function(response) {
             btn.prop('disabled', false);
             btn.html(originalText);
@@ -5236,7 +5237,9 @@ jQuery(document).ready(function($) {
                 var selectedResourceIds = getSelectedResources();
                 if (selectedResourceIds.length > 0) {
                     // Update single activeResource (backward compat)
-                    var selectedResourceId = selectedResourceIds[0];
+                    // Entries are {resource_id, quantity} objects in ALL modes now (v2.38.2)
+                    var firstSel = selectedResourceIds[0];
+                    var selectedResourceId = (typeof firstSel === 'object') ? firstSel.resource_id : firstSel;
                     var selectedResourceName = $('.resource-item[data-resource-id="' + selectedResourceId + '"]').find('.resource-name').text();
                     
                     if (selectedResourceName) {
@@ -5260,6 +5263,12 @@ jQuery(document).ready(function($) {
                     });
                     
                     console.log('ART DEBUG: Updated activeResources:', artDetailData.activeResources);
+                } else if (resourceState.userTouchedResources) {
+                    // User explicitly deselected everything — clear the cache so
+                    // applySavedBookingState() doesn't re-apply stale resources
+                    artDetailData.activeResource = null;
+                    artDetailData.activeResources = [];
+                    console.log('ART DEBUG: Cleared activeResources (explicit deselect-all)');
                 }
                 
                 // Set mode back to 'current' after successful save
@@ -5269,10 +5278,23 @@ jQuery(document).ready(function($) {
                 updateModeIndicator();
                 $('#btn-reset-to-current').fadeOut();
                 
+                // Update existingBookedDate/Time from the NEWLY saved datetime
+                // (previously these kept the OLD values, making originals stale after reschedule)
+                if (slotDatetime) {
+                    var savedParts = slotDatetime.split(' ');
+                    if (savedParts.length >= 2) {
+                        artDetailData.existingBookedDate = savedParts[0];
+                        artDetailData.existingBookedTime = formatTime12(savedParts[1]);
+                    }
+                }
+                
                 // Update bookingViewState originals so hasBookingChanges() returns false
                 bookingViewState.originalDate = artDetailData.existingBookedDate;
                 bookingViewState.originalTime = artDetailData.existingBookedTime;
                 bookingViewState.originalServiceId = artDetailData.activeServiceId;
+                
+                // Reset user-touch flag - the saved state IS the current state now
+                resourceState.userTouchedResources = false;
                 
                 // Refresh provider list to show new "Currently Selected Provider"
                 if (typeof updateProviderList === 'function') {
@@ -6035,7 +6057,25 @@ jQuery(document).ready(function($) {
             });
             
             console.log('ART: Saved resource state applied:', resourceState.selectedResources);
+        } else if (activeResources.length > 0 && (resourceState.mode === 'shared_pool' || resourceState.mode === 'mirrored')) {
+            // POOL / MIRRORED: single saved resource - restore highlight and selection state
+            var savedResource = activeResources[0];
+            var savedRid = parseInt(savedResource.id || savedResource);
+            
+            if (savedRid) {
+                $('.resource-item').removeClass('selected');
+                $('.resource-item[data-resource-id="' + savedRid + '"]').addClass('selected');
+                
+                resourceState.selectedResourceId = savedRid;
+                $('#selected-resource-id').val(savedRid);
+                
+                console.log('ART: Saved ' + resourceState.mode + ' resource state applied: #' + savedRid);
+            }
         }
+        
+        // Saved state applied programmatically — clear the user-touch flag so
+        // getSelectedResources() falls back correctly until the user interacts again
+        resourceState.userTouchedResources = false;
         
         // === PROVIDER: Ensure highlight persists ===
         if (activeProviderId) {
@@ -6555,11 +6595,19 @@ jQuery(document).ready(function($) {
         
         // Show currently selected provider first (if exists and in current mode)
         if (existingProvider) {
+            // Map raw status to friendly label (status_display doesn't exist in orchestrator response)
+            var currentProviderStatusLabels = {
+                'available': '<?php _e('Available', 'amelia-cpt-sync'); ?>',
+                'might_conflict': '<?php _e('Might Conflict', 'amelia-cpt-sync'); ?>',
+                'force_book': '<?php _e('Override', 'amelia-cpt-sync'); ?>',
+                'not_available': '<?php _e('Not Available', 'amelia-cpt-sync'); ?>'
+            };
+            var currentProviderStatus = currentProviderStatusLabels[existingProvider.status] || '<?php _e('Available', 'amelia-cpt-sync'); ?>';
+            
             html += '<div class="provider-group">';
             html += '<div class="provider-group-label" style="background: #E0E7FF; color: #4338CA; border-left: 3px solid #4338CA;">' +
                     '<span class="dashicons dashicons-saved"></span> <?php _e('Currently Selected Provider', 'amelia-cpt-sync'); ?></div>';
-            var conflictText = (existingProvider.conflicts && existingProvider.conflicts.length > 0) ? existingProvider.conflicts.join(', ') : '';
-            html += buildProviderItemWithConflicts(existingProvider.id, existingProvider.name, getInitials(existingProvider.name), existingProvider.status_display, existingProvider.conflicts || []);
+            html += buildProviderItemWithConflicts(existingProvider.id, existingProvider.name, getInitials(existingProvider.name), currentProviderStatus, existingProvider.conflicts || []);
             html += '</div>';
         }
         
@@ -7037,6 +7085,10 @@ jQuery(document).ready(function($) {
             // COMPOSITE MODE: Click toggles card and qty
             var $qtyInput = item.find('.composite-qty-select');
             
+            // Mark that the user has manually touched resource selections
+            // (enables deselect-all to be honored over orchestrator fallback)
+            resourceState.userTouchedResources = true;
+            
             if ($qtyInput.length) {
                 var currentQty = parseInt($qtyInput.val()) || 0;
                 if (currentQty > 0) {
@@ -7146,6 +7198,10 @@ jQuery(document).ready(function($) {
     // Composite mode: Quantity input change/input handler (for manual typing)
     $(document).on('change input', '.composite-qty-select', function(e) {
         e.stopPropagation();
+        
+        // Mark user interaction (enables deselect-all detection)
+        resourceState.userTouchedResources = true;
+        
         updateCompositeGroupTotal($(this));
         
         // Trigger exploring mode if qty changed from current booking
@@ -7964,7 +8020,8 @@ jQuery(document).ready(function($) {
         config: null,
         selectedResources: [],
         selectedResourceId: null,  // For click-to-select in shared pool manual mode
-        currentStatus: null
+        currentStatus: null,
+        userTouchedResources: false  // True once user manually clicks/edits resources (enables deselect-all)
     };
     
     /**
@@ -7979,6 +8036,7 @@ jQuery(document).ready(function($) {
         resourceState.selectedResourceId = null;
         resourceState.selectedResources = [];
         resourceState.currentStatus = null;
+        resourceState.userTouchedResources = false;
         
         // Clear resource UI
         $('#resource-status-list').html(
@@ -8132,20 +8190,29 @@ jQuery(document).ready(function($) {
         }
         
         if (resourceState.mode === 'mirrored') {
+            // Carry the REAL quantity (quantity_required) so backend comparison
+            // and re-assignment don't downgrade it to 1 (v2.38.2 fix)
             var settings = resourceState.config?.mode_settings || {};
-            return settings.mirrored_resource_id ? [settings.mirrored_resource_id] : [];
+            var mirroredQty = parseInt(settings.quantity_required) || 1;
+            return settings.mirrored_resource_id 
+                ? [{ resource_id: parseInt(settings.mirrored_resource_id), quantity: mirroredQty }] 
+                : [];
         }
         
         if (resourceState.mode === 'shared_pool') {
+            // Carry the REAL quantity (quantity_per_booking) - v2.38.2 fix
+            var poolSettings = resourceState.config?.mode_settings || {};
+            var poolQty = parseInt(poolSettings.quantity_per_booking) || 1;
+            
             // Priority 1: User clicked a resource card
             if (resourceState.selectedResourceId) {
-                return [parseInt(resourceState.selectedResourceId)];
+                return [{ resource_id: parseInt(resourceState.selectedResourceId), quantity: poolQty }];
             }
             
             // Priority 2: Manual dropdown selection (legacy fallback)
             var manualSelect = $('#manual-pool-resource-select');
             if (manualSelect.length && manualSelect.val()) {
-                return [parseInt(manualSelect.val())];
+                return [{ resource_id: parseInt(manualSelect.val()), quantity: poolQty }];
             }
             
             // Otherwise, orchestrator will auto-select based on strategy
@@ -8154,11 +8221,12 @@ jQuery(document).ready(function($) {
         
         if (resourceState.mode === 'composite') {
             // Priority 1: User set quantities via qty inputs
-            if (resourceState.selectedResources && resourceState.selectedResources.length > 0) {
-                // selectedResources is [{resource_id, quantity}, ...] from qty handler
-                // Return flat array of IDs for backward compat, but attach quantities
+            // If the user has TOUCHED the resource UI, respect their selections even if empty
+            // (enables deselect-all to be sent to the backend - v2.38.2 fix)
+            if (resourceState.userTouchedResources || 
+                (resourceState.selectedResources && resourceState.selectedResources.length > 0)) {
                 var result = [];
-                resourceState.selectedResources.forEach(function(sel) {
+                (resourceState.selectedResources || []).forEach(function(sel) {
                     if (typeof sel === 'object' && sel.resource_id) {
                         result.push(sel);
                     } else {

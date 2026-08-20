@@ -181,8 +181,13 @@ class Amelia_CPT_Sync_ART_Booking_Manager {
         }
         
         // Check resources (v2.37.0 - composite mode support)
+        // v2.38.2: When 'resources_explicit' is set, the user manually changed selections,
+        // so an EMPTY array means "deselect all" and must be compared too.
+        // Without the flag, empty is treated as "not sent" (protects against races).
         $new_resources = $new['selected_resources'] ?? array();
-        if (!empty($new_resources)) {
+        $resources_explicit = !empty($new['resources_explicit']);
+        
+        if (!empty($new_resources) || $resources_explicit) {
             $existing_resources = $this->get_existing_resource_assignments($existing['appointment_id']);
             
             if ($this->resources_differ($existing_resources, $new_resources)) {
@@ -193,7 +198,8 @@ class Amelia_CPT_Sync_ART_Booking_Manager {
                 );
                 amelia_cpt_sync_debug_log('ART Booking Manager: Resource change detected', array(
                     'existing' => $existing_resources,
-                    'new' => $new_resources
+                    'new' => $new_resources,
+                    'explicit' => $resources_explicit
                 ));
             }
         }

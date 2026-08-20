@@ -269,12 +269,18 @@ class ART_Resource_Hooks {
                 $quantity_per_booking = $config->mode_settings['quantity_per_booking'] ?? 1;
                 
                 // Check if user manually selected a resource
+                // v2.38.2: selected entries may be {resource_id, quantity} objects OR flat IDs
                 $selected = $booking_data['selected_resources'] ?? array();
+                $selected_id = null;
+                if (!empty($selected)) {
+                    $first_sel = reset($selected);
+                    $selected_id = is_array($first_sel) ? intval($first_sel['resource_id'] ?? 0) : intval($first_sel);
+                }
                 
-                if (!empty($selected) && in_array($selected[0], $pool_resource_ids)) {
+                if ($selected_id && in_array($selected_id, array_map('intval', $pool_resource_ids))) {
                     // Use user's manual selection
-                    $resource_ids = array($selected[0]);
-                    amelia_cpt_sync_debug_log('ART Resource Hooks: Using manually selected resource: #' . $selected[0]);
+                    $resource_ids = array($selected_id);
+                    amelia_cpt_sync_debug_log('ART Resource Hooks: Using manually selected resource: #' . $selected_id);
                 } elseif (!empty($pool_resource_ids)) {
                     // Auto-select based on strategy (first available for now)
                     $resource_ids = array($pool_resource_ids[0]);
@@ -361,6 +367,14 @@ class ART_Resource_Hooks {
         
         $service_id = $booking_data['service_id'] ?? null;
         $selected_resources = $booking_data['selected_resources'] ?? array();
+        $resources_explicit = !empty($booking_data['resources_explicit']);
+        
+        // v2.38.2: Explicit empty selection = user deselected everything - release and stop
+        if ($service_id && empty($selected_resources) && $resources_explicit) {
+            amelia_cpt_sync_debug_log('ART Resource Hooks: Explicit deselect-all - releasing all resources for request #' . $request_id);
+            $this->resource_manager->release_resources($request_id);
+            return;
+        }
         
         if (!$service_id || empty($selected_resources)) {
             amelia_cpt_sync_debug_log('ART Resource Hooks: No resources to update (service_id: ' . $service_id . ', selected: ' . count($selected_resources) . ')');

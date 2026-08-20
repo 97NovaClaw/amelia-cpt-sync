@@ -1450,10 +1450,10 @@ class Amelia_CPT_Sync_Admin_Settings {
                     
                     <button type="button" 
                             id="add-new-pool-resource-trigger" 
-                            class="button button-secondary"
-                            style="margin-bottom: 12px;">
-                        <span class="dashicons dashicons-plus-alt" style="margin-top: 3px;"></span>
-                        <?php _e('Add New Resource to Pool', 'amelia-cpt-sync'); ?>
+                            class="button button-link"
+                            style="margin-top: 8px; margin-bottom: 12px; color: #1A84EE; font-size: 12px;">
+                        <span class="dashicons dashicons-plus-alt" style="font-size: 14px; margin-top: 2px;"></span>
+                        <?php _e('Create New Resource', 'amelia-cpt-sync'); ?>
                     </button>
                     
                     <!-- Repeater Table (hidden initially) -->
@@ -2264,10 +2264,45 @@ class Amelia_CPT_Sync_Admin_Settings {
                     });
                 });
                 
-                // Dedicated mode: Show create form on button click
+                // Dedicated mode: Show create form on button click + wire into save flow
                 $('#dedicated-create-resource-trigger').on('click', function() {
                     $(this).hide();
                     $('#dedicated-new-resource-form').show();
+                    
+                    // Uncheck any transition radio (create takes over the selection)
+                    $('input[name="resource_config[transition_resource_id]"]').prop('checked', false);
+                    
+                    // Wire into the mirrored save flow: action=create with form values
+                    var newName = $('#dedicated_new_resource_name').val();
+                    var newQty = parseInt($('#dedicated_new_resource_qty').val()) || 1;
+                    
+                    $('#resource_action').val('create');
+                    $('#selected_resource_id').val('new');
+                    $('#resource_name').val(newName);
+                    $('#resource_quantity').val(newQty);
+                    
+                    if (window.resourceModalState) {
+                        window.resourceModalState.pendingAction = 'create';
+                    }
+                    
+                    console.log('[Dedicated Create] Wired create action: ' + newName + ' (qty: ' + newQty + ')');
+                });
+                
+                // Dedicated mode: Keep hidden fields in sync as user edits the create form
+                $('#dedicated_new_resource_name, #dedicated_new_resource_qty').on('input change', function() {
+                    $('#resource_name').val($('#dedicated_new_resource_name').val());
+                    $('#resource_quantity').val(parseInt($('#dedicated_new_resource_qty').val()) || 1);
+                });
+                
+                // Dedicated mode: Selecting a transition radio cancels the create form
+                $(document).on('change', 'input[name="resource_config[transition_resource_id]"]', function() {
+                    if ($(this).is(':checked')) {
+                        $('#dedicated-new-resource-form').hide();
+                        $('#dedicated-create-resource-trigger').show();
+                        if (window.resourceModalState) {
+                            window.resourceModalState.pendingAction = 'switch';
+                        }
+                    }
                 });
             });
             </script>
