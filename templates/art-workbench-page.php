@@ -396,7 +396,23 @@ $status_colors = array(
                     $start_display = '—';
                     if (!empty($request->start_datetime)) {
                         $start_date = get_date_from_gmt($request->start_datetime);
-                        $start_display = date_i18n('M j, Y, g:i A', strtotime($start_date));
+                        $start_is_midnight = (date('H:i:s', strtotime($start_date)) === '00:00:00');
+                        
+                        // Midnight = "date only" convention (Date Only / Date Range modes)
+                        $start_display = $start_is_midnight
+                            ? date_i18n('M j, Y', strtotime($start_date))
+                            : date_i18n('M j, Y, g:i A', strtotime($start_date));
+                        
+                        // Multi-day request: append the end so it doesn't read as same-day
+                        if (!empty($request->end_datetime)) {
+                            $end_date_local = get_date_from_gmt($request->end_datetime);
+                            if (date('Y-m-d', strtotime($end_date_local)) !== date('Y-m-d', strtotime($start_date))) {
+                                $end_is_midnight = (date('H:i:s', strtotime($end_date_local)) === '00:00:00');
+                                $start_display .= ' → ' . ($end_is_midnight
+                                    ? date_i18n('M j, Y', strtotime($end_date_local))
+                                    : date_i18n('M j, Y, g:i A', strtotime($end_date_local)));
+                            }
+                        }
                     }
                     
                     $detail_url = add_query_arg(

@@ -368,6 +368,22 @@ if ($action === 'delete' && !empty($form_id) && check_admin_referer('art_delete_
                                 <label>
                                     <input type="radio" 
                                            name="logic[duration_mode]" 
+                                           value="split_datetime" 
+                                           class="duration-mode-radio"
+                                           <?php checked($logic['duration_mode'] ?? 'manual', 'split_datetime'); ?>>
+                                    Start Date &amp; Time + End Date &amp; Time (separate fields, plugin combines)
+                                </label><br>
+                                <label>
+                                    <input type="radio" 
+                                           name="logic[duration_mode]" 
+                                           value="date_range" 
+                                           class="duration-mode-radio"
+                                           <?php checked($logic['duration_mode'] ?? 'manual', 'date_range'); ?>>
+                                    Start Date + End Date (dates only, admin fills times)
+                                </label><br>
+                                <label>
+                                    <input type="radio" 
+                                           name="logic[duration_mode]" 
                                            value="start_duration" 
                                            class="duration-mode-radio"
                                            <?php checked($logic['duration_mode'] ?? 'manual', 'start_duration'); ?>>
@@ -406,7 +422,9 @@ if ($action === 'delete' && !empty($form_id) && check_admin_referer('art_delete_
                                     Manual Entry (admin fills all in workbench)
                                 </label>
                                 <p class="description">
-                                    <strong>Start + End:</strong> Form has separate start and end datetime fields.<br>
+                                    <strong>Start + End:</strong> Form has separate start and end datetime fields (each field is a full date+time).<br>
+                                    <strong>Start Date &amp; Time + End Date &amp; Time:</strong> Form has separate date and time fields. Map them to the "Date/Time Pieces" destinations and the plugin combines them and calculates duration. End date is optional: leave it hidden for same-day requests (an end time at or before the start time rolls to the next day, e.g. 8 PM &ndash; 2 AM).<br>
+                                    <strong>Start Date + End Date:</strong> Form only captures a date range (multi-date requests, no times). Admin fills times/duration in the workbench.<br>
                                     <strong>Start + Duration:</strong> Form has start time and duration fields (duration can be hours, minutes, seconds, or HH:MM).<br>
                                     <strong>Duration Only:</strong> Form only captures duration (e.g., "10 hour limo rental").<br>
                                     <strong>Start Only:</strong> Form only captures when service should start.<br>

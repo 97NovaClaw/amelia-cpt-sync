@@ -280,6 +280,10 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
         // Apply name field splitting if needed (before validation)
         $buckets = $this->process_name_fields($buckets, $form_config);
         
+        // Assemble date/time pieces into full datetimes (before validation, so the
+        // assembled values go through the normal local->UTC datetime validation)
+        $buckets = $this->assemble_datetime_pieces($buckets, $form_config);
+        
         // Validate data
         $validated = $this->validate_data($buckets, $form_config);
         
@@ -593,6 +597,135 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
     }
     
     /**
+     * Assemble separate date/time form pieces into full datetime strings
+     *
+     * Only runs for the piece-based duration modes ('split_datetime', 'date_range').
+     * Builds LOCAL datetime strings in Y-m-d H:i:s format so that validate_data()
+     * converts them to UTC through the standard validate_datetime() path.
+     * Piece keys are left in the buckets so critical-field checks still see them;
+     * apply_logic() removes them after validation.
+     *
+     * @param array $buckets Data buckets
+     * @param array $form_config Form configuration
+     * @return array Buckets with start_datetime/end_datetime assembled
+     */
+    private function assemble_datetime_pieces($buckets, $form_config) {
+        $duration_mode = $form_config['logic']['duration_mode'] ?? 'manual';
+        
+        if (!in_array($duration_mode, array('split_datetime', 'date_range'), true)) {
+            return $buckets;
+        }
+        
+        $req = $buckets['request'];
+        $start_date = $this->normalize_date_piece($req['start_date'] ?? '');
+        $end_date = $this->normalize_date_piece($req['end_date'] ?? '');
+        
+        if ($duration_mode === 'date_range') {
+            // Dates only - store at LOCAL midnight (converted to UTC by validation).
+            // Midnight is the existing "date only, no time chosen" convention;
+            // staff fill times and duration in the workbench.
+            if ($start_date) {
+                $buckets['request']['start_datetime'] = $start_date . ' 00:00:00';
+            }
+            if ($end_date) {
+                $buckets['request']['end_datetime'] = $end_date . ' 00:00:00';
+            }
+            
+            amelia_cpt_sync_debug_log('ART Assembly (date_range): start=' . ($start_date ?: 'none') . ', end=' . ($end_date ?: 'none'));
+            
+            return $buckets;
+        }
+        
+        // split_datetime: start date + start time + end time (+ optional end date)
+        $start_time = $this->normalize_time_piece($req['start_time'] ?? '');
+        $end_time = $this->normalize_time_piece($req['end_time'] ?? '');
+        
+        if ($start_date && $start_time) {
+            $buckets['request']['start_datetime'] = $start_date . ' ' . $start_time;
+        }
+        
+        if ($end_time) {
+            // No end date submitted = same-day request (the form's multi-date
+            // toggle simply hides the end date field)
+            $resolved_end_date = $end_date ?: $start_date;
+            
+            // Overnight rollover: same-day request ending at/before its start time
+            // means the booking crosses midnight (e.g. 8 PM - 2 AM) - roll to next day
+            if (!$end_date && $start_date && $start_time && strtotime($end_time) <= strtotime($start_time)) {
+                $resolved_end_date = date('Y-m-d', strtotime($start_date . ' +1 day'));
+                amelia_cpt_sync_debug_log('ART Assembly: End time <= start time with no end date - rolled end to next day (' . $resolved_end_date . ')');
+            }
+            
+            if ($resolved_end_date) {
+                $buckets['request']['end_datetime'] = $resolved_end_date . ' ' . $end_time;
+            }
+        }
+        
+        amelia_cpt_sync_debug_log('ART Assembly (split_datetime): start=' . ($buckets['request']['start_datetime'] ?? 'none') . ', end=' . ($buckets['request']['end_datetime'] ?? 'none'));
+        
+        return $buckets;
+    }
+    
+    /**
+     * Normalize a date piece to Y-m-d
+     *
+     * @param string $input Raw date value from form
+     * @return string|false Y-m-d date or false if unparseable/empty
+     */
+    private function normalize_date_piece($input) {
+        $input = trim((string) $input);
+        
+        if ($input === '') {
+            return false;
+        }
+        
+        // Standard HTML date input / JFB date field format
+        $dt = DateTime::createFromFormat('Y-m-d', $input);
+        if ($dt !== false) {
+            return $dt->format('Y-m-d');
+        }
+        
+        $timestamp = strtotime($input);
+        if ($timestamp !== false) {
+            return date('Y-m-d', $timestamp);
+        }
+        
+        amelia_cpt_sync_debug_log('ART Assembly: Could not parse date piece: "' . $input . '"');
+        return false;
+    }
+    
+    /**
+     * Normalize a time piece to H:i:s
+     *
+     * @param string $input Raw time value from form
+     * @return string|false H:i:s time or false if unparseable/empty
+     */
+    private function normalize_time_piece($input) {
+        $input = trim((string) $input);
+        
+        if ($input === '') {
+            return false;
+        }
+        
+        $formats = array('H:i:s', 'H:i', 'g:i A', 'h:i A', 'g:iA', 'h:iA');
+        
+        foreach ($formats as $format) {
+            $dt = DateTime::createFromFormat($format, $input);
+            if ($dt !== false) {
+                return $dt->format('H:i:s');
+            }
+        }
+        
+        $timestamp = strtotime($input);
+        if ($timestamp !== false) {
+            return date('H:i:s', $timestamp);
+        }
+        
+        amelia_cpt_sync_debug_log('ART Assembly: Could not parse time piece: "' . $input . '"');
+        return false;
+    }
+    
+    /**
      * Validate and convert datetime to UTC
      *
      * @param string $input DateTime input
@@ -742,6 +875,18 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
         $duration_mode = $logic['duration_mode'] ?? 'manual';
         
         switch ($duration_mode) {
+            case 'split_datetime':
+                // Mode: Start date + start time + end time (+ optional end date for multi-date)
+                // Pieces were assembled into full datetimes before validation;
+                // remove them and fall through to the start_end math below.
+                unset(
+                    $buckets['request']['start_date'],
+                    $buckets['request']['start_time'],
+                    $buckets['request']['end_date'],
+                    $buckets['request']['end_time']
+                );
+                amelia_cpt_sync_debug_log('ART Logic: split_datetime mode - pieces assembled, using start_end math');
+                // Intentional fall-through to 'start_end'
             case 'start_end':
                 // Mode: Calculate duration from start and end times
                 if (!empty($buckets['request']['start_datetime']) && !empty($buckets['request']['end_datetime'])) {
@@ -804,6 +949,20 @@ class Amelia_CPT_Sync_ART_Hook_Handler {
                 // Duration will be calculated in detail view when admin sets end time
                 $buckets['request']['duration_seconds'] = 0;
                 amelia_cpt_sync_debug_log('ART Logic: Start-only mode, duration will be set in workbench');
+                break;
+                
+            case 'date_range':
+                // Mode: Start date + end date only (no times) - multi-date requests.
+                // Both dates stored at local midnight (assembled pre-validation);
+                // duration stays 0 and staff fill times/duration in the workbench.
+                unset(
+                    $buckets['request']['start_date'],
+                    $buckets['request']['start_time'],
+                    $buckets['request']['end_date'],
+                    $buckets['request']['end_time']
+                );
+                $buckets['request']['duration_seconds'] = 0;
+                amelia_cpt_sync_debug_log('ART Logic: date_range mode - dates stored at midnight, staff fill times in workbench');
                 break;
                 
             case 'date_only':

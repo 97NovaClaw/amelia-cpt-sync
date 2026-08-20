@@ -42,6 +42,15 @@ $destinations['Request Fields'] = array(
     'request.final_price'
 );
 
+// Date/time piece fields - assembled into full datetimes by the plugin
+// when duration mode is 'split_datetime' or 'date_range'
+$destinations['Date/Time Pieces (Split & Range modes)'] = array(
+    'request.start_date',
+    'request.start_time',
+    'request.end_date',
+    'request.end_time'
+);
+
 // Dynamic intake fields
 if (!empty($intake_field_defs)) {
     $destinations['Intake Fields'] = array();

@@ -622,17 +622,34 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                     $time_parts = explode(' ', $start_local);
                                     $just_time = $time_parts[1] ?? '00:00:00';
                                     
+                                    // Parse original end (if present) once - needed for multi-day display
+                                    $end_local = null;
+                                    if (!empty($request->original_end_datetime) && $request->original_end_datetime !== '0000-00-00 00:00:00') {
+                                        $end_local = get_date_from_gmt($request->original_end_datetime);
+                                    }
+                                    $is_multiday = $end_local && date('Y-m-d', strtotime($end_local)) !== date('Y-m-d', strtotime($start_local));
+                                    
                                     if ($just_time === '00:00:00') {
-                                        // Only date provided (Date Only mode)
-                                        $original_display[] = $date_str;
+                                        // Only date(s) provided (Date Only / Date Range modes)
+                                        if ($is_multiday) {
+                                            $end_date_str = date_i18n('M j', strtotime($end_local));
+                                            $original_display[] = "$date_str - $end_date_str";
+                                        } else {
+                                            $original_display[] = $date_str;
+                                        }
                                     } else {
                                         // Date and time provided
                                         $time_str = date_i18n('g:i A', strtotime($start_local));
                                         
-                                        if (!empty($request->original_end_datetime) && $request->original_end_datetime !== '0000-00-00 00:00:00') {
-                                            $end_local = get_date_from_gmt($request->original_end_datetime);
+                                        if ($end_local) {
                                             $end_time_str = date_i18n('g:i A', strtotime($end_local));
-                                            $original_display[] = "$date_str, $time_str - $end_time_str";
+                                            if ($is_multiday) {
+                                                // Multi-day: include the end date so a 2-day rental doesn't read as same-day
+                                                $end_date_str = date_i18n('M j', strtotime($end_local));
+                                                $original_display[] = "$date_str, $time_str - $end_date_str, $end_time_str";
+                                            } else {
+                                                $original_display[] = "$date_str, $time_str - $end_time_str";
+                                            }
                                         } else {
                                             $original_display[] = "$date_str, $time_str";
                                         }
