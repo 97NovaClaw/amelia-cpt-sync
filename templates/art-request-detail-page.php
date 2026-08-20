@@ -70,6 +70,19 @@ for ($seconds = $duration_interval_minutes * 60; $seconds <= $max_seconds; $seco
     );
 }
 
+// v2.40.1: Ensure the saved duration always appears as an option, even when it
+// doesn't match a preset interval (e.g. 13:21 from split date/time forms) or
+// exceeds the dropdown's max hours (multi-day requests)
+if (!empty($request->duration_seconds) && intval($request->duration_seconds) > 0) {
+    $saved_duration = intval($request->duration_seconds);
+    if (!in_array($saved_duration, array_column($duration_options, 'seconds'), true)) {
+        $duration_options[] = array(
+            'seconds' => $saved_duration,
+            'display' => sprintf('%02d:%02d', floor($saved_duration / 3600), floor(($saved_duration % 3600) / 60))
+        );
+    }
+}
+
 // Format dates for display
 $submitted_date = get_date_from_gmt($request->created_at);
 $submitted_display = date_i18n('M j, Y \a\t g:i A', strtotime($submitted_date));
