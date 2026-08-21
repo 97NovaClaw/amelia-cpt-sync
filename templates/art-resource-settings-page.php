@@ -71,6 +71,9 @@ $settings = get_option('art_resource_settings', array(
                             <option value="shared_pool" <?php selected($settings['default_mode'], 'shared_pool'); ?>>
                                 <?php _e('🏊 Resource Pool — Pick one available item from a group', 'amelia-cpt-sync'); ?>
                             </option>
+                            <option value="composite" <?php selected($settings['default_mode'], 'composite'); ?>>
+                                <?php _e('📦 Multi Resource — Needs several different items at once', 'amelia-cpt-sync'); ?>
+                            </option>
                         </select>
                         <p class="description">
                             <?php _e('New services will use this mode by default. Each service can override its mode in the service edit modal.', 'amelia-cpt-sync'); ?>
@@ -78,6 +81,7 @@ $settings = get_option('art_resource_settings', array(
                         <ul style="margin-top: 8px; margin-left: 20px; font-size: 13px; color: #64748B;">
                             <li><strong>🔗 Dedicated Resource:</strong> <?php _e('Each service always uses one specific item (e.g., a named vehicle, a specific room)', 'amelia-cpt-sync'); ?></li>
                             <li><strong>🏊 Resource Pool:</strong> <?php _e('Pick one available item from a group (e.g., any van from the fleet, any open room)', 'amelia-cpt-sync'); ?></li>
+                            <li><strong>📦 Multi Resource:</strong> <?php _e('Booking needs several different items at once, organized in requirement groups (e.g., a vehicle AND a driver kit)', 'amelia-cpt-sync'); ?></li>
                         </ul>
                     </td>
                 </tr>
@@ -185,14 +189,13 @@ $settings = get_option('art_resource_settings', array(
                 </tr>
             </table>
             
-            <!-- Future mode placeholder -->
-            <h3><?php _e('📦 Composite Mode', 'amelia-cpt-sync'); ?> <span style="color: #94A3B8; font-weight: normal; font-size: 14px;">(Future Enhancement)</span></h3>
-            <p style="color: #64748B; font-style: italic;">
-                <?php _e('For services requiring ALL of multiple specific resources (e.g., Camera + Lighting + Backdrop). Contact developer if needed.', 'amelia-cpt-sync'); ?>
+            <h3><?php _e('📦 Multi Resource Mode', 'amelia-cpt-sync'); ?> <span style="color: #10B981; font-weight: 600; font-size: 14px;">✓ Available (v2.37.0)</span></h3>
+            <p class="description">
+                <?php _e('For services requiring ALL of multiple items at once (e.g., Vehicle + Camera + Lighting). Requirement groups are configured per service — use the Resource Configuration table below.', 'amelia-cpt-sync'); ?>
             </p>
             
-            <h3><?php _e('Provider Bound Mode', 'amelia-cpt-sync'); ?> <span style="color: #666; font-weight: normal; font-size: 14px;">(Coming in Phase 3)</span></h3>
-            <p style="color: #666; font-style: italic;"><?php _e('Settings for provider-specific resources will be available in v2.25.0', 'amelia-cpt-sync'); ?></p>
+            <h3><?php _e('Provider Bound Mode', 'amelia-cpt-sync'); ?> <span style="color: #666; font-weight: normal; font-size: 14px;">(Future Enhancement)</span></h3>
+            <p style="color: #666; font-style: italic;"><?php _e('Settings for provider-specific resources are not yet available.', 'amelia-cpt-sync'); ?></p>
         </div>
         
         <?php submit_button(__('Save Settings', 'amelia-cpt-sync')); ?>
@@ -225,7 +228,93 @@ $settings = get_option('art_resource_settings', array(
             </tr>
         </table>
     </div>
+    
+    <!-- Resource Configuration Hub (v2.41.0) -->
+    <div class="art-settings-card" style="background: #fff; padding: 20px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <h2><?php _e('Resource Configuration', 'amelia-cpt-sync'); ?></h2>
+        <p class="description">
+            <?php _e('Every Amelia service and its current resource mode. Click Configure to change a service\'s mode, resources, and quantities — the same editor that appears when saving a service in Amelia.', 'amelia-cpt-sync'); ?>
+        </p>
+        
+        <?php
+        // List all visible services with their resource mode (NOTE: config column is amelia_service_id)
+        $hub_services = $wpdb->get_results(
+            "SELECT s.id, s.name, s.categoryId, cat.name AS category_name, c.resource_mode
+             FROM {$wpdb->prefix}amelia_services s
+             LEFT JOIN {$wpdb->prefix}art_resource_configs c ON c.amelia_service_id = s.id
+             LEFT JOIN {$wpdb->prefix}amelia_categories cat ON cat.id = s.categoryId
+             WHERE s.status = 'visible'
+             ORDER BY s.name ASC"
+        );
+        
+        $mode_badges = array(
+            'none'        => array('label' => __('No Resources', 'amelia-cpt-sync'),        'bg' => '#F1F5F9', 'color' => '#64748B'),
+            'mirrored'    => array('label' => __('🔗 Dedicated Resource', 'amelia-cpt-sync'), 'bg' => '#EDE9FE', 'color' => '#6D28D9'),
+            'shared_pool' => array('label' => __('🏊 Resource Pool', 'amelia-cpt-sync'),      'bg' => '#DBEAFE', 'color' => '#1D4ED8'),
+            'composite'   => array('label' => __('📦 Multi Resource', 'amelia-cpt-sync'),     'bg' => '#DCFCE7', 'color' => '#15803D'),
+        );
+        ?>
+        
+        <table class="widefat striped" id="art-resource-config-hub" style="margin-top: 12px;">
+            <thead>
+                <tr>
+                    <th style="width: 35%;"><?php _e('Service', 'amelia-cpt-sync'); ?></th>
+                    <th style="width: 25%;"><?php _e('Category', 'amelia-cpt-sync'); ?></th>
+                    <th style="width: 25%;"><?php _e('Resource Mode', 'amelia-cpt-sync'); ?></th>
+                    <th style="width: 15%;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($hub_services)): ?>
+                    <tr><td colspan="4"><?php _e('No visible services found in Amelia.', 'amelia-cpt-sync'); ?></td></tr>
+                <?php else: ?>
+                    <?php foreach ($hub_services as $svc):
+                        $badge = $mode_badges[$svc->resource_mode] ?? null;
+                    ?>
+                        <tr>
+                            <td><strong><?php echo esc_html($svc->name); ?></strong> <span style="color: #94A3B8; font-size: 11px;">#<?php echo esc_html($svc->id); ?></span></td>
+                            <td><?php echo esc_html($svc->category_name ?: '—'); ?></td>
+                            <td>
+                                <?php if ($badge): ?>
+                                    <span style="display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; background: <?php echo esc_attr($badge['bg']); ?>; color: <?php echo esc_attr($badge['color']); ?>;">
+                                        <?php echo esc_html($badge['label']); ?>
+                                    </span>
+                                <?php else: ?>
+                                    <span style="color: #94A3B8; font-style: italic; font-size: 12px;"><?php _e('Not configured', 'amelia-cpt-sync'); ?></span>
+                                <?php endif; ?>
+                            </td>
+                            <td style="text-align: right;">
+                                <button type="button"
+                                        class="button button-secondary art-hub-configure"
+                                        data-service-id="<?php echo esc_attr($svc->id); ?>"
+                                        data-service-name="<?php echo esc_attr($svc->name); ?>">
+                                    <?php _e('Configure', 'amelia-cpt-sync'); ?>
+                                </button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
 </div>
+
+<script>
+jQuery(document).ready(function($) {
+    // Resource Configuration hub: open the same service modal the Amelia save flow uses
+    $(document).on('click', '.art-hub-configure', function() {
+        var serviceId = $(this).data('service-id');
+        var serviceName = $(this).data('service-name');
+        
+        if (typeof window.ameliaCptSyncOpenServiceModal === 'function') {
+            console.log('[Resource Hub] Opening config modal for service #' + serviceId + ' (' + serviceName + ')');
+            window.ameliaCptSyncOpenServiceModal(serviceId, serviceName, false);
+        } else {
+            alert('<?php echo esc_js(__('The configuration modal script did not load. Please refresh the page.', 'amelia-cpt-sync')); ?>');
+        }
+    });
+});
+</script>
 
 <style>
 .art-settings-page {

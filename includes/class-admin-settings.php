@@ -136,8 +136,11 @@ class Amelia_CPT_Sync_Admin_Settings {
         $is_amelia_page = false;
         
         // Check multiple conditions
+        // v2.41.0: also load on the Resource Settings page (Resource Configuration hub
+        // opens the same service modal from its Configure buttons)
         if ((isset($_GET['page']) && strpos($_GET['page'], 'wpamelia') !== false) ||
             (isset($_GET['page']) && strpos($_GET['page'], 'amelia') !== false) ||
+            (isset($_GET['page']) && $_GET['page'] === 'art-resource-settings') ||
             ($current_screen && strpos($current_screen->id, 'amelia') !== false)) {
             $is_amelia_page = true;
         }
@@ -3249,10 +3252,12 @@ class Amelia_CPT_Sync_Admin_Settings {
      */
     public function add_custom_fields_modal_html() {
         // Check if we're on an Amelia page (broadly)
+        // v2.41.0: also print on the Resource Settings page for the Configuration hub
         $is_amelia_page = false;
-        
+
         if ((isset($_GET['page']) && strpos($_GET['page'], 'wpamelia') !== false) ||
-            (isset($_GET['page']) && strpos($_GET['page'], 'amelia') !== false)) {
+            (isset($_GET['page']) && strpos($_GET['page'], 'amelia') !== false) ||
+            (isset($_GET['page']) && $_GET['page'] === 'art-resource-settings')) {
             $is_amelia_page = true;
         }
         

@@ -675,6 +675,10 @@
         var taxonomyModalDialog = null;
         var pendingCategoryId = null;
         var pendingCategoryName = null;
+        
+        // v2.41.0: Expose the service modal loader for the Resource Configuration hub
+        // (Resource Settings page) so Configure buttons can open the same modal
+        window.ameliaCptSyncOpenServiceModal = showCustomFieldsPrompt;
     });
     
 })(jQuery);
