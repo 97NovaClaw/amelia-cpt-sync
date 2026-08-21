@@ -258,6 +258,17 @@ class ART_Resource_Hooks {
                 
                 // Get quantity needed for each resource (default 1)
                 $quantity_needed = $config->mode_settings['quantity_required'] ?? 1;
+                
+                // v2.42.0: Per-request quantity override from the selection object
+                $mirrored_selected = $booking_data['selected_resources'] ?? array();
+                if (!empty($mirrored_selected)) {
+                    $first_mirrored = reset($mirrored_selected);
+                    if (is_array($first_mirrored) && !empty($first_mirrored['quantity'])) {
+                        $quantity_needed = max(1, intval($first_mirrored['quantity']));
+                        amelia_cpt_sync_debug_log('ART Resource Hooks: Mirrored per-request qty override: ' . $quantity_needed);
+                    }
+                }
+                
                 foreach ($resource_ids as $rid) {
                     $quantities[] = $quantity_needed;
                 }
@@ -287,7 +298,17 @@ class ART_Resource_Hooks {
                     amelia_cpt_sync_debug_log('ART Resource Hooks: Auto-selected first pool resource: #' . $pool_resource_ids[0]);
                 }
                 
-                $quantities = array($quantity_per_booking);
+                // v2.42.0: Per-request quantity override from the selection object
+                $pool_qty = $quantity_per_booking;
+                if (!empty($selected)) {
+                    $first_pool_sel = reset($selected);
+                    if (is_array($first_pool_sel) && !empty($first_pool_sel['quantity'])) {
+                        $pool_qty = max(1, intval($first_pool_sel['quantity']));
+                        amelia_cpt_sync_debug_log('ART Resource Hooks: Pool per-request qty override: ' . $pool_qty);
+                    }
+                }
+                
+                $quantities = array($pool_qty);
                 break;
                 
             case 'composite':

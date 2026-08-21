@@ -5988,7 +5988,15 @@ jQuery(document).ready(function($) {
                 location_id: locationId,
                 persons: persons,
                 selected_resources: getSelectedResources(),
-                exclude_appointment_id: excludeAppointmentId
+                exclude_appointment_id: excludeAppointmentId,
+                // v2.42.0: Per-request quantity override (pool/mirrored) so the
+                // orchestrator checks against the requested amount, not the config default
+                requested_quantity: (function() {
+                    if (typeof resourceState === 'undefined' || !resourceState) return 0;
+                    if (resourceState.mode !== 'shared_pool' && resourceState.mode !== 'mirrored') return 0;
+                    var $sel = $('.resource-item.selected .pool-qty-select').first();
+                    return $sel.length ? (parseInt($sel.val()) || 0) : 0;
+                })()
             },
             success: function(response) {
                 if (response.success) {
@@ -6099,7 +6107,15 @@ jQuery(document).ready(function($) {
                 resourceState.selectedResourceId = savedRid;
                 $('#selected-resource-id').val(savedRid);
                 
-                console.log('ART: Saved ' + resourceState.mode + ' resource state applied: #' + savedRid);
+                // v2.42.0: Restore the SAVED quantity into the card's qty input
+                var savedQty = parseInt(savedResource.quantity_used || savedResource.quantity) || 0;
+                var $savedInput = $('.pool-qty-select[data-resource-id="' + savedRid + '"]').first();
+                if ($savedInput.length) {
+                    var maxSaved = parseInt($savedInput.data('max-qty')) || 1;
+                    $savedInput.val(savedQty > 0 ? savedQty : Math.min(poolDefaultQty(), maxSaved));
+                }
+                
+                console.log('ART: Saved ' + resourceState.mode + ' resource state applied: #' + savedRid + ' (qty: ' + (savedQty || 'default') + ')');
             }
         }
         
@@ -6902,17 +6918,25 @@ jQuery(document).ready(function($) {
             }
         }
         
-        // Optional: Quantity input for composite mode (between info and checkmark)
+        // Optional: Quantity input (composite mode via 7th arg; pool/mirrored get one
+        // too for the per-request quantity override - v2.42.0)
         var qtyInputHtml = '';
-        if (arguments.length > 6 && arguments[6] === true && status !== 'unavailable') {
-            // showCompositeQty flag passed as 7th argument
+        var isCompositeQty = (arguments.length > 6 && arguments[6] === true);
+        var isPoolQty = !isCompositeQty &&
+            (typeof resourceState !== 'undefined' && resourceState &&
+             (resourceState.mode === 'shared_pool' || resourceState.mode === 'mirrored'));
+        
+        if ((isCompositeQty || isPoolQty) && status !== 'unavailable') {
             var maxQty = (quantityInfo && quantityInfo.available) ? quantityInfo.available : 1;
             var isReadonly = (maxQty <= 1);
             var readonlyAttr = isReadonly ? 'readonly' : '';
             var readonlyStyle = isReadonly ? 'background: #F1F5F9; color: #64748B; cursor: default;' : '';
+            // Distinct class per mode: composite inputs feed group totals,
+            // pool/mirrored inputs feed the single-selection quantity override
+            var qtyClass = isCompositeQty ? 'composite-qty-select' : 'pool-qty-select';
             
             qtyInputHtml = '<div class="resource-qty-input" style="display: flex; align-items: center; gap: 4px; margin: 0 8px; flex-shrink: 0;">' +
-                '<input type="number" class="composite-qty-select" ' +
+                '<input type="number" class="' + qtyClass + '" ' +
                        'data-resource-id="' + id + '" ' +
                        'data-max-qty="' + maxQty + '" ' +
                        'min="0" max="' + maxQty + '" value="0" ' +
@@ -7146,23 +7170,87 @@ jQuery(document).ready(function($) {
             
         } else {
             // POOL / MIRRORED MODE: Single selection across all resources
+            resourceState.userTouchedResources = true;
+            var $poolInput = item.find('.pool-qty-select');
+            
             if (resourceState.selectedResourceId == resourceId) {
                 // Deselect
                 console.log('ART DEBUG: Deselecting resource');
                 item.removeClass('selected');
+                if ($poolInput.length) $poolInput.val(0);
                 resourceState.selectedResourceId = null;
                 $('#selected-resource-id').val('');
             } else {
                 // Select this one (clear all others)
                 console.log('ART DEBUG: Selecting resource', resourceId);
                 $('.resource-item').removeClass('selected');
+                $('.pool-qty-select').val(0);
                 item.addClass('selected');
+                if ($poolInput.length) {
+                    // v2.42.0: Prefill with the service's default quantity (clamped to available)
+                    var maxQ = parseInt($poolInput.data('max-qty')) || 1;
+                    $poolInput.val(Math.min(poolDefaultQty(), maxQ));
+                }
                 resourceState.selectedResourceId = resourceId;
                 $('#selected-resource-id').val(resourceId);
             }
             
             console.log('ART DEBUG: After resource click, selectedResourceId =', resourceState.selectedResourceId);
         }
+    });
+    
+    /**
+     * Default per-booking quantity from the service's resource config (v2.42.0)
+     */
+    function poolDefaultQty() {
+        var s = (resourceState.config && resourceState.config.mode_settings) || {};
+        if (resourceState.mode === 'mirrored') {
+            return parseInt(s.quantity_required) || 1;
+        }
+        return parseInt(s.quantity_per_booking) || 1;
+    }
+    
+    // Pool/mirrored: per-request quantity input (v2.42.0)
+    // Typing a quantity selects that card (single-select); 0 deselects it
+    $(document).on('change input', '.pool-qty-select', function(e) {
+        e.stopPropagation();
+        
+        resourceState.userTouchedResources = true;
+        
+        var $input = $(this);
+        var maxQty = parseInt($input.data('max-qty')) || 1;
+        var qty = parseInt($input.val()) || 0;
+        if (qty < 0) qty = 0;
+        if (qty > maxQty) qty = maxQty;
+        $input.val(qty);
+        
+        var $card = $input.closest('.resource-item');
+        var rid = $input.data('resource-id');
+        
+        if (qty > 0) {
+            // Single-select semantics: this card becomes THE selection
+            $('.resource-item').removeClass('selected');
+            $('.pool-qty-select').not($input).val(0);
+            $card.addClass('selected');
+            resourceState.selectedResourceId = rid;
+            $('#selected-resource-id').val(rid);
+        } else {
+            $card.removeClass('selected');
+            if (resourceState.selectedResourceId == rid) {
+                resourceState.selectedResourceId = null;
+                $('#selected-resource-id').val('');
+            }
+        }
+        
+        // Changing quantity on the current booking = exploring alternatives
+        if (artDetailData.hasActiveBooking && typeof bookingViewState !== 'undefined' && bookingViewState.mode === 'current') {
+            enterExploringMode();
+        }
+    });
+    
+    // Prevent pool qty input clicks from toggling the card
+    $(document).on('click', '.pool-qty-select', function(e) {
+        e.stopPropagation();
     });
     
     // Shared function: update composite group totals + visual state + resourceState
@@ -8224,9 +8312,16 @@ jQuery(document).ready(function($) {
             // and re-assignment don't downgrade it to 1 (v2.38.2 fix)
             var settings = resourceState.config?.mode_settings || {};
             var mirroredQty = parseInt(settings.quantity_required) || 1;
-            return settings.mirrored_resource_id 
-                ? [{ resource_id: parseInt(settings.mirrored_resource_id), quantity: mirroredQty }] 
-                : [];
+            
+            if (!settings.mirrored_resource_id) return [];
+            
+            // v2.42.0: Per-request override from the card's qty input (when > 0)
+            var $mirInput = $('.pool-qty-select[data-resource-id="' + settings.mirrored_resource_id + '"]').first();
+            if ($mirInput.length && parseInt($mirInput.val()) > 0) {
+                mirroredQty = parseInt($mirInput.val());
+            }
+            
+            return [{ resource_id: parseInt(settings.mirrored_resource_id), quantity: mirroredQty }];
         }
         
         if (resourceState.mode === 'shared_pool') {
@@ -8236,6 +8331,11 @@ jQuery(document).ready(function($) {
             
             // Priority 1: User clicked a resource card
             if (resourceState.selectedResourceId) {
+                // v2.42.0: Per-request override from the selected card's qty input (when > 0)
+                var $poolSelInput = $('.pool-qty-select[data-resource-id="' + resourceState.selectedResourceId + '"]').first();
+                if ($poolSelInput.length && parseInt($poolSelInput.val()) > 0) {
+                    poolQty = parseInt($poolSelInput.val());
+                }
                 return [{ resource_id: parseInt(resourceState.selectedResourceId), quantity: poolQty }];
             }
             

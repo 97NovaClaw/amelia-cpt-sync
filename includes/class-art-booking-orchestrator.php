@@ -216,7 +216,12 @@ class ART_Booking_Orchestrator {
         
         // Check each resource
         $exclude_id = !empty($params['exclude_appointment_id']) ? $params['exclude_appointment_id'] : null;
-        $quantity_needed = $config->mode_settings['quantity_required'] ?? 1;
+        
+        // v2.42.0: Per-request quantity override beats the service config default
+        $quantity_needed = !empty($params['requested_quantity'])
+            ? absint($params['requested_quantity'])
+            : ($config->mode_settings['quantity_required'] ?? 1);
+        amelia_cpt_sync_debug_log('ART Orchestrator: Mirrored qty needed: ' . $quantity_needed . (!empty($params['requested_quantity']) ? ' (per-request override)' : ' (service default)'));
         
         $all_resource_results = array();
         $any_hard_block = false;
@@ -363,7 +368,14 @@ class ART_Booking_Orchestrator {
         // Get pool configuration from mode_settings
         $pool_resource_ids = $config->mode_settings['pool_resource_ids'] ?? array();
         $selection_strategy = $config->mode_settings['selection_strategy'] ?? 'first_available';
-        $quantity_needed = $config->mode_settings['quantity_per_booking'] ?? 1;
+        
+        // v2.42.0: Per-request quantity override beats the service config default
+        $quantity_needed = !empty($params['requested_quantity'])
+            ? absint($params['requested_quantity'])
+            : ($config->mode_settings['quantity_per_booking'] ?? 1);
+        if (!empty($params['requested_quantity'])) {
+            amelia_cpt_sync_debug_log('ART Orchestrator: Pool qty needed: ' . $quantity_needed . ' (per-request override)');
+        }
         
         if (empty($pool_resource_ids)) {
             amelia_cpt_sync_debug_log('ART Orchestrator: No resources configured in pool');
