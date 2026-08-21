@@ -457,6 +457,12 @@ $status_colors = array(
                                 <span class="service-name"><?php echo esc_html($request->service_name); ?></span>
                             <?php elseif (!empty($request->service_id)): ?>
                                 <span class="service-id">Service #<?php echo esc_html($request->service_id); ?></span>
+                            <?php elseif (!empty($request->category_id)): ?>
+                                <?php // v2.43.0: category-only request - staff pick the vehicle via category scan ?>
+                                <span style="display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: #FEF3C7; color: #92400E;"
+                                      title="<?php esc_attr_e('Customer chose a category only - pick a vehicle on the request detail page', 'amelia-cpt-sync'); ?>">
+                                    <?php _e('Needs vehicle', 'amelia-cpt-sync'); ?>
+                                </span>
                             <?php else: ?>
                                 <span class="no-data">—</span>
                             <?php endif; ?>

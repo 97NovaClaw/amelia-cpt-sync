@@ -63,6 +63,8 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         
         // Resource System (Phase 1)
         add_action('wp_ajax_art_check_booking_availability', array($this, 'ajax_check_booking_availability'));
+        // Category scan (v2.43.0): check every service in a category through the orchestrator
+        add_action('wp_ajax_art_check_category_availability', array($this, 'ajax_check_category_availability'));
         add_action('wp_ajax_art_get_all_resources', array($this, 'ajax_get_all_resources'));
         add_action('wp_ajax_art_get_service_resource_config', array($this, 'ajax_get_service_resource_config'));
         add_action('wp_ajax_art_save_service_resource_config', array($this, 'ajax_save_service_resource_config'));
@@ -2030,6 +2032,136 @@ class Amelia_CPT_Sync_ART_Admin_Settings {
         }
     }
     
+    /**
+     * AJAX: Category scan (v2.43.0)
+     *
+     * Runs the orchestrator once per visible service in a category and returns
+     * one summary row per service. Read-only - no assignments are made.
+     * Rows are display-only summaries; interactive resource selection only
+     * begins after the employee picks a service (normal single-service flow).
+     */
+    public function ajax_check_category_availability() {
+        check_ajax_referer('art_nonce', 'nonce');
+
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+
+        $category_id = absint($_POST['category_id'] ?? 0);
+        $date = sanitize_text_field($_POST['date'] ?? '');
+        $time = sanitize_text_field($_POST['time'] ?? '');
+        $duration = absint($_POST['duration'] ?? 0);
+        $persons = absint($_POST['persons'] ?? 1);
+        $exclude_appointment_id = absint($_POST['exclude_appointment_id'] ?? 0);
+
+        if (!$category_id || !$date || !$time) {
+            wp_send_json_error(array('message' => __('Category, date and time are required for a scan', 'amelia-cpt-sync')));
+        }
+
+        global $wpdb;
+        $services = $wpdb->get_results($wpdb->prepare(
+            "SELECT id, name, duration FROM {$wpdb->prefix}amelia_services
+             WHERE categoryId = %d AND status = 'visible' ORDER BY name ASC",
+            $category_id
+        ));
+
+        if (empty($services)) {
+            wp_send_json_success(array('rows' => array()));
+        }
+
+        // Capacity lives on the vehicle CPT (capacity_high meta), linked via the
+        // configured service_id meta key
+        $main_settings = get_option('amelia_cpt_sync_settings', array());
+        $service_meta_key = $main_settings['field_mappings']['service_id'] ?? '_amelia_service_id';
+        $cpt_slug = $main_settings['cpt_slug'] ?? 'vehicles';
+
+        amelia_cpt_sync_debug_log('🔍 CATEGORY SCAN: ' . count($services) . ' services in category #' . $category_id . " ({$date} {$time}, duration: " . ($duration ?: 'per-service default') . ', persons: ' . $persons . ')');
+
+        $orchestrator = new ART_Booking_Orchestrator();
+        $rows = array();
+
+        foreach ($services as $svc) {
+            $svc_duration = ($duration > 0) ? $duration : intval($svc->duration);
+
+            $result = $orchestrator->check_full_availability(array(
+                'service_id' => intval($svc->id),
+                'date' => $date,
+                'time' => $time,
+                'duration' => $svc_duration,
+                'location_id' => 0,
+                'persons' => $persons,
+                'selected_resources' => array(),
+                'exclude_appointment_id' => $exclude_appointment_id
+            ));
+
+            // Derive a single status from providers + resource verdicts
+            $has_available_provider = false;
+            $has_soft_provider = false;
+            foreach (($result['providers'] ?? array()) as $p) {
+                $p_status = is_array($p) ? ($p['status'] ?? '') : '';
+                if ($p_status === 'available') {
+                    $has_available_provider = true;
+                } elseif ($p_status === 'might_conflict' || $p_status === 'force_book') {
+                    $has_soft_provider = true;
+                }
+            }
+
+            $resource_block = !empty($result['resource_block']);
+
+            if ($resource_block || (!$has_available_provider && !$has_soft_provider)) {
+                $status = 'blocked';
+            } elseif ($has_available_provider) {
+                $status = 'available';
+            } else {
+                $status = 'tentative';
+            }
+
+            // Capacity from the linked vehicle CPT post
+            $capacity = null;
+            $cpt_posts = get_posts(array(
+                'post_type' => $cpt_slug,
+                'meta_key' => $service_meta_key,
+                'meta_value' => $svc->id,
+                'posts_per_page' => 1,
+                'fields' => 'ids'
+            ));
+            if (!empty($cpt_posts)) {
+                $cap_raw = get_post_meta($cpt_posts[0], 'capacity_high', true);
+                if ($cap_raw !== '' && $cap_raw !== false) {
+                    $capacity = intval($cap_raw);
+                }
+            }
+
+            $rows[] = array(
+                'service_id' => intval($svc->id),
+                'name' => $svc->name,
+                'capacity' => $capacity,
+                'duration_used' => $svc_duration,
+                'duration_source' => ($duration > 0) ? 'request' : 'service_default',
+                'status' => $status,
+                'resource_mode' => $result['resource_mode'] ?? 'none',
+                'resource_summary' => $result['resource_message'] ?? '',
+                'providers_available' => count(array_filter(($result['providers'] ?? array()), function($p) {
+                    return is_array($p) && ($p['status'] ?? '') === 'available';
+                }))
+            );
+
+            amelia_cpt_sync_debug_log("  → Service #{$svc->id} ({$svc->name}): {$status} (capacity: " . ($capacity ?? 'n/a') . ", duration: {$svc_duration}s)");
+        }
+
+        // Available first, then by capacity fit (closest at/above persons first)
+        usort($rows, function($a, $b) use ($persons) {
+            $order = array('available' => 0, 'tentative' => 1, 'blocked' => 2);
+            $status_cmp = ($order[$a['status']] ?? 3) <=> ($order[$b['status']] ?? 3);
+            if ($status_cmp !== 0) return $status_cmp;
+            $a_fits = ($a['capacity'] !== null && $a['capacity'] >= $persons) ? ($a['capacity'] - $persons) : PHP_INT_MAX;
+            $b_fits = ($b['capacity'] !== null && $b['capacity'] >= $persons) ? ($b['capacity'] - $persons) : PHP_INT_MAX;
+            return $a_fits <=> $b_fits;
+        });
+
+        wp_send_json_success(array('rows' => $rows, 'persons' => $persons));
+    }
+
     /**
      * AJAX: Get all resources from Amelia
      */

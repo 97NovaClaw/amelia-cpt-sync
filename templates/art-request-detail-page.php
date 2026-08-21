@@ -860,9 +860,26 @@ $available_statuses = array('Requested', 'Responded', 'Tentative', 'Booked', 'Ab
                                     <span class="dashicons dashicons-visibility"></span>
                                     <?php _e('Show Calendar', 'amelia-cpt-sync'); ?>
                                 </button>
+                                
+                                <!-- Category Scan (v2.43.0): shown when a category is set but no service picked -->
+                                <button type="button" id="btn-category-scan" class="btn-primary" style="display: none;">
+                                    <span class="dashicons dashicons-search"></span>
+                                    <?php _e('Scan Category Availability', 'amelia-cpt-sync'); ?>
+                                </button>
                             </div>
                             
                             <div id="availability-status" style="margin-top: 12px; display: none;"></div>
+                            
+                            <!-- Category Scan results panel (v2.43.0) -->
+                            <div id="category-scan-panel" style="display: none; margin-top: 16px; border: 1px solid #E0E5F1; border-radius: 8px; background: #fff; overflow: hidden;">
+                                <div style="padding: 10px 14px; background: #F8FAFC; border-bottom: 1px solid #E0E5F1; display: flex; justify-content: space-between; align-items: center;">
+                                    <strong style="font-size: 13px; color: #334155;">
+                                        <?php _e('Vehicles in this category', 'amelia-cpt-sync'); ?>
+                                    </strong>
+                                    <span id="category-scan-meta" style="font-size: 11px; color: #64748B;"></span>
+                                </div>
+                                <div id="category-scan-results"></div>
+                            </div>
                         </div>
                         
                         <?php if ($active_booking): ?>
@@ -4391,9 +4408,147 @@ jQuery(document).ready(function($) {
     
     // Check on page load
     checkAvailabilityReady();
-    
+
     // Check after every relevant field change
     $('#pillar-service, #pillar-category, #pillar-location, #pillar-duration-selector, #pillar-date, #pillar-time').on('change', checkAvailabilityReady);
+
+    // === CATEGORY SCAN (v2.43.0) ===
+    // Shown when the request has a category but no service yet: scans every
+    // service in the category through the orchestrator (read-only summaries).
+    function updateCategoryScanVisibility() {
+        var hasCategory = !!$('#pillar-category').val();
+        var hasService = !!$('#pillar-service').val();
+        
+        if (hasCategory && !hasService) {
+            $('#btn-category-scan').show();
+        } else {
+            $('#btn-category-scan').hide();
+            $('#category-scan-panel').hide();
+        }
+    }
+    
+    updateCategoryScanVisibility();
+    $('#pillar-service, #pillar-category').on('change', updateCategoryScanVisibility);
+    
+    $('#btn-category-scan').on('click', function() {
+        var btn = $(this);
+        var categoryId = $('#pillar-category').val();
+        var dateStr = $('#pillar-date').val();
+        var timeStr = $('#pillar-time').val();
+        var duration = parseInt($('#pillar-duration-seconds').val()) || 0;
+        var persons = parseInt($('#pillar-persons').val()) || 1;
+        
+        if (!categoryId) return;
+        if (!dateStr || !timeStr) {
+            showNotice('<?php echo esc_js(__('Set a date and time before scanning the category', 'amelia-cpt-sync')); ?>', 'error');
+            return;
+        }
+        
+        var excludeAppointmentId = (artDetailData.hasActiveBooking && artDetailData.activeAppointmentId)
+            ? artDetailData.activeAppointmentId
+            : 0;
+        
+        btn.prop('disabled', true).find('.dashicons').addClass('spin');
+        $('#category-scan-results').html('<div style="padding: 20px; text-align: center; color: #64748B;"><?php echo esc_js(__('Scanning all vehicles in this category...', 'amelia-cpt-sync')); ?></div>');
+        $('#category-scan-panel').show();
+        
+        console.log('ART: Category scan started', { categoryId: categoryId, date: dateStr, time: timeStr, duration: duration, persons: persons });
+        
+        $.post(ajaxurl, {
+            action: 'art_check_category_availability',
+            nonce: artDetailData.nonce,
+            category_id: categoryId,
+            date: dateStr,
+            time: timeStr,
+            duration: duration,
+            persons: persons,
+            exclude_appointment_id: excludeAppointmentId
+        }, function(response) {
+            btn.prop('disabled', false).find('.dashicons').removeClass('spin');
+            
+            if (!response.success) {
+                $('#category-scan-results').html('<div style="padding: 16px; color: #991B1B;">' + (response.data && response.data.message ? response.data.message : 'Scan failed') + '</div>');
+                return;
+            }
+            
+            renderCategoryScanResults(response.data.rows || [], response.data.persons || persons);
+        }).fail(function() {
+            btn.prop('disabled', false).find('.dashicons').removeClass('spin');
+            $('#category-scan-results').html('<div style="padding: 16px; color: #991B1B;"><?php echo esc_js(__('Scan request failed. Please try again.', 'amelia-cpt-sync')); ?></div>');
+        });
+    });
+    
+    function renderCategoryScanResults(rows, persons) {
+        var $meta = $('#category-scan-meta');
+        var $results = $('#category-scan-results');
+        
+        if (!rows.length) {
+            $meta.text('');
+            $results.html('<div style="padding: 20px; text-align: center; color: #64748B;"><?php echo esc_js(__('No visible services found in this category.', 'amelia-cpt-sync')); ?></div>');
+            return;
+        }
+        
+        $meta.text(rows.length + ' <?php echo esc_js(__('vehicles checked', 'amelia-cpt-sync')); ?> · <?php echo esc_js(__('party size', 'amelia-cpt-sync')); ?> ' + persons);
+        
+        var statusChips = {
+            'available': { label: '<?php echo esc_js(__('Available', 'amelia-cpt-sync')); ?>', bg: '#DCFCE7', color: '#15803D' },
+            'tentative': { label: '<?php echo esc_js(__('Might Conflict', 'amelia-cpt-sync')); ?>', bg: '#FEF3C7', color: '#92400E' },
+            'blocked':   { label: '<?php echo esc_js(__('Unavailable', 'amelia-cpt-sync')); ?>', bg: '#FEE2E2', color: '#991B1B' }
+        };
+        
+        var html = '';
+        rows.forEach(function(row) {
+            var chip = statusChips[row.status] || statusChips.blocked;
+            var clickable = (row.status !== 'blocked');
+            
+            // Capacity badge vs party size
+            var capacityHtml = '';
+            if (row.capacity !== null && row.capacity !== undefined) {
+                var fits = row.capacity >= persons;
+                capacityHtml = '<span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: ' + (fits ? '#DCFCE7' : '#F1F5F9') + '; color: ' + (fits ? '#15803D' : '#64748B') + ';">' +
+                    '<?php echo esc_js(__('Seats', 'amelia-cpt-sync')); ?> ' + row.capacity + (fits ? ' ✓' : '') + '</span>';
+            }
+            
+            // Duration note when the scan used the service default (no request duration)
+            var durationNote = '';
+            if (row.duration_source === 'service_default') {
+                var hrs = Math.round(row.duration_used / 360) / 10;
+                durationNote = '<span style="font-size: 10px; color: #94A3B8;"><?php echo esc_js(__('checked at service default', 'amelia-cpt-sync')); ?> (' + hrs + 'h)</span>';
+            }
+            
+            html += '<div class="category-scan-row" data-service-id="' + row.service_id + '" data-clickable="' + (clickable ? '1' : '0') + '"' +
+                ' style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #F1F5F9; ' + (clickable ? 'cursor: pointer;' : 'opacity: 0.6;') + '">' +
+                '<div style="flex: 1; min-width: 0;">' +
+                    '<div style="font-weight: 600; font-size: 13px; color: #1E293B;">' + row.name + '</div>' +
+                    '<div style="font-size: 11px; color: #64748B;">' +
+                        (row.resource_summary ? row.resource_summary + ' · ' : '') +
+                        row.providers_available + ' <?php echo esc_js(__('provider(s) available', 'amelia-cpt-sync')); ?> ' +
+                        durationNote +
+                    '</div>' +
+                '</div>' +
+                capacityHtml +
+                '<span style="font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 10px; background: ' + chip.bg + '; color: ' + chip.color + ';">' + chip.label + '</span>' +
+                (clickable ? '<span class="dashicons dashicons-arrow-right-alt2" style="color: #94A3B8; font-size: 16px;"></span>' : '') +
+            '</div>';
+        });
+        
+        $results.html(html);
+    }
+    
+    // Scan row click: select that service and hand off to the normal flow
+    $(document).on('click', '.category-scan-row', function() {
+        if ($(this).data('clickable') != 1) return;
+        
+        var serviceId = $(this).data('service-id');
+        var serviceName = $(this).find('div > div').first().text();
+        
+        console.log('ART: Category scan - selected service #' + serviceId + ' (' + serviceName + ')');
+        
+        $('#pillar-service').val(String(serviceId)).trigger('change');
+        $('#category-scan-panel').hide();
+        
+        showNotice('<?php echo esc_js(__('Vehicle selected:', 'amelia-cpt-sync')); ?> ' + serviceName + '. <?php echo esc_js(__('Run Check Availability to continue.', 'amelia-cpt-sync')); ?>', 'success');
+    });
     
     // === LOAD LOCATIONS FROM API ===
     function loadLocations() {
